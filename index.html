@@ -13,7 +13,7 @@
 :root{
   --bg:#0b0d14;--bg2:#0e1019;--bg3:#11141f;--bg4:#151929;
   --border:#1a1f32;--border2:#222840;
-  --accent:#818cf8;--accent2:#6366f1;--accent-bg:#151c38;--accent-border:#2a3460;
+  --accent:#818cf8;--accent-bg:#151c38;--accent-border:#2a3460;
   --text1:#e2e6f8;--text2:#8892c0;--text3:#3d4870;
   --green:#34d399;--green-bg:#0a1e14;--green-border:#143020;
   --amber:#f59e0b;--red:#f87171;
@@ -56,7 +56,7 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM P
 
 .filters-bar{display:flex;align-items:center;gap:6px;padding:9px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--bg2)}
 .filter-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-right:2px;font-family:'IBM Plex Mono',monospace}
-.chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:0.5px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;white-space:nowrap;transition:all 0.15s;user-select:none}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:0.5px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;white-space:nowrap;transition:all 0.15s;user-select:none;position:relative}
 .chip:hover{border-color:var(--border2);color:var(--text2)}
 .chip.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 .chip i{font-size:11px}
@@ -64,7 +64,6 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM P
 .chip-clear:hover{color:var(--red)}
 
 .toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg)}
-.toolbar-left{display:flex;align-items:center;gap:8px}
 .results-count{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
 
 .table-container{flex:1;overflow:auto}
@@ -103,6 +102,11 @@ td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
 .dot-pause{background:var(--amber)}
 .dot-old{background:var(--border2)}
 
+.date-badge{display:inline-block;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text3)}
+.date-badge.today{color:var(--green)}
+.date-badge.yesterday{color:var(--amber)}
+.date-badge.old{color:var(--red);opacity:0.7}
+
 .partner-cell{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .partner-name{font-size:11px;color:var(--text2)}
 
@@ -112,6 +116,19 @@ tr:hover .row-actions{opacity:1}
 .act-btn:hover{color:var(--accent);background:var(--accent-bg)}
 .act-btn.danger:hover{color:var(--red);background:#1e0a0a}
 
+/* DROPDOWN */
+.filter-dropdown{position:relative;display:inline-block}
+.filter-menu{position:absolute;top:calc(100% + 4px);left:0;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;min-width:170px;z-index:50;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+.filter-menu.hidden{display:none}
+.filter-option{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text2);transition:background 0.1s;user-select:none}
+.filter-option:hover{background:var(--bg3)}
+.filter-option.selected{color:var(--accent)}
+.filter-search{padding:6px 10px;border-bottom:0.5px solid var(--border);margin-bottom:4px}
+.filter-search input{width:100%;background:none;border:none;outline:none;font-size:12px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif}
+.filter-search input::placeholder{color:var(--text3)}
+.filter-menu-list{max-height:200px;overflow-y:auto}
+
+/* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 .modal-overlay.hidden{display:none}
 .modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:12px;width:100%;max-width:700px;max-height:92vh;overflow-y:auto}
@@ -134,13 +151,13 @@ tr:hover .row-actions{opacity:1}
 .template-parse-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:9px;border:none;border-top:0.5px solid var(--border);background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;border-radius:0 0 8px 8px;transition:all 0.15s}
 .template-parse-btn:hover{background:#1c2540}
 .template-parse-btn i{font-size:14px}
+
 .parse-preview{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;margin-bottom:14px;overflow:hidden}
 .parse-preview-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:0.5px solid var(--border)}
 .parse-preview-title{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
 .parse-preview-count{font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace}
-.parse-preview-row{display:grid;grid-template-columns:40px 1fr 1fr 80px 80px;gap:8px;padding:6px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2);align-items:center}
+.parse-preview-row{display:grid;grid-template-columns:50px 1fr 1fr 80px 80px;gap:8px;padding:6px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2);align-items:center}
 .parse-preview-row:last-child{border-bottom:none}
-.parse-preview-row .geo-col{font-family:'IBM Plex Mono',monospace;color:var(--text1);font-weight:500}
 .parse-error{padding:10px 14px;font-size:11px;color:var(--red);font-family:'IBM Plex Mono',monospace}
 
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -153,28 +170,18 @@ tr:hover .row-actions{opacity:1}
 .form-select option{background:var(--bg2)}
 .form-divider{height:0.5px;background:var(--border);margin:16px 0}
 
-.export-modal .modal{max-width:600px}
 .export-text{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;line-height:1.8;white-space:pre-wrap;max-height:400px;overflow-y:auto}
 .export-count{font-size:11px;color:var(--text3);margin-bottom:10px;font-family:'IBM Plex Mono',monospace}
 
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--text3);gap:12px;text-align:center}
 .empty i{font-size:40px;color:var(--border2)}
 .loading{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text3);gap:10px;font-family:'IBM Plex Mono',monospace;font-size:12px}
-
 .toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;transition:all 0.3s;font-family:'IBM Plex Mono',monospace}
 .toast.success{background:#0a1e14;border:0.5px solid var(--green-border);color:var(--green)}
 .toast.error{background:#1e0a0a;border:0.5px solid #3a1212;color:var(--red)}
 .toast.hidden{opacity:0;transform:translateY(8px);pointer-events:none}
-
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
-
-.filter-dropdown{position:relative;display:inline-block}
-.filter-menu{position:absolute;top:calc(100% + 4px);left:0;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;min-width:160px;z-index:50;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
-.filter-menu.hidden{display:none}
-.filter-option{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text2);transition:background 0.1s;user-select:none}
-.filter-option:hover{background:var(--bg3)}
-.filter-option.selected{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -184,22 +191,18 @@ tr:hover .row-actions{opacity:1}
     <div class="topbar-right">
       <div class="search-box">
         <i class="ti ti-search"></i>
-        <input type="text" id="searchInput" placeholder="Бренд, GEO, партнёр...">
+        <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
       </div>
-      <button class="btn btn-primary" onclick="openAddModal()">
-        <i class="ti ti-plus"></i>Добавить офферы
-      </button>
+      <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
     </div>
   </div>
 
   <div class="projects-nav">
     <div class="proj-tab active" onclick="switchProject('smerch')" id="tab-smerch">
-      <i class="ti ti-building"></i>Smerch-Traffic
-      <span class="proj-count" id="count-smerch">0</span>
+      <i class="ti ti-building"></i>Smerch-Traffic<span class="proj-count" id="count-smerch">0</span>
     </div>
     <div class="proj-tab" onclick="switchProject('phantom')" id="tab-phantom">
-      <i class="ti ti-ghost"></i>Phantom Partners
-      <span class="proj-count" id="count-phantom">0</span>
+      <i class="ti ti-ghost"></i>Phantom Partners<span class="proj-count" id="count-phantom">0</span>
     </div>
   </div>
 
@@ -210,60 +213,104 @@ tr:hover .row-actions{opacity:1}
     <div class="stat"><span class="stat-val" id="s-partners">—</span><span class="stat-lbl">Партнёров</span></div>
   </div>
 
-  <div class="filters-bar">
+  <div class="filters-bar" id="filtersBar">
     <span class="filter-label">Фильтры</span>
+
+    <!-- GEO filter with text search -->
     <div class="filter-dropdown">
-      <div class="chip" id="chip-status" onclick="toggleFilterMenu('status')"><i class="ti ti-circle-dot"></i>Статус</div>
-      <div class="filter-menu hidden" id="menu-status">
-        <div class="filter-option" onclick="setFilter('status','active')"><i class="ti ti-circle-check"></i>Активен</div>
-        <div class="filter-option" onclick="setFilter('status','pause')"><i class="ti ti-circle-pause"></i>Пауза</div>
-        <div class="filter-option" onclick="setFilter('status','old')"><i class="ti ti-circle-x"></i>Устарел</div>
+      <div class="chip" id="chip-geo" onclick="toggleFilterMenu('geo')"><i class="ti ti-world"></i>GEO</div>
+      <div class="filter-menu hidden" id="menu-geo">
+        <div class="filter-search"><input type="text" id="geo-search" placeholder="Введи GEO (IT, DE...)" oninput="filterGeoList()"></div>
+        <div class="filter-menu-list" id="geo-list"></div>
       </div>
     </div>
+
+    <!-- Source filter -->
     <div class="filter-dropdown">
       <div class="chip" id="chip-source" onclick="toggleFilterMenu('source')"><i class="ti ti-arrow-up-right"></i>Источник</div>
       <div class="filter-menu hidden" id="menu-source">
-        <div class="filter-option" onclick="setFilter('source','SEO')">SEO</div>
-        <div class="filter-option" onclick="setFilter('source','FB')">FB</div>
-        <div class="filter-option" onclick="setFilter('source','PPC')">PPC</div>
-        <div class="filter-option" onclick="setFilter('source','Push')">Push</div>
-        <div class="filter-option" onclick="setFilter('source','Social')">Social</div>
-        <div class="filter-option" onclick="setFilter('source','Native')">Native</div>
-        <div class="filter-option" onclick="setFilter('source','Email')">Email</div>
+        <div class="filter-menu-list">
+          <div class="filter-option" onclick="setFilter('source','FB')">FB</div>
+          <div class="filter-option" onclick="setFilter('source','In-App')">In-App</div>
+          <div class="filter-option" onclick="setFilter('source','ASO')">ASO</div>
+          <div class="filter-option" onclick="setFilter('source','SEO')">SEO</div>
+          <div class="filter-option" onclick="setFilter('source','UAC')">UAC</div>
+          <div class="filter-option" onclick="setFilter('source','PPC')">PPC</div>
+          <div class="filter-option" onclick="setFilter('source','Sms/Email')">Sms/Email</div>
+          <div class="filter-option" onclick="setFilter('source','Influence')">Influence</div>
+          <div class="filter-option" onclick="setFilter('source','Tik-Tok')">Tik-Tok</div>
+        </div>
       </div>
     </div>
+
+    <!-- Game type -->
     <div class="filter-dropdown">
       <div class="chip" id="chip-game" onclick="toggleFilterMenu('game')"><i class="ti ti-device-gamepad-2"></i>Тип игры</div>
       <div class="filter-menu hidden" id="menu-game">
-        <div class="filter-option" onclick="setFilter('game','Slots')">Slots</div>
-        <div class="filter-option" onclick="setFilter('game','Crash')">Crash</div>
-        <div class="filter-option" onclick="setFilter('game','Mix')">Mix</div>
+        <div class="filter-menu-list">
+          <div class="filter-option" onclick="setFilter('game','Slots')">Slots</div>
+          <div class="filter-option" onclick="setFilter('game','Crash')">Crash</div>
+          <div class="filter-option" onclick="setFilter('game','Mix')">Mix</div>
+        </div>
       </div>
     </div>
+
+    <!-- KPI -->
     <div class="filter-dropdown">
       <div class="chip" id="chip-kpi" onclick="toggleFilterMenu('kpi')"><i class="ti ti-target"></i>KPI</div>
       <div class="filter-menu hidden" id="menu-kpi">
-        <div class="filter-option" onclick="setFilter('kpi','KPI')">KPI</div>
-        <div class="filter-option" onclick="setFilter('kpi','No KPI')">No KPI</div>
+        <div class="filter-menu-list">
+          <div class="filter-option" onclick="setFilter('kpi','KPI')">KPI</div>
+          <div class="filter-option" onclick="setFilter('kpi','No KPI')">No KPI</div>
+        </div>
       </div>
     </div>
+
+    <!-- Platform - dynamic -->
     <div class="filter-dropdown">
-      <div class="chip" id="chip-ptype" onclick="toggleFilterMenu('ptype')"><i class="ti ti-users"></i>Тип партнёра</div>
-      <div class="filter-menu hidden" id="menu-ptype">
-        <div class="filter-option" onclick="setFilter('ptype','Direct')">Direct</div>
-        <div class="filter-option" onclick="setFilter('ptype','Network')">Network</div>
+      <div class="chip" id="chip-platform" onclick="toggleFilterMenu('platform')"><i class="ti ti-layout-grid"></i>Платформа</div>
+      <div class="filter-menu hidden" id="menu-platform">
+        <div class="filter-menu-list" id="platform-list"></div>
       </div>
     </div>
+
+    <!-- Partner - dynamic -->
+    <div class="filter-dropdown">
+      <div class="chip" id="chip-partner" onclick="toggleFilterMenu('partner')"><i class="ti ti-users"></i>Партнёр</div>
+      <div class="filter-menu hidden" id="menu-partner">
+        <div class="filter-menu-list" id="partner-list"></div>
+      </div>
+    </div>
+
+    <!-- Partner type -->
+    <div class="filter-dropdown">
+      <div class="chip" id="chip-ptype" onclick="toggleFilterMenu('ptype')"><i class="ti ti-building"></i>Тип партнёра</div>
+      <div class="filter-menu hidden" id="menu-ptype">
+        <div class="filter-menu-list">
+          <div class="filter-option" onclick="setFilter('ptype','Direct')">Direct</div>
+          <div class="filter-option" onclick="setFilter('ptype','Network')">Network</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="filter-dropdown">
+      <div class="chip" id="chip-status" onclick="toggleFilterMenu('status')"><i class="ti ti-circle-dot"></i>Статус</div>
+      <div class="filter-menu hidden" id="menu-status">
+        <div class="filter-menu-list">
+          <div class="filter-option" onclick="setFilter('status','active')">Активен</div>
+          <div class="filter-option" onclick="setFilter('status','pause')">Пауза</div>
+          <div class="filter-option" onclick="setFilter('status','old')">Устарел</div>
+        </div>
+      </div>
+    </div>
+
     <span class="chip-clear hidden" id="clearFilters" onclick="clearAllFilters()"><i class="ti ti-x" style="font-size:10px"></i>Сбросить</span>
   </div>
 
   <div class="toolbar">
-    <div class="toolbar-left">
-      <span class="results-count" id="resultsCount"></span>
-    </div>
-    <button class="btn btn-green" id="exportBtn" onclick="openExport()" style="display:none">
-      <i class="ti ti-copy"></i>Скопировать для Telegram
-    </button>
+    <span class="results-count" id="resultsCount"></span>
+    <button class="btn btn-green" id="exportBtn" onclick="openExport()" style="display:none"><i class="ti ti-copy"></i>Скопировать для Telegram</button>
   </div>
 
   <div class="table-container">
@@ -283,6 +330,7 @@ tr:hover .row-actions{opacity:1}
           <th>Платформа</th>
           <th>Партнёр</th>
           <th>Статус</th>
+          <th onclick="sortBy('received_at')">Получен <i class="ti ti-selector"></i></th>
           <th></th>
         </tr>
       </thead>
@@ -291,7 +339,7 @@ tr:hover .row-actions{opacity:1}
   </div>
 </div>
 
-<!-- ADD MODAL -->
+<!-- ADD/EDIT MODAL -->
 <div class="modal-overlay hidden" id="modalOverlay" onclick="handleOverlayClick(event)">
   <div class="modal">
     <div class="modal-header">
@@ -304,25 +352,25 @@ tr:hover .row-actions{opacity:1}
         <button class="mode-btn" id="modeManual" onclick="setMode('manual')"><i class="ti ti-forms"></i>Ручной ввод</button>
       </div>
 
-      <!-- TEMPLATE MODE -->
       <div id="templateSection">
         <div class="template-area">
           <div class="template-hint">
             Формат: <span>GEO / Бренд / Источник / Тип / Ставка / Мин.деп / Капа / KPI / Платформа / Партнёр</span><br>
             Пропуск между слешами = поле неизвестно. Каждая строка = один оффер.
           </div>
-          <textarea id="templateText" placeholder="IT / Turbowinz / FB / Slots / 170 USD / 10 EUR / 50/day / No KPI / Soft2Bet / DEUS&#10;PL / Lanista / FB / Slots / $150 / 10 EUR / 15 FTD / KPI / Soft2Bet / Jack Lead&#10;BR / LuckySpin / SEO / Slots / $120 / / 30/day / No KPI / / Rich Traf"></textarea>
-          <button class="template-parse-btn" onclick="parseTemplate()">
-            <i class="ti ti-wand"></i>Распознать офферы
-          </button>
+          <textarea id="templateText" placeholder="IT / Turbowinz / FB / Slots / 170 USD / 10 EUR / 50/day / No KPI / Soft2Bet / DEUS&#10;PL / Lanista / FB / Slots / $150 / 10 EUR / 15 FTD / KPI / Soft2Bet / Jack Lead"></textarea>
+          <button class="template-parse-btn" onclick="parseTemplate()"><i class="ti ti-wand"></i>Распознать офферы</button>
         </div>
         <div id="previewSection" class="hidden">
           <div class="parse-preview" id="parsePreview"></div>
-          <p style="font-size:11px;color:var(--text3);margin-bottom:14px;font-family:'IBM Plex Mono',monospace">Проверь данные — если всё верно, нажми «Сохранить всё»</p>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:10px;font-family:'IBM Plex Mono',monospace">Проверь данные — если всё верно, нажми «Сохранить всё»</p>
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Дата получения офферов</label>
+            <input class="form-input" type="date" id="bulk-date" style="max-width:200px">
+          </div>
         </div>
       </div>
 
-      <!-- MANUAL MODE -->
       <div id="manualSection" class="hidden">
         <div class="form-grid">
           <div class="form-group"><label class="form-label">GEO</label><input class="form-input" id="f-geo" placeholder="IT, BR, PL..."></div>
@@ -331,7 +379,8 @@ tr:hover .row-actions{opacity:1}
           <div class="form-group"><label class="form-label">Источник трафика</label>
             <select class="form-select" id="f-source">
               <option value="">— выбрать —</option>
-              <option>SEO</option><option>FB</option><option>PPC</option><option>Push</option><option>Social</option><option>Native</option><option>Email</option><option>Other</option>
+              <option>FB</option><option>In-App</option><option>ASO</option><option>SEO</option>
+              <option>UAC</option><option>PPC</option><option>Sms/Email</option><option>Influence</option><option>Tik-Tok</option>
             </select>
           </div>
           <div class="form-group"><label class="form-label">Тип игры</label>
@@ -365,6 +414,7 @@ tr:hover .row-actions{opacity:1}
               <option value="old">Устарел</option>
             </select>
           </div>
+          <div class="form-group"><label class="form-label">Дата получения</label><input class="form-input" type="date" id="f-date"></div>
           <div class="form-group full"><label class="form-label">Заметки</label><input class="form-input" id="f-notes" placeholder="Любые пометки..."></div>
         </div>
       </div>
@@ -377,8 +427,8 @@ tr:hover .row-actions{opacity:1}
 </div>
 
 <!-- EXPORT MODAL -->
-<div class="modal-overlay hidden export-modal" id="exportOverlay" onclick="handleExportClick(event)">
-  <div class="modal">
+<div class="modal-overlay hidden" id="exportOverlay" onclick="handleExportClick(event)">
+  <div class="modal" style="max-width:600px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-copy"></i>Экспорт для Telegram</span>
       <button class="act-btn" onclick="closeExport()"><i class="ti ti-x"></i></button>
@@ -420,6 +470,10 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', e => {
     if (!e.target.closest('.filter-dropdown')) closeAllMenus();
   });
+  // default date = today
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = today;
+  document.getElementById('bulk-date').value = today;
 });
 
 async function loadOffers() {
@@ -428,13 +482,17 @@ async function loadOffers() {
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); showLoading(false); return; }
   allOffers = data || [];
   updateCounts();
+  buildDynamicFilters();
   renderTable();
   showLoading(false);
 }
 
 function showLoading(v) {
   document.getElementById('loadingState').classList.toggle('hidden', !v);
-  if (v) { document.getElementById('offersTable').classList.add('hidden'); document.getElementById('emptyState').classList.add('hidden'); }
+  if (v) {
+    document.getElementById('offersTable').classList.add('hidden');
+    document.getElementById('emptyState').classList.add('hidden');
+  }
 }
 
 function switchProject(p) {
@@ -442,71 +500,52 @@ function switchProject(p) {
   filters = {};
   updateChips();
   document.getElementById('clearFilters').classList.add('hidden');
-  ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x).classList.toggle('active', x === p));
+  ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x).classList.toggle('active', x===p));
+  buildDynamicFilters();
   renderTable();
 }
 
 function updateCounts() {
-  document.getElementById('count-smerch').textContent = allOffers.filter(o => o.project === 'smerch').length;
-  document.getElementById('count-phantom').textContent = allOffers.filter(o => o.project === 'phantom').length;
+  document.getElementById('count-smerch').textContent = allOffers.filter(o=>o.project==='smerch').length;
+  document.getElementById('count-phantom').textContent = allOffers.filter(o=>o.project==='phantom').length;
 }
 
-// ── TEMPLATE PARSING ──────────────────────────────────
-function parseTemplate() {
-  const text = document.getElementById('templateText').value.trim();
-  if (!text) return;
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  parsedOffers = [];
-  const errors = [];
+// ── DYNAMIC FILTERS (platform, partner, geo) ──────────
+function buildDynamicFilters() {
+  const proj = allOffers.filter(o => o.project === currentProject);
 
-  lines.forEach((line, i) => {
-    const parts = line.split('/').map(p => p.trim());
-    if (parts.length < 3) { errors.push(`Строка ${i+1}: слишком мало полей`); return; }
-    const [geo, brand, source, game_type, rate, min_deposit, capa, kpi, platform, partner] = parts;
-    parsedOffers.push({
-      project: currentProject,
-      geo: geo || null,
-      brand: brand || null,
-      traffic_source: source || null,
-      game_type: game_type || null,
-      rate: rate || null,
-      min_deposit: min_deposit || null,
-      capa: capa || null,
-      kpi: kpi || null,
-      platform: platform || null,
-      partner: partner || null,
-      partner_type: null,
-      status: 'active',
-      notes: null,
-    });
-  });
+  // GEO list
+  const geos = [...new Set(proj.map(o=>o.geo).filter(Boolean))].sort();
+  renderDynamicList('geo-list', geos, 'geo');
 
-  const preview = document.getElementById('parsePreview');
-  const section = document.getElementById('previewSection');
+  // Platform list
+  const platforms = [...new Set(proj.map(o=>o.platform).filter(Boolean))].sort();
+  renderDynamicList('platform-list', platforms, 'platform');
 
-  if (errors.length > 0) {
-    preview.innerHTML = `<div class="parse-error">${errors.join('<br>')}</div>`;
-    section.classList.remove('hidden');
+  // Partner list
+  const partners = [...new Set(proj.map(o=>o.partner).filter(Boolean))].sort();
+  renderDynamicList('partner-list', partners, 'partner');
+}
+
+function renderDynamicList(listId, items, filterKey) {
+  const el = document.getElementById(listId);
+  if (items.length === 0) {
+    el.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
     return;
   }
-
-  preview.innerHTML = `
-    <div class="parse-preview-header">
-      <span class="parse-preview-title">Предпросмотр</span>
-      <span class="parse-preview-count">${parsedOffers.length} оффер(ов)</span>
+  el.innerHTML = items.map(item => `
+    <div class="filter-option ${filters[filterKey]===item?'selected':''}" onclick="setFilter('${filterKey}','${item.replace(/'/g,"\\'")}')">
+      ${filterKey==='geo' ? flag(item)+' ' : ''}${esc(item)}
     </div>
-    ${parsedOffers.map(o => `
-      <div class="parse-preview-row">
-        <span class="geo-col">${flag(o.geo)} ${o.geo||'—'}</span>
-        <span style="color:var(--text1);font-weight:500">${esc(o.brand)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.traffic_source)||'—'} • ${esc(o.game_type)||'—'}</span>
-        <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${esc(o.rate)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.partner)||'—'}</span>
-      </div>
-    `).join('')}
-  `;
-  section.classList.remove('hidden');
-  document.getElementById('saveBtn').innerHTML = `<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
+  `).join('');
+}
+
+function filterGeoList() {
+  const q = document.getElementById('geo-search').value.toLowerCase();
+  const proj = allOffers.filter(o => o.project === currentProject);
+  const geos = [...new Set(proj.map(o=>o.geo).filter(Boolean))].sort()
+    .filter(g => g.toLowerCase().includes(q));
+  renderDynamicList('geo-list', geos, 'geo');
 }
 
 // ── FILTERS ───────────────────────────────────────────
@@ -514,31 +553,61 @@ function toggleFilterMenu(key) {
   const m = document.getElementById('menu-'+key);
   const wasHidden = m.classList.contains('hidden');
   closeAllMenus();
-  if (wasHidden) m.classList.remove('hidden');
+  if (wasHidden) {
+    m.classList.remove('hidden');
+    if (key === 'geo') {
+      document.getElementById('geo-search').value = '';
+      filterGeoList();
+      document.getElementById('geo-search').focus();
+    }
+    if (key === 'platform') buildDynamicFilters();
+    if (key === 'partner') buildDynamicFilters();
+  }
 }
-function closeAllMenus() { document.querySelectorAll('.filter-menu').forEach(m => m.classList.add('hidden')); }
+
+function closeAllMenus() { document.querySelectorAll('.filter-menu').forEach(m=>m.classList.add('hidden')); }
 
 function setFilter(key, val) {
   if (filters[key] === val) delete filters[key];
   else filters[key] = val;
   updateChips();
-  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length === 0);
+  buildDynamicFilters();
+  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0);
   closeAllMenus();
   renderTable();
 }
 
-function clearAllFilters() { filters = {}; updateChips(); document.getElementById('clearFilters').classList.add('hidden'); renderTable(); }
+function clearAllFilters() {
+  filters = {};
+  updateChips();
+  buildDynamicFilters();
+  document.getElementById('clearFilters').classList.add('hidden');
+  renderTable();
+}
+
+function clearFilter(e, key) {
+  e.stopPropagation();
+  delete filters[key];
+  updateChips();
+  buildDynamicFilters();
+  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0);
+  renderTable();
+}
 
 function updateChips() {
   const defs = {
-    status: {icon:'ti-circle-dot', label:'Статус', vals:{active:'Активен',pause:'Пауза',old:'Устарел'}},
-    source: {icon:'ti-arrow-up-right', label:'Источник'},
-    game:   {icon:'ti-device-gamepad-2', label:'Тип игры'},
-    kpi:    {icon:'ti-target', label:'KPI'},
-    ptype:  {icon:'ti-users', label:'Тип партнёра'},
+    geo:      {icon:'ti-world',          label:'GEO'},
+    source:   {icon:'ti-arrow-up-right', label:'Источник'},
+    game:     {icon:'ti-device-gamepad-2',label:'Тип игры'},
+    kpi:      {icon:'ti-target',         label:'KPI'},
+    platform: {icon:'ti-layout-grid',    label:'Платформа'},
+    partner:  {icon:'ti-users',          label:'Партнёр'},
+    ptype:    {icon:'ti-building',       label:'Тип партнёра'},
+    status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',pause:'Пауза',old:'Устарел'}},
   };
   Object.entries(defs).forEach(([key, def]) => {
     const chip = document.getElementById('chip-'+key);
+    if (!chip) return;
     const val = filters[key];
     chip.classList.toggle('active', !!val);
     if (val) {
@@ -550,8 +619,6 @@ function updateChips() {
   });
 }
 
-function clearFilter(e, key) { e.stopPropagation(); delete filters[key]; updateChips(); document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0); renderTable(); }
-
 // ── SORT & RENDER ─────────────────────────────────────
 function sortBy(field) {
   if (sortField === field) sortDir *= -1; else { sortField = field; sortDir = 1; }
@@ -560,15 +627,18 @@ function sortBy(field) {
 
 function getFiltered() {
   let rows = allOffers.filter(o => o.project === currentProject);
-  if (filters.status) rows = rows.filter(o => o.status === filters.status);
-  if (filters.source) rows = rows.filter(o => (o.traffic_source||'').toLowerCase() === filters.source.toLowerCase());
-  if (filters.game)   rows = rows.filter(o => (o.game_type||'').toLowerCase() === filters.game.toLowerCase());
-  if (filters.kpi)    rows = rows.filter(o => (o.kpi||'') === filters.kpi);
-  if (filters.ptype)  rows = rows.filter(o => (o.partner_type||'') === filters.ptype);
-  if (searchQuery)    rows = rows.filter(o =>
+  if (filters.geo)      rows = rows.filter(o => o.geo === filters.geo);
+  if (filters.status)   rows = rows.filter(o => o.status === filters.status);
+  if (filters.source)   rows = rows.filter(o => (o.traffic_source||'').toLowerCase() === filters.source.toLowerCase());
+  if (filters.game)     rows = rows.filter(o => (o.game_type||'').toLowerCase() === filters.game.toLowerCase());
+  if (filters.kpi)      rows = rows.filter(o => (o.kpi||'') === filters.kpi);
+  if (filters.platform) rows = rows.filter(o => (o.platform||'') === filters.platform);
+  if (filters.partner)  rows = rows.filter(o => (o.partner||'') === filters.partner);
+  if (filters.ptype)    rows = rows.filter(o => (o.partner_type||'') === filters.ptype);
+  if (searchQuery)      rows = rows.filter(o =>
     (o.brand||'').toLowerCase().includes(searchQuery) ||
-    (o.geo||'').toLowerCase().includes(searchQuery) ||
-    (o.partner||'').toLowerCase().includes(searchQuery)
+    (o.partner||'').toLowerCase().includes(searchQuery) ||
+    (o.platform||'').toLowerCase().includes(searchQuery)
   );
   if (sortField) rows.sort((a,b) => ((a[sortField]||'') > (b[sortField]||'') ? 1 : -1) * sortDir);
   return rows;
@@ -578,7 +648,7 @@ function renderTable() {
   const rows = getFiltered();
   const proj = allOffers.filter(o => o.project === currentProject);
   document.getElementById('s-total').textContent = proj.length;
-  document.getElementById('s-active').textContent = proj.filter(o => o.status === 'active').length;
+  document.getElementById('s-active').textContent = proj.filter(o=>o.status==='active').length;
   document.getElementById('s-geo').textContent = new Set(proj.map(o=>o.geo).filter(Boolean)).size;
   document.getElementById('s-partners').textContent = new Set(proj.map(o=>o.partner).filter(Boolean)).size;
   document.getElementById('resultsCount').textContent = `${rows.length} оффер(ов)`;
@@ -605,6 +675,7 @@ function renderTable() {
       <td>${o.platform?`<span style="color:var(--text3);font-size:11px">${esc(o.platform)}</span>`:'<span class="td-empty">—</span>'}</td>
       <td><div class="partner-cell">${o.partner?`<span class="partner-name">${esc(o.partner)}</span>`:'<span class="td-empty">—</span>'}${o.partner_type?`<span class="badge ${o.partner_type==='Direct'?'badge-direct':'badge-network'}" style="font-size:10px;padding:1px 5px">${o.partner_type}</span>`:''}</div></td>
       <td>${statusBadge(o.status)}</td>
+      <td>${dateBadge(o.received_at)}</td>
       <td><div class="row-actions">
         <button class="act-btn" onclick="editOffer('${o.id}')"><i class="ti ti-edit"></i></button>
         <button class="act-btn danger" onclick="deleteOffer('${o.id}')"><i class="ti ti-trash"></i></button>
@@ -615,30 +686,94 @@ function renderTable() {
 
 function flag(geo) {
   if (!geo) return '';
-  const f = {BR:'🇧🇷',IN:'🇮🇳',PL:'🇵🇱',NG:'🇳🇬',MX:'🇲🇽',TR:'🇹🇷',PH:'🇵🇭',DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',PT:'🇵🇹',RO:'🇷🇴',HU:'🇭🇺',CZ:'🇨🇿',SK:'🇸🇰',BG:'🇧🇬',GR:'🇬🇷',UA:'🇺🇦',KZ:'🇰🇿',AZ:'🇦🇿',UZ:'🇺🇿',TH:'🇹🇭',VN:'🇻🇳',ID:'🇮🇩',MY:'🇲🇾',ZA:'🇿🇦',KE:'🇰🇪',GH:'🇬🇭',AR:'🇦🇷',CL:'🇨🇱',CO:'🇨🇴',PE:'🇵🇪',CA:'🇨🇦',US:'🇺🇸',GB:'🇬🇧',AU:'🇦🇺',NZ:'🇳🇿',JP:'🇯🇵',KR:'🇰🇷',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',CH:'🇨🇭',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮'};
-  return f[geo.trim().toUpperCase()] || '';
+  const f={BR:'🇧🇷',IN:'🇮🇳',PL:'🇵🇱',NG:'🇳🇬',MX:'🇲🇽',TR:'🇹🇷',PH:'🇵🇭',DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',PT:'🇵🇹',RO:'🇷🇴',HU:'🇭🇺',CZ:'🇨🇿',SK:'🇸🇰',BG:'🇧🇬',GR:'🇬🇷',UA:'🇺🇦',KZ:'🇰🇿',AZ:'🇦🇿',UZ:'🇺🇿',TH:'🇹🇭',VN:'🇻🇳',ID:'🇮🇩',MY:'🇲🇾',ZA:'🇿🇦',KE:'🇰🇪',GH:'🇬🇭',AR:'🇦🇷',CL:'🇨🇱',CO:'🇨🇴',PE:'🇵🇪',CA:'🇨🇦',US:'🇺🇸',GB:'🇬🇧',AU:'🇦🇺',NZ:'🇳🇿',JP:'🇯🇵',KR:'🇰🇷',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',CH:'🇨🇭',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮',RS:'🇷🇸',HR:'🇭🇷',SI:'🇸🇮',LT:'🇱🇹',LV:'🇱🇻',EE:'🇪🇪'};
+  return f[geo.trim().toUpperCase()]||'';
 }
 
 function sourceBadge(s) {
   if (!s) return '<span class="td-empty">—</span>';
-  const map = {SEO:'badge-seo',PPC:'badge-ppc',FB:'badge-fb',Push:'badge-push',Social:'badge-social',Native:'badge-native',Email:'badge-email'};
-  return `<span class="badge ${map[s]||'badge-other'}">${esc(s)}</span>`;
+  const m={FB:'badge-fb',SEO:'badge-seo',PPC:'badge-ppc',Push:'badge-push',Social:'badge-social',Native:'badge-native','Sms/Email':'badge-email','In-App':'badge-native',ASO:'badge-seo',UAC:'badge-ppc',Influence:'badge-social','Tik-Tok':'badge-social'};
+  return `<span class="badge ${m[s]||'badge-other'}">${esc(s)}</span>`;
 }
 
 function kpiBadge(k) {
   if (!k) return '<span class="td-empty">—</span>';
-  return k === 'KPI'
-    ? `<span class="badge badge-kpi">KPI</span>`
-    : `<span class="badge badge-nokpi">No KPI</span>`;
+  return k==='KPI' ? `<span class="badge badge-kpi">KPI</span>` : `<span class="badge badge-nokpi">No KPI</span>`;
 }
 
 function statusBadge(s) {
-  const m = {active:['dot-active','Активен'],pause:['dot-pause','Пауза'],old:['dot-old','Устарел']};
-  const [dot,lbl] = m[s]||['dot-old',s||'—'];
+  const m={active:['dot-active','Активен'],pause:['dot-pause','Пауза'],old:['dot-old','Устарел']};
+  const [dot,lbl]=m[s]||['dot-old',s||'—'];
   return `<span class="status"><span class="dot ${dot}"></span>${lbl}</span>`;
 }
 
+function dateBadge(dateStr) {
+  if (!dateStr) return '<span class="td-empty">—</span>';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const diff = Math.round((today - d) / (1000*60*60*24));
+  const label = d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'});
+  let cls = 'date-badge';
+  let suffix = '';
+  if (diff === 0) { cls += ' today'; suffix = ' (сегодня)'; }
+  else if (diff === 1) { cls += ' yesterday'; suffix = ' (вчера)'; }
+  else if (diff >= 7) { cls += ' old'; }
+  return `<span class="${cls}">${label}${suffix}</span>`;
+}
+
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── TEMPLATE PARSING ──────────────────────────────────
+function parseTemplate() {
+  const text = document.getElementById('templateText').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  parsedOffers = [];
+  const errors = [];
+
+  lines.forEach((line, i) => {
+    const parts = line.split('/').map(p=>p.trim());
+    if (parts.length < 3) { errors.push(`Строка ${i+1}: слишком мало полей`); return; }
+    const [geo,brand,source,game_type,rate,min_deposit,capa,kpi,platform,partner] = parts;
+    parsedOffers.push({
+      project: currentProject,
+      geo: geo||null, brand: brand||null,
+      traffic_source: source||null, game_type: game_type||null,
+      rate: rate||null, min_deposit: min_deposit||null,
+      capa: capa||null, kpi: kpi||null,
+      platform: platform||null, partner: partner||null,
+      partner_type: null, status: 'active', notes: null,
+      received_at: null,
+    });
+  });
+
+  const preview = document.getElementById('parsePreview');
+  const section = document.getElementById('previewSection');
+
+  if (errors.length > 0) {
+    preview.innerHTML = `<div class="parse-error">${errors.join('<br>')}</div>`;
+    section.classList.remove('hidden');
+    return;
+  }
+
+  preview.innerHTML = `
+    <div class="parse-preview-header">
+      <span class="parse-preview-title">Предпросмотр</span>
+      <span class="parse-preview-count">${parsedOffers.length} оффер(ов)</span>
+    </div>
+    ${parsedOffers.map(o=>`
+      <div class="parse-preview-row">
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text1)">${flag(o.geo)} ${o.geo||'—'}</span>
+        <span style="color:var(--text1);font-weight:500">${esc(o.brand)||'—'}</span>
+        <span style="color:var(--text3)">${esc(o.traffic_source)||'—'} • ${esc(o.game_type)||'—'}</span>
+        <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${esc(o.rate)||'—'}</span>
+        <span style="color:var(--text3)">${esc(o.partner)||'—'}</span>
+      </div>
+    `).join('')}
+  `;
+  section.classList.remove('hidden');
+  document.getElementById('saveBtn').innerHTML = `<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
+}
 
 // ── MODAL ─────────────────────────────────────────────
 function openAddModal() {
@@ -654,7 +789,7 @@ function openAddModal() {
 }
 
 function editOffer(id) {
-  const o = allOffers.find(x => x.id === id);
+  const o = allOffers.find(x=>x.id===id);
   if (!o) return;
   editingId = id;
   document.getElementById('modalTitle').innerHTML = '<i class="ti ti-edit"></i>Редактировать оффер';
@@ -672,19 +807,22 @@ function editOffer(id) {
   document.getElementById('f-partner').value = o.partner||'';
   document.getElementById('f-ptype').value = o.partner_type||'';
   document.getElementById('f-status').value = o.status||'active';
+  document.getElementById('f-date').value = o.received_at||new Date().toISOString().split('T')[0];
   document.getElementById('f-notes').value = o.notes||'';
   document.getElementById('saveBtn').innerHTML = '<i class="ti ti-check"></i>Сохранить';
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editingId = null; }
-function handleOverlayClick(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editingId=null; }
+function handleOverlayClick(e) { if(e.target===document.getElementById('modalOverlay')) closeModal(); }
 
 function clearForm() {
-  ['geo','brand','rate','mindep','capa','platform','partner','notes'].forEach(f => document.getElementById('f-'+f).value='');
-  ['source','game','kpi','ptype'].forEach(f => document.getElementById('f-'+f).value='');
-  document.getElementById('f-status').value = 'active';
-  document.getElementById('templateText').value = '';
+  ['geo','brand','rate','mindep','capa','platform','partner','notes'].forEach(f=>document.getElementById('f-'+f).value='');
+  ['source','game','kpi','ptype'].forEach(f=>document.getElementById('f-'+f).value='');
+  document.getElementById('f-status').value='active';
+  document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('templateText').value='';
+  document.getElementById('bulk-date').value=new Date().toISOString().split('T')[0];
 }
 
 function setMode(mode) {
@@ -704,18 +842,15 @@ async function saveOffer() {
   if (currentMode === 'template' && !editingId) {
     if (parsedOffers.length === 0) {
       showToast('Сначала распознай офферы', 'error');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-check"></i>Сохранить';
-      return;
+      btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить'; return;
     }
-    const { error } = await sb.from('offers').insert(parsedOffers);
-    btn.disabled = false;
-    btn.innerHTML = `<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
-    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
-    showToast(`Добавлено ${parsedOffers.length} оффер(ов)`, 'success');
-    closeModal();
-    loadOffers();
-    return;
+    const bulkDate = document.getElementById('bulk-date').value || null;
+    const toInsert = parsedOffers.map(o => ({...o, received_at: bulkDate}));
+    const { error } = await sb.from('offers').insert(toInsert);
+    btn.disabled=false; btn.innerHTML=`<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
+    if (error) { showToast('Ошибка: '+error.message,'error'); return; }
+    showToast(`Добавлено ${parsedOffers.length} оффер(ов)`,'success');
+    closeModal(); loadOffers(); return;
   }
 
   const payload = {
@@ -732,29 +867,30 @@ async function saveOffer() {
     partner: document.getElementById('f-partner').value.trim()||null,
     partner_type: document.getElementById('f-ptype').value||null,
     status: document.getElementById('f-status').value||'active',
+    received_at: document.getElementById('f-date').value||null,
     notes: document.getElementById('f-notes').value.trim()||null,
   };
 
-  if (!payload.brand && !payload.geo) { showToast('Заполни хотя бы GEO или Бренд', 'error'); btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить'; return; }
+  if (!payload.brand && !payload.geo) {
+    showToast('Заполни хотя бы GEO или Бренд','error');
+    btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить'; return;
+  }
 
   let error;
-  if (editingId) ({ error } = await sb.from('offers').update(payload).eq('id', editingId));
-  else ({ error } = await sb.from('offers').insert(payload));
+  if (editingId) ({error}=await sb.from('offers').update(payload).eq('id',editingId));
+  else ({error}=await sb.from('offers').insert(payload));
 
-  btn.disabled = false;
-  btn.innerHTML = '<i class="ti ti-check"></i>Сохранить';
-  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
-  showToast(editingId ? 'Оффер обновлён' : 'Оффер добавлен', 'success');
-  closeModal();
-  loadOffers();
+  btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить';
+  if (error) { showToast('Ошибка: '+error.message,'error'); return; }
+  showToast(editingId?'Оффер обновлён':'Оффер добавлен','success');
+  closeModal(); loadOffers();
 }
 
-// ── DELETE ────────────────────────────────────────────
 async function deleteOffer(id) {
   if (!confirm('Удалить этот оффер?')) return;
-  const { error } = await sb.from('offers').delete().eq('id', id);
-  if (error) { showToast('Ошибка удаления', 'error'); return; }
-  showToast('Оффер удалён', 'success');
+  const {error} = await sb.from('offers').delete().eq('id',id);
+  if (error) { showToast('Ошибка удаления','error'); return; }
+  showToast('Оффер удалён','success');
   loadOffers();
 }
 
@@ -762,40 +898,30 @@ async function deleteOffer(id) {
 function openExport() {
   const rows = getFiltered();
   const lines = rows.map(o => {
-    const parts = [
-      o.geo || '',
-      o.brand || '',
-      o.traffic_source || '',
-      o.game_type || '',
-      o.rate || '',
-      o.min_deposit ? 'MinDep ' + o.min_deposit : '',
-      o.capa ? 'Cap ' + o.capa : '',
-      o.kpi || '',
-      o.platform || '',
-    ].map(p => p.trim()).filter(p => p !== '');
+    const parts = [o.geo||'',o.brand||'',o.traffic_source||'',o.game_type||'',o.rate||'',
+      o.min_deposit?'MinDep '+o.min_deposit:'',
+      o.capa?'Cap '+o.capa:'',
+      o.kpi||'',o.platform||'']
+      .map(p=>p.trim()).filter(p=>p!=='');
     return parts.join(' • ');
   });
-  const text = lines.join('\n');
   document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
-  document.getElementById('exportText').textContent = text;
+  document.getElementById('exportText').textContent = lines.join('\n');
   document.getElementById('exportOverlay').classList.remove('hidden');
 }
 
 function closeExport() { document.getElementById('exportOverlay').classList.add('hidden'); }
-function handleExportClick(e) { if (e.target === document.getElementById('exportOverlay')) closeExport(); }
-
+function handleExportClick(e) { if(e.target===document.getElementById('exportOverlay')) closeExport(); }
 function copyExport() {
-  const text = document.getElementById('exportText').textContent;
-  navigator.clipboard.writeText(text).then(() => showToast('Скопировано!', 'success'));
+  navigator.clipboard.writeText(document.getElementById('exportText').textContent)
+    .then(()=>showToast('Скопировано!','success'));
 }
 
-// ── TOAST ─────────────────────────────────────────────
-function showToast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type}`;
+function showToast(msg,type='success') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast ${type}`;
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.add('hidden'), 3000);
+  t._timer=setTimeout(()=>t.classList.add('hidden'),3000);
 }
 </script>
 </body>
