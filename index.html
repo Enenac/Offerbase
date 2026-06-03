@@ -9,191 +9,172 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  :root{
-    --bg:#0b0d14;
-    --bg2:#0e1019;
-    --bg3:#11141f;
-    --bg4:#151929;
-    --border:#1a1f32;
-    --border2:#222840;
-    --accent:#818cf8;
-    --accent2:#6366f1;
-    --accent-bg:#151c38;
-    --accent-border:#2a3460;
-    --text1:#e2e6f8;
-    --text2:#8892c0;
-    --text3:#3d4870;
-    --green:#34d399;
-    --green-bg:#0a1e14;
-    --green-border:#143020;
-    --amber:#f59e0b;
-    --red:#f87171;
-  }
-  html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM Plex Sans',sans-serif;font-size:13px}
-  #app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0d14;--bg2:#0e1019;--bg3:#11141f;--bg4:#151929;
+  --border:#1a1f32;--border2:#222840;
+  --accent:#818cf8;--accent2:#6366f1;--accent-bg:#151c38;--accent-border:#2a3460;
+  --text1:#e2e6f8;--text2:#8892c0;--text3:#3d4870;
+  --green:#34d399;--green-bg:#0a1e14;--green-border:#143020;
+  --amber:#f59e0b;--red:#f87171;
+}
+html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM Plex Sans',sans-serif;font-size:13px}
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
 
-  /* TOPBAR */
-  .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0}
-  .logo{display:flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:500;color:var(--accent)}
-  .logo i{font-size:18px}
-  .topbar-right{display:flex;align-items:center;gap:10px}
-  .search-box{display:flex;align-items:center;gap:8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:7px;padding:6px 12px;width:230px;transition:border-color 0.15s}
-  .search-box:focus-within{border-color:var(--border2)}
-  .search-box i{color:var(--text3);font-size:15px}
-  .search-box input{background:none;border:none;outline:none;font-size:12px;color:var(--text2);width:100%;font-family:'IBM Plex Sans',sans-serif}
-  .search-box input::placeholder{color:var(--text3)}
-  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid;transition:all 0.15s;font-family:'IBM Plex Sans',sans-serif}
-  .btn-primary{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
-  .btn-primary:hover{background:#1c2540;border-color:#3a4a80}
-  .btn-ghost{background:none;border-color:var(--border);color:var(--text2)}
-  .btn-ghost:hover{background:var(--bg3);border-color:var(--border2)}
-  .btn-danger{background:#1e0a0a;border-color:#3a1212;color:var(--red)}
-  .btn-danger:hover{background:#2a0e0e}
-  .btn-save{background:#0f1e10;border-color:var(--green-border);color:var(--green)}
-  .btn-save:hover{background:#142414}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0}
+.logo{display:flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:500;color:var(--accent)}
+.logo i{font-size:18px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:7px;padding:6px 12px;width:230px;transition:border-color 0.15s}
+.search-box:focus-within{border-color:var(--border2)}
+.search-box i{color:var(--text3);font-size:15px}
+.search-box input{background:none;border:none;outline:none;font-size:12px;color:var(--text2);width:100%;font-family:'IBM Plex Sans',sans-serif}
+.search-box input::placeholder{color:var(--text3)}
+.btn{display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid;transition:all 0.15s;font-family:'IBM Plex Sans',sans-serif}
+.btn-primary{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
+.btn-primary:hover{background:#1c2540;border-color:#3a4a80}
+.btn-ghost{background:none;border-color:var(--border);color:var(--text2)}
+.btn-ghost:hover{background:var(--bg3);border-color:var(--border2)}
+.btn-green{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+.btn-green:hover{background:#0e2818}
+.btn-save{background:#0f1e10;border-color:var(--green-border);color:var(--green)}
+.btn-save:hover{background:#142414}
 
-  /* PROJECTS NAV */
-  .projects-nav{display:flex;align-items:stretch;padding:0 24px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0}
-  .proj-tab{display:flex;align-items:center;gap:8px;padding:12px 16px;font-size:13px;font-weight:400;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:all 0.15s;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
-  .proj-tab:hover{color:var(--text2)}
-  .proj-tab.active{color:var(--text1);border-bottom-color:var(--accent)}
-  .proj-tab i{font-size:15px}
-  .proj-count{font-size:10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:9px;padding:1px 7px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
-  .proj-tab.active .proj-count{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
+.projects-nav{display:flex;align-items:stretch;padding:0 24px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0}
+.proj-tab{display:flex;align-items:center;gap:8px;padding:12px 16px;font-size:13px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:all 0.15s;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
+.proj-tab:hover{color:var(--text2)}
+.proj-tab.active{color:var(--text1);border-bottom-color:var(--accent)}
+.proj-tab i{font-size:15px}
+.proj-count{font-size:10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:9px;padding:1px 7px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+.proj-tab.active .proj-count{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 
-  /* STATS */
-  .stats-bar{display:flex;border-bottom:0.5px solid var(--border);flex-shrink:0}
-  .stat{flex:1;padding:12px 24px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;gap:2px}
-  .stat:last-child{border-right:none}
-  .stat-val{font-size:22px;font-weight:500;color:var(--accent);font-family:'IBM Plex Mono',monospace}
-  .stat-lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
+.stats-bar{display:flex;border-bottom:0.5px solid var(--border);flex-shrink:0}
+.stat{flex:1;padding:12px 24px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.stat:last-child{border-right:none}
+.stat-val{font-size:22px;font-weight:500;color:var(--accent);font-family:'IBM Plex Mono',monospace}
+.stat-lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
 
-  /* FILTERS */
-  .filters-bar{display:flex;align-items:center;gap:6px;padding:9px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--bg2)}
-  .filter-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-right:2px;font-family:'IBM Plex Mono',monospace}
-  .chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:0.5px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;white-space:nowrap;transition:all 0.15s;user-select:none}
-  .chip:hover{border-color:var(--border2);color:var(--text2)}
-  .chip.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
-  .chip i{font-size:11px}
-  .chip-clear{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--text3);cursor:pointer;margin-left:4px;padding:3px 8px;border-radius:20px;transition:all 0.15s}
-  .chip-clear:hover{color:var(--red)}
+.filters-bar{display:flex;align-items:center;gap:6px;padding:9px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--bg2)}
+.filter-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-right:2px;font-family:'IBM Plex Mono',monospace}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:0.5px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text3);cursor:pointer;white-space:nowrap;transition:all 0.15s;user-select:none}
+.chip:hover{border-color:var(--border2);color:var(--text2)}
+.chip.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
+.chip i{font-size:11px}
+.chip-clear{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--text3);cursor:pointer;margin-left:4px;padding:3px 8px;border-radius:20px;transition:all 0.15s}
+.chip-clear:hover{color:var(--red)}
 
-  /* TABLE */
-  .table-container{flex:1;overflow:auto}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  thead{position:sticky;top:0;z-index:10}
-  thead tr{background:#090b12;border-bottom:0.5px solid var(--border)}
-  th{padding:9px 14px;text-align:left;color:var(--text3);font-weight:500;white-space:nowrap;cursor:pointer;user-select:none;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace}
-  th:hover{color:var(--text2)}
-  th i{font-size:10px;vertical-align:-1px;margin-left:2px}
-  tbody tr{border-bottom:0.5px solid var(--border);transition:background 0.1s;cursor:pointer}
-  tbody tr:hover{background:var(--bg3)}
-  td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
-  .td-geo{font-weight:500;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace}
-  .td-brand{font-weight:500;color:var(--text1)}
-  .td-rate{color:var(--accent);font-weight:500;font-family:'IBM Plex Mono',monospace}
-  .td-empty{color:var(--border2);font-family:'IBM Plex Mono',monospace}
+.toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg)}
+.toolbar-left{display:flex;align-items:center;gap:8px}
+.results-count{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
 
-  /* BADGES */
-  .badge{display:inline-block;padding:2px 7px;border-radius:7px;font-size:11px;font-weight:500}
-  .badge-seo{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
-  .badge-ppc{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
-  .badge-push{background:#180e28;color:#c084fc;border:0.5px solid #281640}
-  .badge-social{background:#201008;color:#fb923c;border:0.5px solid #341a0c}
-  .badge-native{background:#0c1c1c;color:#2dd4bf;border:0.5px solid #143030}
-  .badge-email{background:#1a1008;color:#fbbf24;border:0.5px solid #302010}
-  .badge-other{background:var(--bg3);color:var(--text2);border:0.5px solid var(--border)}
-  .badge-game{background:#111828;color:#7888c0;border:0.5px solid #1a2438}
-  .badge-direct{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
-  .badge-network{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
+.table-container{flex:1;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead{position:sticky;top:0;z-index:10}
+thead tr{background:#090b12;border-bottom:0.5px solid var(--border)}
+th{padding:9px 14px;text-align:left;color:var(--text3);font-weight:500;white-space:nowrap;cursor:pointer;user-select:none;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace}
+th:hover{color:var(--text2)}
+th i{font-size:10px;vertical-align:-1px;margin-left:2px}
+tbody tr{border-bottom:0.5px solid var(--border);transition:background 0.1s}
+tbody tr:hover{background:var(--bg3)}
+td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
+.td-geo{font-weight:500;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace}
+.td-brand{font-weight:500;color:var(--text1)}
+.td-rate{color:var(--accent);font-weight:500;font-family:'IBM Plex Mono',monospace}
+.td-empty{color:var(--border2);font-family:'IBM Plex Mono',monospace}
 
-  /* STATUS */
-  .status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
-  .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-  .dot-active{background:var(--green)}
-  .dot-pause{background:var(--amber)}
-  .dot-old{background:var(--border2)}
+.badge{display:inline-block;padding:2px 7px;border-radius:7px;font-size:11px;font-weight:500}
+.badge-seo{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
+.badge-ppc{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
+.badge-fb{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
+.badge-push{background:#180e28;color:#c084fc;border:0.5px solid #281640}
+.badge-social{background:#201008;color:#fb923c;border:0.5px solid #341a0c}
+.badge-native{background:#0c1c1c;color:#2dd4bf;border:0.5px solid #143030}
+.badge-email{background:#1a1008;color:#fbbf24;border:0.5px solid #302010}
+.badge-other{background:var(--bg3);color:var(--text2);border:0.5px solid var(--border)}
+.badge-game{background:#111828;color:#7888c0;border:0.5px solid #1a2438}
+.badge-direct{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
+.badge-network{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
+.badge-kpi{background:#1e1008;color:#fb923c;border:0.5px solid #341a0c}
+.badge-nokpi{background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)}
 
-  /* PARTNER */
-  .partner-cell{display:flex;align-items:center;gap:6px}
-  .partner-name{font-size:11px;color:var(--text2)}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot-active{background:var(--green)}
+.dot-pause{background:var(--amber)}
+.dot-old{background:var(--border2)}
 
-  /* ROW ACTIONS */
-  .row-actions{display:flex;gap:4px;opacity:0;transition:opacity 0.15s}
-  tr:hover .row-actions{opacity:1}
-  .act-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:3px 4px;border-radius:5px;transition:all 0.15s}
-  .act-btn:hover{color:var(--accent);background:var(--accent-bg)}
-  .act-btn.danger:hover{color:var(--red);background:#1e0a0a}
+.partner-cell{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.partner-name{font-size:11px;color:var(--text2)}
 
-  /* MODAL OVERLAY */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
-  .modal-overlay.hidden{display:none}
-  .modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:12px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto}
-  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:0.5px solid var(--border)}
-  .modal-title{font-size:14px;font-weight:500;color:var(--text1);display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace}
-  .modal-title i{color:var(--accent);font-size:17px}
-  .modal-body{padding:20px 24px}
-  .modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:0.5px solid var(--border)}
+.row-actions{display:flex;gap:4px;opacity:0;transition:opacity 0.15s}
+tr:hover .row-actions{opacity:1}
+.act-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:3px 4px;border-radius:5px;transition:all 0.15s}
+.act-btn:hover{color:var(--accent);background:var(--accent-bg)}
+.act-btn.danger:hover{color:var(--red);background:#1e0a0a}
 
-  /* MODE SWITCHER */
-  .mode-switch{display:flex;background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:3px;gap:3px;margin-bottom:18px}
-  .mode-btn{flex:1;padding:7px;font-size:12px;border:none;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:500;transition:all 0.15s;color:var(--text3);background:none}
-  .mode-btn.active{background:var(--accent-bg);color:var(--accent);border:0.5px solid var(--accent-border)}
-  .mode-btn i{font-size:13px;margin-right:5px;vertical-align:-1px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:12px;width:100%;max-width:700px;max-height:92vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:0.5px solid var(--border)}
+.modal-title{font-size:14px;font-weight:500;color:var(--text1);display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace}
+.modal-title i{color:var(--accent);font-size:17px}
+.modal-body{padding:20px 24px}
+.modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:0.5px solid var(--border)}
 
-  /* AI AREA */
-  .ai-area{background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;margin-bottom:14px}
-  .ai-area textarea{width:100%;background:none;border:none;outline:none;padding:12px 14px;font-size:12px;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;resize:none;min-height:90px;line-height:1.6}
-  .ai-area textarea::placeholder{color:var(--text3)}
-  .ai-parse-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:9px;border:none;border-top:0.5px solid var(--border);background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;border-radius:0 0 8px 8px;transition:all 0.15s}
-  .ai-parse-btn:hover{background:#1c2540}
-  .ai-parse-btn:disabled{opacity:0.5;cursor:not-allowed}
-  .ai-parse-btn i{font-size:14px}
+.mode-switch{display:flex;background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:3px;gap:3px;margin-bottom:18px}
+.mode-btn{flex:1;padding:7px;font-size:12px;border:none;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:500;transition:all 0.15s;color:var(--text3);background:none}
+.mode-btn.active{background:var(--accent-bg);color:var(--accent);border:0.5px solid var(--accent-border)}
+.mode-btn i{font-size:13px;margin-right:5px;vertical-align:-1px}
 
-  /* FORM */
-  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
-  .form-group{display:flex;flex-direction:column;gap:5px}
-  .form-group.full{grid-column:1/-1}
-  .form-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace}
-  .form-input,.form-select{background:var(--bg3);border:0.5px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;transition:border-color 0.15s;width:100%;appearance:none}
-  .form-input:focus,.form-select:focus{border-color:var(--accent-border)}
-  .form-input::placeholder{color:var(--text3)}
-  .form-select option{background:var(--bg2)}
-  .form-divider{height:0.5px;background:var(--border);margin:16px 0}
+.template-area{background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;margin-bottom:14px}
+.template-hint{padding:10px 14px 0;font-size:11px;color:var(--text3);line-height:1.6;font-family:'IBM Plex Mono',monospace}
+.template-hint span{color:var(--accent)}
+.template-area textarea{width:100%;background:none;border:none;outline:none;padding:10px 14px;font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;resize:none;min-height:110px;line-height:1.7}
+.template-area textarea::placeholder{color:var(--text3)}
+.template-parse-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:9px;border:none;border-top:0.5px solid var(--border);background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;border-radius:0 0 8px 8px;transition:all 0.15s}
+.template-parse-btn:hover{background:#1c2540}
+.template-parse-btn i{font-size:14px}
+.parse-preview{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;margin-bottom:14px;overflow:hidden}
+.parse-preview-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:0.5px solid var(--border)}
+.parse-preview-title{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+.parse-preview-count{font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace}
+.parse-preview-row{display:grid;grid-template-columns:40px 1fr 1fr 80px 80px;gap:8px;padding:6px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2);align-items:center}
+.parse-preview-row:last-child{border-bottom:none}
+.parse-preview-row .geo-col{font-family:'IBM Plex Mono',monospace;color:var(--text1);font-weight:500}
+.parse-error{padding:10px 14px;font-size:11px;color:var(--red);font-family:'IBM Plex Mono',monospace}
 
-  /* EMPTY STATE */
-  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--text3);gap:12px;text-align:center}
-  .empty i{font-size:40px;color:var(--border2)}
-  .empty p{font-size:13px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace}
+.form-input,.form-select{background:var(--bg3);border:0.5px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;transition:border-color 0.15s;width:100%;appearance:none}
+.form-input:focus,.form-select:focus{border-color:var(--accent-border)}
+.form-input::placeholder{color:var(--text3)}
+.form-select option{background:var(--bg2)}
+.form-divider{height:0.5px;background:var(--border);margin:16px 0}
 
-  /* LOADING */
-  .loading{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text3);gap:10px;font-family:'IBM Plex Mono',monospace;font-size:12px}
+.export-modal .modal{max-width:600px}
+.export-text{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;line-height:1.8;white-space:pre-wrap;max-height:400px;overflow-y:auto}
+.export-count{font-size:11px;color:var(--text3);margin-bottom:10px;font-family:'IBM Plex Mono',monospace}
 
-  /* TOAST */
-  .toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:200;transition:all 0.3s;font-family:'IBM Plex Mono',monospace}
-  .toast.success{background:#0a1e14;border:0.5px solid var(--green-border);color:var(--green)}
-  .toast.error{background:#1e0a0a;border:0.5px solid #3a1212;color:var(--red)}
-  .toast.hidden{opacity:0;transform:translateY(8px);pointer-events:none}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--text3);gap:12px;text-align:center}
+.empty i{font-size:40px;color:var(--border2)}
+.loading{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text3);gap:10px;font-family:'IBM Plex Mono',monospace;font-size:12px}
 
-  /* SPINNER */
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;transition:all 0.3s;font-family:'IBM Plex Mono',monospace}
+.toast.success{background:#0a1e14;border:0.5px solid var(--green-border);color:var(--green)}
+.toast.error{background:#1e0a0a;border:0.5px solid #3a1212;color:var(--red)}
+.toast.hidden{opacity:0;transform:translateY(8px);pointer-events:none}
 
-  /* EDIT INLINE */
-  .editing-row td{background:var(--accent-bg) !important}
-  .inline-input{background:var(--bg2);border:0.5px solid var(--accent-border);border-radius:5px;padding:4px 7px;font-size:12px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;width:100%;min-width:60px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
 
-  /* DROPDOWN FILTER */
-  .filter-dropdown{position:relative;display:inline-block}
-  .filter-menu{position:absolute;top:calc(100% + 4px);left:0;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;min-width:160px;z-index:50;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
-  .filter-menu.hidden{display:none}
-  .filter-option{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text2);transition:background 0.1s;user-select:none}
-  .filter-option:hover{background:var(--bg3)}
-  .filter-option.selected{color:var(--accent)}
-  .filter-option i{font-size:13px;color:var(--text3)}
-  .filter-option.selected i{color:var(--accent)}
+.filter-dropdown{position:relative;display:inline-block}
+.filter-menu{position:absolute;top:calc(100% + 4px);left:0;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;min-width:160px;z-index:50;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+.filter-menu.hidden{display:none}
+.filter-option{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text2);transition:background 0.1s;user-select:none}
+.filter-option:hover{background:var(--bg3)}
+.filter-option.selected{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -206,7 +187,7 @@
         <input type="text" id="searchInput" placeholder="Бренд, GEO, партнёр...">
       </div>
       <button class="btn btn-primary" onclick="openAddModal()">
-        <i class="ti ti-plus"></i>Добавить оффер
+        <i class="ti ti-plus"></i>Добавить офферы
       </button>
     </div>
   </div>
@@ -222,16 +203,16 @@
     </div>
   </div>
 
-  <div class="stats-bar" id="statsBar">
+  <div class="stats-bar">
     <div class="stat"><span class="stat-val" id="s-total">—</span><span class="stat-lbl">Всего офферов</span></div>
     <div class="stat"><span class="stat-val" id="s-active">—</span><span class="stat-lbl">Активных</span></div>
     <div class="stat"><span class="stat-val" id="s-geo">—</span><span class="stat-lbl">GEO</span></div>
     <div class="stat"><span class="stat-val" id="s-partners">—</span><span class="stat-lbl">Партнёров</span></div>
   </div>
 
-  <div class="filters-bar" id="filtersBar">
+  <div class="filters-bar">
     <span class="filter-label">Фильтры</span>
-    <div class="filter-dropdown" id="fd-status">
+    <div class="filter-dropdown">
       <div class="chip" id="chip-status" onclick="toggleFilterMenu('status')"><i class="ti ti-circle-dot"></i>Статус</div>
       <div class="filter-menu hidden" id="menu-status">
         <div class="filter-option" onclick="setFilter('status','active')"><i class="ti ti-circle-check"></i>Активен</div>
@@ -239,41 +220,55 @@
         <div class="filter-option" onclick="setFilter('status','old')"><i class="ti ti-circle-x"></i>Устарел</div>
       </div>
     </div>
-    <div class="filter-dropdown" id="fd-source">
+    <div class="filter-dropdown">
       <div class="chip" id="chip-source" onclick="toggleFilterMenu('source')"><i class="ti ti-arrow-up-right"></i>Источник</div>
       <div class="filter-menu hidden" id="menu-source">
-        <div class="filter-option" onclick="setFilter('source','SEO')"><i class="ti ti-text-size"></i>SEO</div>
-        <div class="filter-option" onclick="setFilter('source','PPC')"><i class="ti ti-cursor-text"></i>PPC</div>
-        <div class="filter-option" onclick="setFilter('source','Push')"><i class="ti ti-bell"></i>Push</div>
-        <div class="filter-option" onclick="setFilter('source','Social')"><i class="ti ti-brand-instagram"></i>Social</div>
-        <div class="filter-option" onclick="setFilter('source','Native')"><i class="ti ti-layout"></i>Native</div>
-        <div class="filter-option" onclick="setFilter('source','Email')"><i class="ti ti-mail"></i>Email</div>
+        <div class="filter-option" onclick="setFilter('source','SEO')">SEO</div>
+        <div class="filter-option" onclick="setFilter('source','FB')">FB</div>
+        <div class="filter-option" onclick="setFilter('source','PPC')">PPC</div>
+        <div class="filter-option" onclick="setFilter('source','Push')">Push</div>
+        <div class="filter-option" onclick="setFilter('source','Social')">Social</div>
+        <div class="filter-option" onclick="setFilter('source','Native')">Native</div>
+        <div class="filter-option" onclick="setFilter('source','Email')">Email</div>
       </div>
     </div>
-    <div class="filter-dropdown" id="fd-game">
+    <div class="filter-dropdown">
       <div class="chip" id="chip-game" onclick="toggleFilterMenu('game')"><i class="ti ti-device-gamepad-2"></i>Тип игры</div>
       <div class="filter-menu hidden" id="menu-game">
-        <div class="filter-option" onclick="setFilter('game','Slots')"><i class="ti ti-rotate"></i>Slots</div>
-        <div class="filter-option" onclick="setFilter('game','Crash')"><i class="ti ti-rocket"></i>Crash</div>
-        <div class="filter-option" onclick="setFilter('game','Mix')"><i class="ti ti-layout-grid"></i>Mix</div>
+        <div class="filter-option" onclick="setFilter('game','Slots')">Slots</div>
+        <div class="filter-option" onclick="setFilter('game','Crash')">Crash</div>
+        <div class="filter-option" onclick="setFilter('game','Mix')">Mix</div>
       </div>
     </div>
-    <div class="filter-dropdown" id="fd-ptype">
+    <div class="filter-dropdown">
+      <div class="chip" id="chip-kpi" onclick="toggleFilterMenu('kpi')"><i class="ti ti-target"></i>KPI</div>
+      <div class="filter-menu hidden" id="menu-kpi">
+        <div class="filter-option" onclick="setFilter('kpi','KPI')">KPI</div>
+        <div class="filter-option" onclick="setFilter('kpi','No KPI')">No KPI</div>
+      </div>
+    </div>
+    <div class="filter-dropdown">
       <div class="chip" id="chip-ptype" onclick="toggleFilterMenu('ptype')"><i class="ti ti-users"></i>Тип партнёра</div>
       <div class="filter-menu hidden" id="menu-ptype">
-        <div class="filter-option" onclick="setFilter('ptype','Direct')"><i class="ti ti-building"></i>Direct</div>
-        <div class="filter-option" onclick="setFilter('ptype','Network')"><i class="ti ti-network"></i>Network</div>
+        <div class="filter-option" onclick="setFilter('ptype','Direct')">Direct</div>
+        <div class="filter-option" onclick="setFilter('ptype','Network')">Network</div>
       </div>
     </div>
     <span class="chip-clear hidden" id="clearFilters" onclick="clearAllFilters()"><i class="ti ti-x" style="font-size:10px"></i>Сбросить</span>
   </div>
 
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <span class="results-count" id="resultsCount"></span>
+    </div>
+    <button class="btn btn-green" id="exportBtn" onclick="openExport()" style="display:none">
+      <i class="ti ti-copy"></i>Скопировать для Telegram
+    </button>
+  </div>
+
   <div class="table-container">
     <div class="loading" id="loadingState"><div class="spinner"></div>Загрузка офферов...</div>
-    <div id="emptyState" class="empty hidden">
-      <i class="ti ti-database-off"></i>
-      <p>Офферов нет. Добавьте первый!</p>
-    </div>
+    <div id="emptyState" class="empty hidden"><i class="ti ti-database-off"></i><p>Офферов нет. Добавьте первый!</p></div>
     <table id="offersTable" class="hidden">
       <thead>
         <tr>
@@ -284,6 +279,7 @@
           <th>Тип игры</th>
           <th>Мин. деп</th>
           <th>Капа</th>
+          <th>KPI</th>
           <th>Платформа</th>
           <th>Партнёр</th>
           <th>Статус</th>
@@ -295,96 +291,81 @@
   </div>
 </div>
 
-<!-- ADD/EDIT MODAL -->
+<!-- ADD MODAL -->
 <div class="modal-overlay hidden" id="modalOverlay" onclick="handleOverlayClick(event)">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title" id="modalTitle"><i class="ti ti-plus"></i>Добавить оффер</span>
+      <span class="modal-title" id="modalTitle"><i class="ti ti-plus"></i>Добавить офферы</span>
       <button class="act-btn" onclick="closeModal()"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
       <div class="mode-switch" id="modeSwitchRow">
-        <button class="mode-btn active" id="modeManual" onclick="setMode('manual')"><i class="ti ti-forms"></i>Ручной ввод</button>
-        <button class="mode-btn" id="modeAI" onclick="setMode('ai')"><i class="ti ti-sparkles"></i>AI-парсинг</button>
+        <button class="mode-btn active" id="modeTemplate" onclick="setMode('template')"><i class="ti ti-template"></i>По шаблону</button>
+        <button class="mode-btn" id="modeManual" onclick="setMode('manual')"><i class="ti ti-forms"></i>Ручной ввод</button>
       </div>
 
-      <div id="aiSection" class="hidden">
-        <div class="ai-area">
-          <textarea id="aiText" placeholder="Вставьте сырой текст из Telegram — например:&#10;Brazil LuckySpin SEO slots $120 CPA, min dep $20, cap 50/day iOS/Android — DEUS, Network"></textarea>
-          <button class="ai-parse-btn" id="parseBtn" onclick="parseWithAI()">
-            <i class="ti ti-sparkles"></i>Распарсить с AI
+      <!-- TEMPLATE MODE -->
+      <div id="templateSection">
+        <div class="template-area">
+          <div class="template-hint">
+            Формат: <span>GEO / Бренд / Источник / Тип / Ставка / Мин.деп / Капа / KPI / Платформа / Партнёр</span><br>
+            Пропуск между слешами = поле неизвестно. Каждая строка = один оффер.
+          </div>
+          <textarea id="templateText" placeholder="IT / Turbowinz / FB / Slots / 170 USD / 10 EUR / 50/day / No KPI / Soft2Bet / DEUS&#10;PL / Lanista / FB / Slots / $150 / 10 EUR / 15 FTD / KPI / Soft2Bet / Jack Lead&#10;BR / LuckySpin / SEO / Slots / $120 / / 30/day / No KPI / / Rich Traf"></textarea>
+          <button class="template-parse-btn" onclick="parseTemplate()">
+            <i class="ti ti-wand"></i>Распознать офферы
           </button>
+        </div>
+        <div id="previewSection" class="hidden">
+          <div class="parse-preview" id="parsePreview"></div>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:14px;font-family:'IBM Plex Mono',monospace">Проверь данные — если всё верно, нажми «Сохранить всё»</p>
         </div>
       </div>
 
-      <div id="formSection">
+      <!-- MANUAL MODE -->
+      <div id="manualSection" class="hidden">
         <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">GEO</label>
-            <input class="form-input" id="f-geo" placeholder="BR, IN, PL...">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Бренд</label>
-            <input class="form-input" id="f-brand" placeholder="LuckySpin">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Ставка</label>
-            <input class="form-input" id="f-rate" placeholder="$120 или €150">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Источник трафика</label>
+          <div class="form-group"><label class="form-label">GEO</label><input class="form-input" id="f-geo" placeholder="IT, BR, PL..."></div>
+          <div class="form-group"><label class="form-label">Бренд</label><input class="form-input" id="f-brand" placeholder="Turbowinz"></div>
+          <div class="form-group"><label class="form-label">Ставка</label><input class="form-input" id="f-rate" placeholder="$120 или €150"></div>
+          <div class="form-group"><label class="form-label">Источник трафика</label>
             <select class="form-select" id="f-source">
               <option value="">— выбрать —</option>
-              <option>SEO</option><option>PPC</option><option>Push</option>
-              <option>Social</option><option>Native</option><option>Email</option><option>Other</option>
+              <option>SEO</option><option>FB</option><option>PPC</option><option>Push</option><option>Social</option><option>Native</option><option>Email</option><option>Other</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Тип игры</label>
+          <div class="form-group"><label class="form-label">Тип игры</label>
             <select class="form-select" id="f-game">
               <option value="">— выбрать —</option>
               <option>Slots</option><option>Crash</option><option>Mix</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Мин. депозит</label>
-            <input class="form-input" id="f-mindep" placeholder="$20">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Капа</label>
-            <input class="form-input" id="f-capa" placeholder="50/day">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Платформа</label>
-            <input class="form-input" id="f-platform" placeholder="iOS / Android / Web">
-          </div>
-        </div>
-        <div class="form-divider"></div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">Партнёр</label>
-            <input class="form-input" id="f-partner" placeholder="DEUS, Jack Lead...">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Тип партнёра</label>
-            <select class="form-select" id="f-ptype">
+          <div class="form-group"><label class="form-label">Мин. депозит</label><input class="form-input" id="f-mindep" placeholder="$20 или 10 EUR"></div>
+          <div class="form-group"><label class="form-label">Капа</label><input class="form-input" id="f-capa" placeholder="50/day или 15 FTD"></div>
+          <div class="form-group"><label class="form-label">KPI</label>
+            <select class="form-select" id="f-kpi">
               <option value="">— выбрать —</option>
-              <option value="Direct">Direct — прямой рекламодатель</option>
-              <option value="Network">Network — партнёрская сеть</option>
+              <option value="No KPI">No KPI</option>
+              <option value="KPI">KPI</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Статус</label>
+          <div class="form-group"><label class="form-label">Платформа</label><input class="form-input" id="f-platform" placeholder="Soft2Bet, Extendy..."></div>
+          <div class="form-group"><label class="form-label">Партнёр</label><input class="form-input" id="f-partner" placeholder="DEUS, Jack Lead..."></div>
+          <div class="form-group"><label class="form-label">Тип партнёра</label>
+            <select class="form-select" id="f-ptype">
+              <option value="">— выбрать —</option>
+              <option value="Direct">Direct</option>
+              <option value="Network">Network</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Статус</label>
             <select class="form-select" id="f-status">
               <option value="active">Активен</option>
               <option value="pause">Пауза</option>
               <option value="old">Устарел</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Заметки</label>
-            <input class="form-input" id="f-notes" placeholder="Любые пометки...">
-          </div>
+          <div class="form-group full"><label class="form-label">Заметки</label><input class="form-input" id="f-notes" placeholder="Любые пометки..."></div>
         </div>
       </div>
     </div>
@@ -395,7 +376,24 @@
   </div>
 </div>
 
-<!-- TOAST -->
+<!-- EXPORT MODAL -->
+<div class="modal-overlay hidden export-modal" id="exportOverlay" onclick="handleExportClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-copy"></i>Экспорт для Telegram</span>
+      <button class="act-btn" onclick="closeExport()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="export-count" id="exportCount"></p>
+      <div class="export-text" id="exportText"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeExport()">Закрыть</button>
+      <button class="btn btn-green" onclick="copyExport()"><i class="ti ti-copy"></i>Скопировать</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast hidden" id="toast"></div>
 
 <script>
@@ -405,14 +403,14 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let allOffers = [];
 let currentProject = 'smerch';
-let currentMode = 'manual';
+let currentMode = 'template';
 let editingId = null;
 let filters = {};
 let sortField = null;
 let sortDir = 1;
 let searchQuery = '';
+let parsedOffers = [];
 
-// ── INIT ──────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   loadOffers();
   document.getElementById('searchInput').addEventListener('input', e => {
@@ -424,7 +422,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ── LOAD ──────────────────────────────────────────────
 async function loadOffers() {
   showLoading(true);
   const { data, error } = await sb.from('offers').select('*').order('created_at', { ascending: false });
@@ -440,99 +437,135 @@ function showLoading(v) {
   if (v) { document.getElementById('offersTable').classList.add('hidden'); document.getElementById('emptyState').classList.add('hidden'); }
 }
 
-// ── PROJECT ───────────────────────────────────────────
 function switchProject(p) {
   currentProject = p;
   filters = {};
   updateChips();
   document.getElementById('clearFilters').classList.add('hidden');
-  ['smerch','phantom'].forEach(x => {
-    document.getElementById('tab-'+x).classList.toggle('active', x === p);
-  });
+  ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x).classList.toggle('active', x === p));
   renderTable();
 }
 
 function updateCounts() {
-  const sc = allOffers.filter(o => o.project === 'smerch').length;
-  const pc = allOffers.filter(o => o.project === 'phantom').length;
-  document.getElementById('count-smerch').textContent = sc;
-  document.getElementById('count-phantom').textContent = pc;
+  document.getElementById('count-smerch').textContent = allOffers.filter(o => o.project === 'smerch').length;
+  document.getElementById('count-phantom').textContent = allOffers.filter(o => o.project === 'phantom').length;
 }
 
-// ── FILTER ────────────────────────────────────────────
+// ── TEMPLATE PARSING ──────────────────────────────────
+function parseTemplate() {
+  const text = document.getElementById('templateText').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  parsedOffers = [];
+  const errors = [];
+
+  lines.forEach((line, i) => {
+    const parts = line.split('/').map(p => p.trim());
+    if (parts.length < 3) { errors.push(`Строка ${i+1}: слишком мало полей`); return; }
+    const [geo, brand, source, game_type, rate, min_deposit, capa, kpi, platform, partner] = parts;
+    parsedOffers.push({
+      project: currentProject,
+      geo: geo || null,
+      brand: brand || null,
+      traffic_source: source || null,
+      game_type: game_type || null,
+      rate: rate || null,
+      min_deposit: min_deposit || null,
+      capa: capa || null,
+      kpi: kpi || null,
+      platform: platform || null,
+      partner: partner || null,
+      partner_type: null,
+      status: 'active',
+      notes: null,
+    });
+  });
+
+  const preview = document.getElementById('parsePreview');
+  const section = document.getElementById('previewSection');
+
+  if (errors.length > 0) {
+    preview.innerHTML = `<div class="parse-error">${errors.join('<br>')}</div>`;
+    section.classList.remove('hidden');
+    return;
+  }
+
+  preview.innerHTML = `
+    <div class="parse-preview-header">
+      <span class="parse-preview-title">Предпросмотр</span>
+      <span class="parse-preview-count">${parsedOffers.length} оффер(ов)</span>
+    </div>
+    ${parsedOffers.map(o => `
+      <div class="parse-preview-row">
+        <span class="geo-col">${flag(o.geo)} ${o.geo||'—'}</span>
+        <span style="color:var(--text1);font-weight:500">${esc(o.brand)||'—'}</span>
+        <span style="color:var(--text3)">${esc(o.traffic_source)||'—'} • ${esc(o.game_type)||'—'}</span>
+        <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${esc(o.rate)||'—'}</span>
+        <span style="color:var(--text3)">${esc(o.partner)||'—'}</span>
+      </div>
+    `).join('')}
+  `;
+  section.classList.remove('hidden');
+  document.getElementById('saveBtn').innerHTML = `<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
+}
+
+// ── FILTERS ───────────────────────────────────────────
 function toggleFilterMenu(key) {
   const m = document.getElementById('menu-'+key);
   const wasHidden = m.classList.contains('hidden');
   closeAllMenus();
   if (wasHidden) m.classList.remove('hidden');
 }
-
-function closeAllMenus() {
-  document.querySelectorAll('.filter-menu').forEach(m => m.classList.add('hidden'));
-}
+function closeAllMenus() { document.querySelectorAll('.filter-menu').forEach(m => m.classList.add('hidden')); }
 
 function setFilter(key, val) {
-  if (filters[key] === val) { delete filters[key]; }
-  else { filters[key] = val; }
+  if (filters[key] === val) delete filters[key];
+  else filters[key] = val;
   updateChips();
   document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length === 0);
   closeAllMenus();
   renderTable();
 }
 
-function clearAllFilters() {
-  filters = {};
-  updateChips();
-  document.getElementById('clearFilters').classList.add('hidden');
-  renderTable();
-}
+function clearAllFilters() { filters = {}; updateChips(); document.getElementById('clearFilters').classList.add('hidden'); renderTable(); }
 
 function updateChips() {
-  const map = {status:'chip-status', source:'chip-source', game:'chip-game', ptype:'chip-ptype'};
-  const labels = {
-    status: {active:'Статус: Активен', pause:'Статус: Пауза', old:'Статус: Устарел'},
-    source: v => 'Источник: '+v,
-    game: v => 'Тип: '+v,
-    ptype: v => 'Партнёр: '+v
+  const defs = {
+    status: {icon:'ti-circle-dot', label:'Статус', vals:{active:'Активен',pause:'Пауза',old:'Устарел'}},
+    source: {icon:'ti-arrow-up-right', label:'Источник'},
+    game:   {icon:'ti-device-gamepad-2', label:'Тип игры'},
+    kpi:    {icon:'ti-target', label:'KPI'},
+    ptype:  {icon:'ti-users', label:'Тип партнёра'},
   };
-  Object.entries(map).forEach(([key, chipId]) => {
-    const chip = document.getElementById(chipId);
+  Object.entries(defs).forEach(([key, def]) => {
+    const chip = document.getElementById('chip-'+key);
     const val = filters[key];
     chip.classList.toggle('active', !!val);
     if (val) {
-      const lbl = typeof labels[key] === 'function' ? labels[key](val) : (labels[key][val] || val);
-      chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearFilter(event,'${key}')"></i>${lbl}`;
+      const lbl = def.vals ? (def.vals[val]||val) : val;
+      chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearFilter(event,'${key}')"></i>${def.label}: ${lbl}`;
     } else {
-      const icons = {status:'ti-circle-dot', source:'ti-arrow-up-right', game:'ti-device-gamepad-2', ptype:'ti-users'};
-      const names = {status:'Статус', source:'Источник', game:'Тип игры', ptype:'Тип партнёра'};
-      chip.innerHTML = `<i class="ti ${icons[key]}"></i>${names[key]}`;
+      chip.innerHTML = `<i class="ti ${def.icon}"></i>${def.label}`;
     }
   });
 }
 
-function clearFilter(e, key) {
-  e.stopPropagation();
-  delete filters[key];
-  updateChips();
-  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length === 0);
-  renderTable();
-}
+function clearFilter(e, key) { e.stopPropagation(); delete filters[key]; updateChips(); document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0); renderTable(); }
 
-// ── SORT ──────────────────────────────────────────────
+// ── SORT & RENDER ─────────────────────────────────────
 function sortBy(field) {
-  if (sortField === field) sortDir *= -1;
-  else { sortField = field; sortDir = 1; }
+  if (sortField === field) sortDir *= -1; else { sortField = field; sortDir = 1; }
   renderTable();
 }
 
-// ── RENDER ────────────────────────────────────────────
 function getFiltered() {
   let rows = allOffers.filter(o => o.project === currentProject);
   if (filters.status) rows = rows.filter(o => o.status === filters.status);
   if (filters.source) rows = rows.filter(o => (o.traffic_source||'').toLowerCase() === filters.source.toLowerCase());
-  if (filters.game) rows = rows.filter(o => (o.game_type||'').toLowerCase() === filters.game.toLowerCase());
-  if (filters.ptype) rows = rows.filter(o => (o.partner_type||'') === filters.ptype);
-  if (searchQuery) rows = rows.filter(o =>
+  if (filters.game)   rows = rows.filter(o => (o.game_type||'').toLowerCase() === filters.game.toLowerCase());
+  if (filters.kpi)    rows = rows.filter(o => (o.kpi||'') === filters.kpi);
+  if (filters.ptype)  rows = rows.filter(o => (o.partner_type||'') === filters.ptype);
+  if (searchQuery)    rows = rows.filter(o =>
     (o.brand||'').toLowerCase().includes(searchQuery) ||
     (o.geo||'').toLowerCase().includes(searchQuery) ||
     (o.partner||'').toLowerCase().includes(searchQuery)
@@ -544,14 +577,13 @@ function getFiltered() {
 function renderTable() {
   const rows = getFiltered();
   const proj = allOffers.filter(o => o.project === currentProject);
-
-  // stats
   document.getElementById('s-total').textContent = proj.length;
   document.getElementById('s-active').textContent = proj.filter(o => o.status === 'active').length;
   document.getElementById('s-geo').textContent = new Set(proj.map(o=>o.geo).filter(Boolean)).size;
   document.getElementById('s-partners').textContent = new Set(proj.map(o=>o.partner).filter(Boolean)).size;
+  document.getElementById('resultsCount').textContent = `${rows.length} оффер(ов)`;
+  document.getElementById('exportBtn').style.display = rows.length > 0 ? '' : 'none';
 
-  const tbody = document.getElementById('offersBody');
   if (rows.length === 0) {
     document.getElementById('offersTable').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
@@ -560,21 +592,22 @@ function renderTable() {
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('offersTable').classList.remove('hidden');
 
-  tbody.innerHTML = rows.map(o => `
+  document.getElementById('offersBody').innerHTML = rows.map(o => `
     <tr data-id="${o.id}">
       <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
       <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
       <td><span class="td-rate">${esc(o.rate)||'—'}</span></td>
       <td>${sourceBadge(o.traffic_source)}</td>
-      <td>${o.game_type ? `<span class="badge badge-game">${esc(o.game_type)}</span>` : '<span class="td-empty">—</span>'}</td>
-      <td>${o.min_deposit ? `<span style="color:var(--text3);font-size:11px">${esc(o.min_deposit)}</span>` : '<span class="td-empty">—</span>'}</td>
-      <td>${o.capa ? `<span style="font-size:12px;color:var(--text2)">${esc(o.capa)}</span>` : '<span class="td-empty">—</span>'}</td>
-      <td>${o.platform ? `<span style="color:var(--text3);font-size:11px">${esc(o.platform)}</span>` : '<span class="td-empty">—</span>'}</td>
-      <td><div class="partner-cell">${o.partner ? `<span class="partner-name">${esc(o.partner)}</span>` : '<span class="td-empty">—</span>'}${o.partner_type ? `<span class="badge ${o.partner_type==='Direct'?'badge-direct':'badge-network'}" style="font-size:10px;padding:1px 5px">${o.partner_type}</span>` : ''}</div></td>
+      <td>${o.game_type?`<span class="badge badge-game">${esc(o.game_type)}</span>`:'<span class="td-empty">—</span>'}</td>
+      <td>${o.min_deposit?`<span style="color:var(--text3);font-size:11px">${esc(o.min_deposit)}</span>`:'<span class="td-empty">—</span>'}</td>
+      <td>${o.capa?`<span style="font-size:12px;color:var(--text2)">${esc(o.capa)}</span>`:'<span class="td-empty">—</span>'}</td>
+      <td>${kpiBadge(o.kpi)}</td>
+      <td>${o.platform?`<span style="color:var(--text3);font-size:11px">${esc(o.platform)}</span>`:'<span class="td-empty">—</span>'}</td>
+      <td><div class="partner-cell">${o.partner?`<span class="partner-name">${esc(o.partner)}</span>`:'<span class="td-empty">—</span>'}${o.partner_type?`<span class="badge ${o.partner_type==='Direct'?'badge-direct':'badge-network'}" style="font-size:10px;padding:1px 5px">${o.partner_type}</span>`:''}</div></td>
       <td>${statusBadge(o.status)}</td>
       <td><div class="row-actions">
-        <button class="act-btn" onclick="editOffer('${o.id}')" title="Редактировать"><i class="ti ti-edit"></i></button>
-        <button class="act-btn danger" onclick="deleteOffer('${o.id}')" title="Удалить"><i class="ti ti-trash"></i></button>
+        <button class="act-btn" onclick="editOffer('${o.id}')"><i class="ti ti-edit"></i></button>
+        <button class="act-btn danger" onclick="deleteOffer('${o.id}')"><i class="ti ti-trash"></i></button>
       </div></td>
     </tr>
   `).join('');
@@ -582,21 +615,26 @@ function renderTable() {
 
 function flag(geo) {
   if (!geo) return '';
-  const g = geo.trim().toUpperCase();
-  const flags = {BR:'🇧🇷',IN:'🇮🇳',PL:'🇵🇱',NG:'🇳🇬',MX:'🇲🇽',TR:'🇹🇷',PH:'🇵🇭',DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',PT:'🇵🇹',RO:'🇷🇴',HU:'🇭🇺',CZ:'🇨🇿',SK:'🇸🇰',BG:'🇧🇬',GR:'🇬🇷',UA:'🇺🇦',KZ:'🇰🇿',AZ:'🇦🇿',UZ:'🇺🇿',TH:'🇹🇭',VN:'🇻🇳',ID:'🇮🇩',MY:'🇲🇾',ZA:'🇿🇦',KE:'🇰🇪',GH:'🇬🇭',AR:'🇦🇷',CL:'🇨🇱',CO:'🇨🇴',PE:'🇵🇪',CA:'🇨🇦',US:'🇺🇸',GB:'🇬🇧',AU:'🇦🇺',NZ:'🇳🇿',JP:'🇯🇵',KR:'🇰🇷'};
-  return flags[g] || '';
+  const f = {BR:'🇧🇷',IN:'🇮🇳',PL:'🇵🇱',NG:'🇳🇬',MX:'🇲🇽',TR:'🇹🇷',PH:'🇵🇭',DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',PT:'🇵🇹',RO:'🇷🇴',HU:'🇭🇺',CZ:'🇨🇿',SK:'🇸🇰',BG:'🇧🇬',GR:'🇬🇷',UA:'🇺🇦',KZ:'🇰🇿',AZ:'🇦🇿',UZ:'🇺🇿',TH:'🇹🇭',VN:'🇻🇳',ID:'🇮🇩',MY:'🇲🇾',ZA:'🇿🇦',KE:'🇰🇪',GH:'🇬🇭',AR:'🇦🇷',CL:'🇨🇱',CO:'🇨🇴',PE:'🇵🇪',CA:'🇨🇦',US:'🇺🇸',GB:'🇬🇧',AU:'🇦🇺',NZ:'🇳🇿',JP:'🇯🇵',KR:'🇰🇷',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',CH:'🇨🇭',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮'};
+  return f[geo.trim().toUpperCase()] || '';
 }
 
 function sourceBadge(s) {
   if (!s) return '<span class="td-empty">—</span>';
-  const map = {SEO:'badge-seo',PPC:'badge-ppc',Push:'badge-push',Social:'badge-social',Native:'badge-native',Email:'badge-email'};
-  const cls = map[s] || 'badge-other';
-  return `<span class="badge ${cls}">${esc(s)}</span>`;
+  const map = {SEO:'badge-seo',PPC:'badge-ppc',FB:'badge-fb',Push:'badge-push',Social:'badge-social',Native:'badge-native',Email:'badge-email'};
+  return `<span class="badge ${map[s]||'badge-other'}">${esc(s)}</span>`;
+}
+
+function kpiBadge(k) {
+  if (!k) return '<span class="td-empty">—</span>';
+  return k === 'KPI'
+    ? `<span class="badge badge-kpi">KPI</span>`
+    : `<span class="badge badge-nokpi">No KPI</span>`;
 }
 
 function statusBadge(s) {
-  const map = {active:['dot-active','Активен'],pause:['dot-pause','Пауза'],old:['dot-old','Устарел']};
-  const [dot,lbl] = map[s]||['dot-old',s||'—'];
+  const m = {active:['dot-active','Активен'],pause:['dot-pause','Пауза'],old:['dot-old','Устарел']};
+  const [dot,lbl] = m[s]||['dot-old',s||'—'];
   return `<span class="status"><span class="dot ${dot}"></span>${lbl}</span>`;
 }
 
@@ -605,10 +643,13 @@ function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 // ── MODAL ─────────────────────────────────────────────
 function openAddModal() {
   editingId = null;
-  document.getElementById('modalTitle').innerHTML = '<i class="ti ti-plus"></i>Добавить оффер';
+  document.getElementById('modalTitle').innerHTML = '<i class="ti ti-plus"></i>Добавить офферы';
   document.getElementById('modeSwitchRow').classList.remove('hidden');
   clearForm();
-  setMode('manual');
+  setMode('template');
+  parsedOffers = [];
+  document.getElementById('previewSection').classList.add('hidden');
+  document.getElementById('saveBtn').innerHTML = '<i class="ti ti-check"></i>Сохранить';
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
@@ -626,81 +667,57 @@ function editOffer(id) {
   document.getElementById('f-game').value = o.game_type||'';
   document.getElementById('f-mindep').value = o.min_deposit||'';
   document.getElementById('f-capa').value = o.capa||'';
+  document.getElementById('f-kpi').value = o.kpi||'';
   document.getElementById('f-platform').value = o.platform||'';
   document.getElementById('f-partner').value = o.partner||'';
   document.getElementById('f-ptype').value = o.partner_type||'';
   document.getElementById('f-status').value = o.status||'active';
   document.getElementById('f-notes').value = o.notes||'';
+  document.getElementById('saveBtn').innerHTML = '<i class="ti ti-check"></i>Сохранить';
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
-function closeModal() {
-  document.getElementById('modalOverlay').classList.add('hidden');
-  editingId = null;
-}
-
-function handleOverlayClick(e) {
-  if (e.target === document.getElementById('modalOverlay')) closeModal();
-}
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editingId = null; }
+function handleOverlayClick(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
 
 function clearForm() {
-  ['geo','brand','rate','mindep','capa','platform','partner','notes'].forEach(f => document.getElementById('f-'+f).value = '');
-  ['source','game','ptype'].forEach(f => document.getElementById('f-'+f).value = '');
+  ['geo','brand','rate','mindep','capa','platform','partner','notes'].forEach(f => document.getElementById('f-'+f).value='');
+  ['source','game','kpi','ptype'].forEach(f => document.getElementById('f-'+f).value='');
   document.getElementById('f-status').value = 'active';
-  document.getElementById('aiText').value = '';
+  document.getElementById('templateText').value = '';
 }
 
 function setMode(mode) {
   currentMode = mode;
+  document.getElementById('modeTemplate').classList.toggle('active', mode==='template');
   document.getElementById('modeManual').classList.toggle('active', mode==='manual');
-  document.getElementById('modeAI').classList.toggle('active', mode==='ai');
-  document.getElementById('aiSection').classList.toggle('hidden', mode!=='ai');
-}
-
-// ── AI PARSE ──────────────────────────────────────────
-async function parseWithAI() {
-  const text = document.getElementById('aiText').value.trim();
-  if (!text) return;
-  const btn = document.getElementById('parseBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div>Парсинг...';
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        system:`You extract offer data from raw text and return ONLY a JSON object, no other text, no markdown.
-Fields: geo (2-letter code), brand, rate (keep currency symbol e.g. $120 or €150), traffic_source (one of: SEO/PPC/Push/Social/Native/Email/Other), game_type (one of: Slots/Crash/Mix or null), min_deposit (with currency symbol or null), capa (e.g. 50/day or null), platform (e.g. iOS/Android/Web or null), partner (name or null), partner_type (Direct or Network or null).
-Return only valid JSON.`,
-        messages:[{role:'user',content:text}]
-      })
-    });
-    const data = await res.json();
-    const raw = data.content.find(c=>c.type==='text')?.text || '{}';
-    const clean = raw.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(clean);
-    if (parsed.geo) document.getElementById('f-geo').value = parsed.geo.toUpperCase();
-    if (parsed.brand) document.getElementById('f-brand').value = parsed.brand;
-    if (parsed.rate) document.getElementById('f-rate').value = parsed.rate;
-    if (parsed.traffic_source) document.getElementById('f-source').value = parsed.traffic_source;
-    if (parsed.game_type) document.getElementById('f-game').value = parsed.game_type;
-    if (parsed.min_deposit) document.getElementById('f-mindep').value = parsed.min_deposit;
-    if (parsed.capa) document.getElementById('f-capa').value = parsed.capa;
-    if (parsed.platform) document.getElementById('f-platform').value = parsed.platform;
-    if (parsed.partner) document.getElementById('f-partner').value = parsed.partner;
-    if (parsed.partner_type) document.getElementById('f-ptype').value = parsed.partner_type;
-    showToast('Поля заполнены — проверь и сохрани', 'success');
-  } catch(e) {
-    showToast('Ошибка парсинга: ' + e.message, 'error');
-  }
-  btn.disabled = false;
-  btn.innerHTML = '<i class="ti ti-sparkles"></i>Распарсить с AI';
+  document.getElementById('templateSection').classList.toggle('hidden', mode!=='template');
+  document.getElementById('manualSection').classList.toggle('hidden', mode!=='manual');
 }
 
 // ── SAVE ──────────────────────────────────────────────
 async function saveOffer() {
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div>';
+
+  if (currentMode === 'template' && !editingId) {
+    if (parsedOffers.length === 0) {
+      showToast('Сначала распознай офферы', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-check"></i>Сохранить';
+      return;
+    }
+    const { error } = await sb.from('offers').insert(parsedOffers);
+    btn.disabled = false;
+    btn.innerHTML = `<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+    showToast(`Добавлено ${parsedOffers.length} оффер(ов)`, 'success');
+    closeModal();
+    loadOffers();
+    return;
+  }
+
   const payload = {
     project: currentProject,
     geo: document.getElementById('f-geo').value.trim().toUpperCase()||null,
@@ -710,6 +727,7 @@ async function saveOffer() {
     game_type: document.getElementById('f-game').value||null,
     min_deposit: document.getElementById('f-mindep').value.trim()||null,
     capa: document.getElementById('f-capa').value.trim()||null,
+    kpi: document.getElementById('f-kpi').value||null,
     platform: document.getElementById('f-platform').value.trim()||null,
     partner: document.getElementById('f-partner').value.trim()||null,
     partner_type: document.getElementById('f-ptype').value||null,
@@ -717,22 +735,14 @@ async function saveOffer() {
     notes: document.getElementById('f-notes').value.trim()||null,
   };
 
-  if (!payload.brand && !payload.geo) { showToast('Заполни хотя бы GEO или Бренд', 'error'); return; }
-
-  const btn = document.getElementById('saveBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div>';
+  if (!payload.brand && !payload.geo) { showToast('Заполни хотя бы GEO или Бренд', 'error'); btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить'; return; }
 
   let error;
-  if (editingId) {
-    ({error} = await sb.from('offers').update(payload).eq('id', editingId));
-  } else {
-    ({error} = await sb.from('offers').insert(payload));
-  }
+  if (editingId) ({ error } = await sb.from('offers').update(payload).eq('id', editingId));
+  else ({ error } = await sb.from('offers').insert(payload));
 
   btn.disabled = false;
   btn.innerHTML = '<i class="ti ti-check"></i>Сохранить';
-
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   showToast(editingId ? 'Оффер обновлён' : 'Оффер добавлен', 'success');
   closeModal();
@@ -742,10 +752,41 @@ async function saveOffer() {
 // ── DELETE ────────────────────────────────────────────
 async function deleteOffer(id) {
   if (!confirm('Удалить этот оффер?')) return;
-  const {error} = await sb.from('offers').delete().eq('id', id);
+  const { error } = await sb.from('offers').delete().eq('id', id);
   if (error) { showToast('Ошибка удаления', 'error'); return; }
   showToast('Оффер удалён', 'success');
   loadOffers();
+}
+
+// ── EXPORT ────────────────────────────────────────────
+function openExport() {
+  const rows = getFiltered();
+  const lines = rows.map(o => {
+    const parts = [
+      o.geo || '',
+      o.brand || '',
+      o.traffic_source || '',
+      o.game_type || '',
+      o.rate || '',
+      o.min_deposit ? 'MinDep ' + o.min_deposit : '',
+      o.capa ? 'Cap ' + o.capa : '',
+      o.kpi || '',
+      o.platform || '',
+    ].map(p => p.trim()).filter(p => p !== '');
+    return parts.join(' • ');
+  });
+  const text = lines.join('\n');
+  document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
+  document.getElementById('exportText').textContent = text;
+  document.getElementById('exportOverlay').classList.remove('hidden');
+}
+
+function closeExport() { document.getElementById('exportOverlay').classList.add('hidden'); }
+function handleExportClick(e) { if (e.target === document.getElementById('exportOverlay')) closeExport(); }
+
+function copyExport() {
+  const text = document.getElementById('exportText').textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('Скопировано!', 'success'));
 }
 
 // ── TOAST ─────────────────────────────────────────────
