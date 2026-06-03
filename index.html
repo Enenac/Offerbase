@@ -306,11 +306,42 @@ tr:hover .row-actions{opacity:1}
     </div>
 
     <span class="chip-clear hidden" id="clearFilters" onclick="clearAllFilters()"><i class="ti ti-x" style="font-size:10px"></i>Сбросить</span>
+
+    <!-- Date filter -->
+    <div class="filter-dropdown" style="margin-left:auto">
+      <div class="chip" id="chip-date" onclick="toggleFilterMenu('date')"><i class="ti ti-calendar"></i>Дата</div>
+      <div class="filter-menu hidden" id="menu-date" style="right:0;left:auto;min-width:220px">
+        <div class="filter-menu-list">
+          <div class="filter-option" onclick="setDatePreset('today')"><i class="ti ti-calendar-event" style="font-size:12px"></i>Сегодня</div>
+          <div class="filter-option" onclick="setDatePreset('yesterday')"><i class="ti ti-calendar-minus" style="font-size:12px"></i>Вчера</div>
+          <div class="filter-option" onclick="setDatePreset('week')"><i class="ti ti-calendar-week" style="font-size:12px"></i>Эта неделя (пн–вс)</div>
+          <div class="filter-option" onclick="setDatePreset('month')"><i class="ti ti-calendar-month" style="font-size:12px"></i>Этот месяц</div>
+          <div class="filter-option" onclick="setDatePreset('lastmonth')"><i class="ti ti-calendar-stats" style="font-size:12px"></i>Прошлый месяц</div>
+        </div>
+        <div style="border-top:0.5px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Диапазон</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="date" id="date-from" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none" onchange="applyDateRange()">
+            <span style="color:var(--text3);font-size:11px">—</span>
+            <input type="date" id="date-to" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none" onchange="applyDateRange()">
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="toolbar">
     <span class="results-count" id="resultsCount"></span>
     <button class="btn btn-green" id="exportBtn" onclick="openExport()" style="display:none"><i class="ti ti-copy"></i>Скопировать для Telegram</button>
+  </div>
+
+  <!-- Bulk action bar -->
+  <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;padding:8px 24px;background:#1a0a0a;border-bottom:0.5px solid #3a1212;flex-shrink:0">
+    <span style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace"><span id="bulkCount">0</span> оффер(ов) выбрано</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="clearSelection()" style="font-size:12px;padding:5px 12px">Снять выделение</button>
+      <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:12px;padding:5px 12px"><i class="ti ti-trash"></i>Удалить выбранные</button>
+    </div>
   </div>
 
   <div class="table-container">
@@ -319,6 +350,7 @@ tr:hover .row-actions{opacity:1}
     <table id="offersTable" class="hidden">
       <thead>
         <tr>
+          <th style="width:36px;padding:9px 8px 9px 14px"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
           <th onclick="sortBy('geo')">GEO <i class="ti ti-selector"></i></th>
           <th onclick="sortBy('brand')">Бренд <i class="ti ti-selector"></i></th>
           <th onclick="sortBy('rate')">Ставка <i class="ti ti-selector"></i></th>
@@ -483,8 +515,7 @@ async function loadOffers() {
   allOffers = data || [];
   updateCounts();
   buildDynamicFilters();
-  renderTable();
-  showLoading(false);
+  showLoading(false); // renderTable is called inside showLoading(false)
 }
 
 function showLoading(v) {
@@ -492,6 +523,9 @@ function showLoading(v) {
   if (v) {
     document.getElementById('offersTable').classList.add('hidden');
     document.getElementById('emptyState').classList.add('hidden');
+  } else {
+    // After loading, renderTable() will show the correct state
+    renderTable();
   }
 }
 
@@ -572,13 +606,14 @@ function setFilter(key, val) {
   else filters[key] = val;
   updateChips();
   buildDynamicFilters();
-  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0);
+  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0 && !dateFilter);
   closeAllMenus();
   renderTable();
 }
 
 function clearAllFilters() {
   filters = {};
+  clearDateFilter();
   updateChips();
   buildDynamicFilters();
   document.getElementById('clearFilters').classList.add('hidden');
@@ -590,7 +625,7 @@ function clearFilter(e, key) {
   delete filters[key];
   updateChips();
   buildDynamicFilters();
-  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0);
+  document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0 && !dateFilter);
   renderTable();
 }
 
@@ -635,6 +670,10 @@ function getFiltered() {
   if (filters.platform) rows = rows.filter(o => (o.platform||'') === filters.platform);
   if (filters.partner)  rows = rows.filter(o => (o.partner||'') === filters.partner);
   if (filters.ptype)    rows = rows.filter(o => (o.partner_type||'') === filters.ptype);
+  if (dateFilter) {
+    if (dateFilter.from) rows = rows.filter(o => o.received_at && o.received_at >= dateFilter.from);
+    if (dateFilter.to)   rows = rows.filter(o => o.received_at && o.received_at <= dateFilter.to);
+  }
   if (searchQuery)      rows = rows.filter(o =>
     (o.brand||'').toLowerCase().includes(searchQuery) ||
     (o.partner||'').toLowerCase().includes(searchQuery) ||
@@ -664,6 +703,7 @@ function renderTable() {
 
   document.getElementById('offersBody').innerHTML = rows.map(o => `
     <tr data-id="${o.id}">
+      <td style="padding:8px 8px 8px 14px"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
       <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
       <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
       <td><span class="td-rate">${esc(o.rate)||'—'}</span></td>
@@ -894,15 +934,131 @@ async function deleteOffer(id) {
   loadOffers();
 }
 
-// ── EXPORT ────────────────────────────────────────────
+// ── BULK DELETE ───────────────────────────────────────
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.row-cb').forEach(el => { el.checked = cb.checked; });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.row-cb:checked');
+  const bar = document.getElementById('bulkBar');
+  document.getElementById('bulkCount').textContent = checked.length;
+  bar.style.display = checked.length > 0 ? 'flex' : 'none';
+  // update selectAll indeterminate state
+  const all = document.querySelectorAll('.row-cb');
+  const selectAll = document.getElementById('selectAll');
+  if (selectAll) {
+    selectAll.checked = all.length > 0 && checked.length === all.length;
+    selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+}
+
+function clearSelection() {
+  document.querySelectorAll('.row-cb').forEach(el => el.checked = false);
+  const selectAll = document.getElementById('selectAll');
+  if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+  document.getElementById('bulkBar').style.display = 'none';
+}
+
+async function deleteSelected() {
+  const ids = [...document.querySelectorAll('.row-cb:checked')].map(el => el.value);
+  if (ids.length === 0) return;
+  if (!confirm(`Удалить ${ids.length} оффер(ов)?`)) return;
+  const { error } = await sb.from('offers').delete().in('id', ids);
+  if (error) { showToast('Ошибка удаления: ' + error.message, 'error'); return; }
+  showToast(`Удалено ${ids.length} оффер(ов)`, 'success');
+  clearSelection();
+  loadOffers();
+}
+
+// ── DATE FILTER ───────────────────────────────────────
+let dateFilter = null; // { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } or null
+
+function setDatePreset(preset) {
+  const now = new Date();
+  let from, to;
+  const fmt = d => d.toISOString().split('T')[0];
+
+  if (preset === 'today') {
+    from = to = fmt(now);
+  } else if (preset === 'yesterday') {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    from = to = fmt(y);
+  } else if (preset === 'week') {
+    // Mon–Sun of current week
+    const day = now.getDay(); // 0=Sun
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    from = fmt(mon); to = fmt(sun);
+  } else if (preset === 'month') {
+    from = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+    to = fmt(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  } else if (preset === 'lastmonth') {
+    from = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    to = fmt(new Date(now.getFullYear(), now.getMonth(), 0));
+  }
+
+  dateFilter = { from, to };
+  document.getElementById('date-from').value = from;
+  document.getElementById('date-to').value = to;
+  closeAllMenus();
+  updateDateChip();
+  renderTable();
+}
+
+function applyDateRange() {
+  const from = document.getElementById('date-from').value;
+  const to = document.getElementById('date-to').value;
+  if (!from && !to) { dateFilter = null; }
+  else { dateFilter = { from: from || null, to: to || null }; }
+  updateDateChip();
+  renderTable();
+}
+
+function updateDateChip() {
+  const chip = document.getElementById('chip-date');
+  if (!chip) return;
+  if (dateFilter && (dateFilter.from || dateFilter.to)) {
+    chip.classList.add('active');
+    const lbl = dateFilter.from === dateFilter.to
+      ? dateFilter.from
+      : `${dateFilter.from||'…'} — ${dateFilter.to||'…'}`;
+    chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearDateFilter(event)"></i>Дата: ${lbl}`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-calendar"></i>Дата`;
+  }
+  document.getElementById('clearFilters').classList.toggle('hidden',
+    Object.keys(filters).length === 0 && !dateFilter);
+}
+
+function clearDateFilter(e) {
+  if (e) e.stopPropagation();
+  dateFilter = null;
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value = '';
+  updateDateChip();
+  renderTable();
+}
+
+
 function openExport() {
   const rows = getFiltered();
   const lines = rows.map(o => {
-    const parts = [o.geo||'',o.brand||'',o.traffic_source||'',o.game_type||'',o.rate||'',
-      o.min_deposit?'MinDep '+o.min_deposit:'',
-      o.capa?'Cap '+o.capa:'',
-      o.kpi||'',o.platform||'']
-      .map(p=>p.trim()).filter(p=>p!=='');
+    const parts = [
+      o.geo||'',
+      o.brand||'',
+      o.traffic_source||'',
+      o.game_type||'',
+      o.rate||'',
+      o.min_deposit ? 'MinDep ' + o.min_deposit : '',
+      o.capa ? 'Cap ' + o.capa : '',
+      o.kpi||'',
+      o.platform||'',
+      o.partner||''
+    ].map(p=>p.trim()).filter(p=>p!=='');
     return parts.join(' • ');
   });
   document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
