@@ -182,6 +182,12 @@ tr:hover .row-actions{opacity:1}
 .toast.hidden{opacity:0;transform:translateY(8px);pointer-events:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+
+/* Bulk delete mode */
+.bulk-cb-col { display: none; width: 36px; padding: 8px 4px 8px 14px !important; }
+.bulk-mode .bulk-cb-col { display: table-cell; }
+.bulk-mode-th { display: none; width: 36px; padding: 9px 4px 9px 14px !important; }
+.bulk-mode .bulk-mode-th { display: table-cell; }
 </style>
 </head>
 <body>
@@ -312,18 +318,18 @@ tr:hover .row-actions{opacity:1}
       <div class="chip" id="chip-date" onclick="toggleFilterMenu('date')"><i class="ti ti-calendar"></i>Дата</div>
       <div class="filter-menu hidden" id="menu-date" style="right:0;left:auto;min-width:220px">
         <div class="filter-menu-list">
-          <div class="filter-option" onclick="setDatePreset('today')"><i class="ti ti-calendar-event" style="font-size:12px"></i>Сегодня</div>
-          <div class="filter-option" onclick="setDatePreset('yesterday')"><i class="ti ti-calendar-minus" style="font-size:12px"></i>Вчера</div>
-          <div class="filter-option" onclick="setDatePreset('week')"><i class="ti ti-calendar-week" style="font-size:12px"></i>Эта неделя (пн–вс)</div>
-          <div class="filter-option" onclick="setDatePreset('month')"><i class="ti ti-calendar-month" style="font-size:12px"></i>Этот месяц</div>
-          <div class="filter-option" onclick="setDatePreset('lastmonth')"><i class="ti ti-calendar-stats" style="font-size:12px"></i>Прошлый месяц</div>
+          <div class="filter-option" onclick="setDatePreset('today')">Сегодня</div>
+          <div class="filter-option" onclick="setDatePreset('yesterday')">Вчера</div>
+          <div class="filter-option" onclick="setDatePreset('week')">Эта неделя (пн–вс)</div>
+          <div class="filter-option" onclick="setDatePreset('month')">Этот месяц</div>
+          <div class="filter-option" onclick="setDatePreset('lastmonth')">Прошлый месяц</div>
         </div>
         <div style="border-top:0.5px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;gap:6px">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Диапазон</div>
           <div style="display:flex;align-items:center;gap:6px">
-            <input type="date" id="date-from" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none" onchange="applyDateRange()">
+            <input type="date" id="date-from" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;color-scheme:dark" onchange="applyDateRange()">
             <span style="color:var(--text3);font-size:11px">—</span>
-            <input type="date" id="date-to" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none" onchange="applyDateRange()">
+            <input type="date" id="date-to" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;color-scheme:dark" onchange="applyDateRange()">
           </div>
         </div>
       </div>
@@ -332,15 +338,18 @@ tr:hover .row-actions{opacity:1}
 
   <div class="toolbar">
     <span class="results-count" id="resultsCount"></span>
-    <button class="btn btn-green" id="exportBtn" onclick="openExport()" style="display:none"><i class="ti ti-copy"></i>Скопировать для Telegram</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-ghost" id="bulkModeBtn" onclick="toggleBulkMode()" style="font-size:12px;padding:6px 12px"><i class="ti ti-trash"></i>Удалить</button>
+      <button class="btn btn-green" id="exportBtn" onclick="openExport()" style="display:none"><i class="ti ti-copy"></i>Скопировать для Telegram</button>
+    </div>
   </div>
 
-  <!-- Bulk action bar -->
-  <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;padding:8px 24px;background:#1a0a0a;border-bottom:0.5px solid #3a1212;flex-shrink:0">
-    <span style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace"><span id="bulkCount">0</span> оффер(ов) выбрано</span>
+  <!-- Bulk action bar (visible only in bulk mode with selections) -->
+  <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;padding:7px 24px;background:#1a0a0a;border-bottom:0.5px solid #3a1212;flex-shrink:0">
+    <span style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace"><span id="bulkCount">0</span> выбрано</span>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost" onclick="clearSelection()" style="font-size:12px;padding:5px 12px">Снять выделение</button>
-      <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:12px;padding:5px 12px"><i class="ti ti-trash"></i>Удалить выбранные</button>
+      <button class="btn btn-ghost" onclick="toggleBulkMode()" style="font-size:11px;padding:4px 10px">Отмена</button>
+      <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
     </div>
   </div>
 
@@ -350,7 +359,7 @@ tr:hover .row-actions{opacity:1}
     <table id="offersTable" class="hidden">
       <thead>
         <tr>
-          <th style="width:36px;padding:9px 8px 9px 14px"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
+          <th class="bulk-mode-th"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
           <th onclick="sortBy('geo')">GEO <i class="ti ti-selector"></i></th>
           <th onclick="sortBy('brand')">Бренд <i class="ti ti-selector"></i></th>
           <th onclick="sortBy('rate')">Ставка <i class="ti ti-selector"></i></th>
@@ -509,13 +518,16 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadOffers() {
-  showLoading(true);
+  document.getElementById('loadingState').classList.remove('hidden');
+  document.getElementById('offersTable').classList.add('hidden');
+  document.getElementById('emptyState').classList.add('hidden');
   const { data, error } = await sb.from('offers').select('*').order('created_at', { ascending: false });
-  if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); showLoading(false); return; }
+  document.getElementById('loadingState').classList.add('hidden');
+  if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
   allOffers = data || [];
   updateCounts();
   buildDynamicFilters();
-  showLoading(false); // renderTable is called inside showLoading(false)
+  renderTable();
 }
 
 function showLoading(v) {
@@ -523,9 +535,6 @@ function showLoading(v) {
   if (v) {
     document.getElementById('offersTable').classList.add('hidden');
     document.getElementById('emptyState').classList.add('hidden');
-  } else {
-    // After loading, renderTable() will show the correct state
-    renderTable();
   }
 }
 
@@ -674,7 +683,7 @@ function getFiltered() {
     if (dateFilter.from) rows = rows.filter(o => o.received_at && o.received_at >= dateFilter.from);
     if (dateFilter.to)   rows = rows.filter(o => o.received_at && o.received_at <= dateFilter.to);
   }
-  if (searchQuery)      rows = rows.filter(o =>
+  if (searchQuery) rows = rows.filter(o =>
     (o.brand||'').toLowerCase().includes(searchQuery) ||
     (o.partner||'').toLowerCase().includes(searchQuery) ||
     (o.platform||'').toLowerCase().includes(searchQuery)
@@ -703,7 +712,7 @@ function renderTable() {
 
   document.getElementById('offersBody').innerHTML = rows.map(o => `
     <tr data-id="${o.id}">
-      <td style="padding:8px 8px 8px 14px"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
+      <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
       <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
       <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
       <td><span class="td-rate">${esc(o.rate)||'—'}</span></td>
@@ -935,6 +944,24 @@ async function deleteOffer(id) {
 }
 
 // ── BULK DELETE ───────────────────────────────────────
+let bulkMode = false;
+
+function toggleBulkMode() {
+  bulkMode = !bulkMode;
+  const table = document.getElementById('offersTable');
+  const btn = document.getElementById('bulkModeBtn');
+  if (bulkMode) {
+    table.classList.add('bulk-mode');
+    btn.innerHTML = '<i class="ti ti-x"></i>Отмена';
+    btn.classList.add('btn-ghost');
+  } else {
+    table.classList.remove('bulk-mode');
+    btn.innerHTML = '<i class="ti ti-trash"></i>Удалить';
+    btn.classList.remove('btn-ghost');
+    clearSelection();
+  }
+}
+
 function toggleSelectAll(cb) {
   document.querySelectorAll('.row-cb').forEach(el => { el.checked = cb.checked; });
   updateBulkBar();
@@ -945,19 +972,18 @@ function updateBulkBar() {
   const bar = document.getElementById('bulkBar');
   document.getElementById('bulkCount').textContent = checked.length;
   bar.style.display = checked.length > 0 ? 'flex' : 'none';
-  // update selectAll indeterminate state
   const all = document.querySelectorAll('.row-cb');
-  const selectAll = document.getElementById('selectAll');
-  if (selectAll) {
-    selectAll.checked = all.length > 0 && checked.length === all.length;
-    selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+  const sa = document.getElementById('selectAll');
+  if (sa) {
+    sa.checked = all.length > 0 && checked.length === all.length;
+    sa.indeterminate = checked.length > 0 && checked.length < all.length;
   }
 }
 
 function clearSelection() {
   document.querySelectorAll('.row-cb').forEach(el => el.checked = false);
-  const selectAll = document.getElementById('selectAll');
-  if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+  const sa = document.getElementById('selectAll');
+  if (sa) { sa.checked = false; sa.indeterminate = false; }
   document.getElementById('bulkBar').style.display = 'none';
 }
 
@@ -968,28 +994,28 @@ async function deleteSelected() {
   const { error } = await sb.from('offers').delete().in('id', ids);
   if (error) { showToast('Ошибка удаления: ' + error.message, 'error'); return; }
   showToast(`Удалено ${ids.length} оффер(ов)`, 'success');
+  bulkMode = false;
+  document.getElementById('offersTable').classList.remove('bulk-mode');
+  document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
   clearSelection();
   loadOffers();
 }
 
 // ── DATE FILTER ───────────────────────────────────────
-let dateFilter = null; // { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } or null
+let dateFilter = null;
 
 function setDatePreset(preset) {
   const now = new Date();
-  let from, to;
   const fmt = d => d.toISOString().split('T')[0];
-
+  let from, to;
   if (preset === 'today') {
     from = to = fmt(now);
   } else if (preset === 'yesterday') {
     const y = new Date(now); y.setDate(y.getDate() - 1);
     from = to = fmt(y);
   } else if (preset === 'week') {
-    // Mon–Sun of current week
-    const day = now.getDay(); // 0=Sun
-    const mon = new Date(now);
-    mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const day = now.getDay();
+    const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
     from = fmt(mon); to = fmt(sun);
   } else if (preset === 'month') {
@@ -999,7 +1025,6 @@ function setDatePreset(preset) {
     from = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     to = fmt(new Date(now.getFullYear(), now.getMonth(), 0));
   }
-
   dateFilter = { from, to };
   document.getElementById('date-from').value = from;
   document.getElementById('date-to').value = to;
@@ -1011,8 +1036,7 @@ function setDatePreset(preset) {
 function applyDateRange() {
   const from = document.getElementById('date-from').value;
   const to = document.getElementById('date-to').value;
-  if (!from && !to) { dateFilter = null; }
-  else { dateFilter = { from: from || null, to: to || null }; }
+  dateFilter = (from || to) ? { from: from||null, to: to||null } : null;
   updateDateChip();
   renderTable();
 }
@@ -1022,9 +1046,7 @@ function updateDateChip() {
   if (!chip) return;
   if (dateFilter && (dateFilter.from || dateFilter.to)) {
     chip.classList.add('active');
-    const lbl = dateFilter.from === dateFilter.to
-      ? dateFilter.from
-      : `${dateFilter.from||'…'} — ${dateFilter.to||'…'}`;
+    const lbl = dateFilter.from === dateFilter.to ? dateFilter.from : `${dateFilter.from||'…'}—${dateFilter.to||'…'}`;
     chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearDateFilter(event)"></i>Дата: ${lbl}`;
   } else {
     chip.classList.remove('active');
@@ -1037,8 +1059,10 @@ function updateDateChip() {
 function clearDateFilter(e) {
   if (e) e.stopPropagation();
   dateFilter = null;
-  document.getElementById('date-from').value = '';
-  document.getElementById('date-to').value = '';
+  const df = document.getElementById('date-from');
+  const dt = document.getElementById('date-to');
+  if (df) df.value = '';
+  if (dt) dt.value = '';
   updateDateChip();
   renderTable();
 }
@@ -1047,18 +1071,17 @@ function clearDateFilter(e) {
 function openExport() {
   const rows = getFiltered();
   const lines = rows.map(o => {
-    const parts = [
-      o.geo||'',
-      o.brand||'',
-      o.traffic_source||'',
-      o.game_type||'',
-      o.rate||'',
-      o.min_deposit ? 'MinDep ' + o.min_deposit : '',
-      o.capa ? 'Cap ' + o.capa : '',
-      o.kpi||'',
-      o.platform||'',
-      o.partner||''
-    ].map(p=>p.trim()).filter(p=>p!=='');
+    const parts = [];
+    if (o.geo)            parts.push(o.geo);
+    if (o.brand)          parts.push(o.brand);
+    if (o.traffic_source) parts.push(o.traffic_source);
+    if (o.game_type)      parts.push(o.game_type);
+    if (o.rate)           parts.push(o.rate);
+    if (o.min_deposit)    parts.push('MinDep ' + o.min_deposit);
+    if (o.capa)           parts.push('Cap ' + o.capa);
+    if (o.kpi)            parts.push(o.kpi);
+    if (o.platform)       parts.push(o.platform);
+    if (o.partner)        parts.push(o.partner);
     return parts.join(' • ');
   });
   document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
