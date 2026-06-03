@@ -1071,18 +1071,19 @@ function clearDateFilter(e) {
 
 function openExport() {
   const rows = getFiltered();
+  const val = v => (v && v.trim() !== '-') ? v.trim() : null;
   const lines = rows.map(o => {
     const parts = [];
-    if (o.geo)            parts.push(o.geo);
-    if (o.brand)          parts.push(o.brand);
-    if (o.traffic_source) parts.push(o.traffic_source);
-    if (o.game_type)      parts.push(o.game_type);
-    if (o.rate)           parts.push(o.rate);
-    if (o.min_deposit)    parts.push('MinDep ' + o.min_deposit);
-    if (o.capa)           parts.push('Cap ' + o.capa);
-    if (o.kpi)            parts.push(o.kpi);
-    if (o.platform)       parts.push(o.platform);
-    if (o.partner)        parts.push(o.partner);
+    if (val(o.geo))            parts.push(val(o.geo));
+    if (val(o.brand))          parts.push(val(o.brand));
+    if (val(o.traffic_source)) parts.push(val(o.traffic_source));
+    if (val(o.game_type))      parts.push(val(o.game_type));
+    if (val(o.rate))           parts.push(val(o.rate));
+    if (val(o.min_deposit))    parts.push('MinDep ' + val(o.min_deposit));
+    if (val(o.capa))           parts.push('Cap ' + val(o.capa));
+    if (val(o.kpi))            parts.push(val(o.kpi));
+    if (val(o.platform))       parts.push(val(o.platform));
+    if (val(o.partner))        parts.push(val(o.partner));
     return parts.join(' • ');
   });
   document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
