@@ -189,6 +189,25 @@ tr:hover .row-actions{opacity:1}
 .bulk-mode .bulk-cb-col { display: table-cell; }
 .bulk-mode-th { display: none; width: 36px; padding: 9px 4px 9px 14px !important; }
 .bulk-mode .bulk-mode-th { display: table-cell; }
+
+/* Request cards */
+.req-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color 0.15s}
+.req-card:hover{border-color:var(--accent-border)}
+.req-card-header{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
+.req-card-title{font-size:13px;color:var(--text1);font-weight:500;flex:1}
+.req-card-meta{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:10px}
+.req-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:500;font-family:'IBM Plex Mono',monospace;border:0.5px solid}
+.req-status.new{background:#1a1a3a;border-color:#3a3a7a;color:#818cf8}
+.req-status.sent{background:#2a1f0a;border-color:#5a3f0a;color:#f59e0b}
+.req-status.proposed{background:#0a2a1a;border-color:#0a5a2a;color:#10b981}
+.req-status.rejected{background:#2a0a0a;border-color:#5a1a1a;color:#ef4444}
+.req-status.closed{background:var(--bg3);border-color:var(--border);color:var(--text3)}
+.req-items-table{width:100%;border-collapse:collapse;font-size:11px}
+.req-items-table th{padding:6px 12px;text-align:left;color:var(--text3);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;border-bottom:0.5px solid var(--border)}
+.req-items-table td{padding:7px 12px;color:var(--text2);border-bottom:0.5px solid var(--border);vertical-align:middle}
+.req-items-table tr:last-child td{border-bottom:none}
+.dispatch-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace}
+.match-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:10px;font-size:10px;background:#0a2a0a;border:0.5px solid #1a5a1a;color:#10b981;font-family:'IBM Plex Mono',monospace}
 </style>
 </head>
 <body>
@@ -201,6 +220,7 @@ tr:hover .row-actions{opacity:1}
         <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
       </div>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
+      <button class="btn btn-ghost" id="loginBtn" onclick="openLoginModal()" style="font-size:11px;padding:6px 10px;color:var(--text3)"><i class="ti ti-lock"></i></button>
     </div>
   </div>
 
@@ -211,8 +231,12 @@ tr:hover .row-actions{opacity:1}
     <div class="proj-tab" onclick="switchProject('phantom')" id="tab-phantom">
       <i class="ti ti-ghost"></i>Phantom Partners<span class="proj-count" id="count-phantom">0</span>
     </div>
+    <div class="proj-tab hidden" onclick="switchProject('requests')" id="tab-requests" style="margin-left:auto;color:var(--accent)">
+      <i class="ti ti-inbox"></i>Запросы<span class="proj-count" id="count-requests" style="background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)">0</span>
+    </div>
   </div>
 
+<div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
   <div class="stats-bar">
     <div class="stat"><span class="stat-val" id="s-total">—</span><span class="stat-lbl">Всего офферов</span></div>
     <div class="stat"><span class="stat-val" id="s-active">—</span><span class="stat-lbl">Активных</span></div>
@@ -466,7 +490,7 @@ tr:hover .row-actions{opacity:1}
       <button class="btn btn-save" onclick="saveOffer()" id="saveBtn"><i class="ti ti-check"></i>Сохранить</button>
     </div>
   </div>
-</div>
+</div><!-- /offersView -->
 
 <!-- EXPORT MODAL -->
 <div class="modal-overlay hidden" id="exportOverlay" onclick="handleExportClick(event)">
@@ -944,7 +968,388 @@ async function deleteOffer(id) {
   loadOffers();
 }
 
-// ── BULK DELETE ───────────────────────────────────────
+// ── AUTH ──────────────────────────────────────────────
+const ADMIN_PASSWORD = 'smerch2024admin';
+let isAdmin = false;
+
+function openLoginModal() {
+  if (isAdmin) { doLogout(); return; }
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  setTimeout(() => document.getElementById('loginPassword').focus(), 100);
+}
+function closeLoginModal() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+}
+function doLogin() {
+  const pw = document.getElementById('loginPassword').value;
+  if (pw === ADMIN_PASSWORD) {
+    isAdmin = true;
+    closeLoginModal();
+    document.getElementById('tab-requests').classList.remove('hidden');
+    document.getElementById('loginBtn').innerHTML = '<i class="ti ti-lock-open"></i>';
+    document.getElementById('loginBtn').style.color = 'var(--accent)';
+    showToast('Добро пожаловать', 'success');
+    loadRequests();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+function doLogout() {
+  isAdmin = false;
+  document.getElementById('tab-requests').classList.add('hidden');
+  document.getElementById('loginBtn').innerHTML = '<i class="ti ti-lock"></i>';
+  document.getElementById('loginBtn').style.color = 'var(--text3)';
+  if (currentProject === 'requests') switchProject('smerch');
+}
+
+// ── SWITCH PROJECT (extend existing) ─────────────────
+const _origSwitch = switchProject;
+// patch switchProject to handle 'requests'
+window.switchProject = function(p) {
+  const offersView = document.getElementById('offersView');
+  const requestsSection = document.getElementById('requestsSection');
+  if (p === 'requests') {
+    if (!isAdmin) return;
+    currentProject = 'requests';
+    offersView.style.display = 'none';
+    requestsSection.style.display = 'flex';
+    ['smerch','phantom','requests'].forEach(x => {
+      document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
+    });
+    loadRequests();
+  } else {
+    currentProject = p;
+    offersView.style.display = 'flex';
+    requestsSection.style.display = 'none';
+    ['smerch','phantom','requests'].forEach(x => {
+      document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
+    });
+    updateCounts();
+    buildDynamicFilters();
+    renderTable();
+  }
+};
+
+// ── REQUESTS DATA ─────────────────────────────────────
+let allRequests = [];
+let allRequestItems = [];
+let allDispatches = [];
+let reqFilter = 'all';
+
+async function loadRequests() {
+  const [r1, r2, r3] = await Promise.all([
+    sb.from('requests').select('*').order('created_at', { ascending: false }),
+    sb.from('request_items').select('*'),
+    sb.from('request_dispatches').select('*')
+  ]);
+  allRequests = r1.data || [];
+  allRequestItems = r2.data || [];
+  allDispatches = r3.data || [];
+  document.getElementById('count-requests').textContent = allRequests.filter(r => r.status === 'new' || r.status === 'sent').length;
+  renderRequests();
+}
+
+function setReqFilter(f) {
+  reqFilter = f;
+  ['all','new','sent','proposed','rejected','closed'].forEach(x => {
+    document.getElementById('rf-'+x)?.classList.toggle('active', x === f);
+  });
+  renderRequests();
+}
+
+const REQ_STATUS_LABELS = {
+  new: 'Новый', sent: 'Отправлен', proposed: 'Предложен', rejected: 'Отклонён', closed: 'Закрыт'
+};
+
+function renderRequests() {
+  const list = document.getElementById('requestsList');
+  let rows = reqFilter === 'all' ? allRequests : allRequests.filter(r => r.status === reqFilter);
+  if (rows.length === 0) {
+    list.innerHTML = `<div class="empty"><i class="ti ti-inbox"></i><span>Запросов нет</span></div>`;
+    return;
+  }
+  list.innerHTML = rows.map(req => {
+    const items = allRequestItems.filter(i => i.request_id === req.id);
+    const dispatches = allDispatches.filter(d => d.request_id === req.id);
+    const partners = [...new Set(dispatches.map(d => d.partner))];
+    const dateStr = req.received_at ? new Date(req.received_at).toLocaleDateString('ru-RU', {day:'2-digit',month:'2-digit'}) : '';
+    return `
+    <div class="req-card">
+      <div class="req-card-header" onclick="openReqDetail('${req.id}')">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <span class="req-card-title">${req.title || 'Без названия'}</span>
+            <span class="req-status ${req.status}">${REQ_STATUS_LABELS[req.status]||req.status}</span>
+          </div>
+          <div class="req-card-meta">
+            <span><i class="ti ti-list-numbers" style="font-size:11px"></i> ${items.length} оффер(ов)</span>
+            ${dateStr ? `<span><i class="ti ti-calendar" style="font-size:11px"></i> ${dateStr}</span>` : ''}
+            ${partners.length ? `<span><i class="ti ti-send" style="font-size:11px"></i> ${partners.join(', ')}</span>` : ''}
+            ${req.notes ? `<span style="color:var(--text2)">${req.notes}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onclick="event.stopPropagation()" onchange="updateReqStatus('${req.id}', this.value)">
+            ${['new','sent','proposed','rejected','closed'].map(s =>
+              `<option value="${s}" ${req.status===s?'selected':''}>${REQ_STATUS_LABELS[s]}</option>`
+            ).join('')}
+          </select>
+          <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red)"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── REQUEST DETAIL ────────────────────────────────────
+async function openReqDetail(reqId) {
+  const req = allRequests.find(r => r.id === reqId);
+  if (!req) return;
+  const items = allRequestItems.filter(i => i.request_id === reqId);
+  const dispatches = allDispatches.filter(d => d.request_id === reqId);
+
+  // Build partner suggestions from existing offers
+  const suggestions = getPartnerSuggestions(items);
+
+  // Get all known partners
+  const knownPartners = [...new Set(allOffers.map(o => o.partner).filter(Boolean))].sort();
+
+  document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i>${req.title || 'Без названия'}`;
+
+  document.getElementById('reqDetailBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+      <!-- LEFT: items -->
+      <div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Офферы в запросе</div>
+        <table class="req-items-table" style="width:100%">
+          <thead><tr>
+            <th></th><th>GEO</th><th>Бренд</th><th>Источник</th><th>Тип</th><th>Ставка</th><th>Платформа</th>
+          </tr></thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td><input type="checkbox" class="item-cb" value="${item.id}" style="accent-color:var(--accent)"></td>
+                <td>${item.geo ? `<span class="td-geo">${flag(item.geo)} ${item.geo}</span>` : '—'}</td>
+                <td style="color:var(--text1);font-weight:500">${item.brand||'—'}</td>
+                <td>${item.traffic_source ? `<span class="badge-source">${item.traffic_source}</span>` : '—'}</td>
+                <td>${item.game_type ? `<span class="badge-game">${item.game_type}</span>` : '—'}</td>
+                <td style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${item.rate||'—'}</td>
+                <td style="font-size:10px">${item.platform||'—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- RIGHT: dispatch + suggestions -->
+      <div>
+        <!-- Suggestions -->
+        ${suggestions.length ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">💡 Подходящие партнёры</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${suggestions.map(s => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border)">
+                <div>
+                  <span style="font-size:12px;color:var(--text1);font-weight:500">${s.partner}</span>
+                  <div style="font-size:10px;color:var(--text3);margin-top:2px">${s.reasons.join(' · ')}</div>
+                </div>
+                <span class="match-badge">${s.score} совп.</span>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        <!-- Send to partner -->
+        <div style="margin-bottom:16px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправить партнёру</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input class="form-input" list="partners-list-${reqId}" id="dispatchPartner-${reqId}" placeholder="Партнёр..." style="flex:1;font-size:12px">
+            <datalist id="partners-list-${reqId}">
+              ${knownPartners.map(p => `<option value="${p}">`).join('')}
+            </datalist>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Выберите офферы (или оставьте пустым = весь запрос):</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" style="font-size:11px;flex:1" onclick="sendDispatch('${reqId}')"><i class="ti ti-send"></i>Отправить</button>
+          </div>
+        </div>
+
+        <!-- Existing dispatches -->
+        ${dispatches.length ? `
+        <div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправлено партнёрам</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${dispatches.map(d => `
+              <div style="padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+                <div>
+                  <span style="font-size:12px;color:var(--text1);font-weight:500">${d.partner}</span>
+                  <div style="font-size:10px;color:var(--text3);margin-top:2px">
+                    ${d.sent_at ? new Date(d.sent_at).toLocaleDateString('ru-RU') : ''}
+                    ${d.request_item_ids?.length ? `· ${d.request_item_ids.length} оффер(ов)` : '· весь запрос'}
+                    ${d.notes ? `· ${d.notes}` : ''}
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onchange="updateDispatchStatus('${d.id}', this.value, '${reqId}')">
+                    <option value="sent" ${d.status==='sent'?'selected':''}>Отправлен</option>
+                    <option value="replied" ${d.status==='replied'?'selected':''}>Ответил</option>
+                    <option value="no" ${d.status==='no'?'selected':''}>Нет ответа</option>
+                  </select>
+                  <button class="icon-btn" onclick="deleteDispatch('${d.id}','${reqId}')" style="color:var(--red);font-size:12px"><i class="ti ti-x"></i></button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>
+    </div>`;
+
+  document.getElementById('reqDetailOverlay').classList.remove('hidden');
+}
+
+function getPartnerSuggestions(items) {
+  const partnerScores = {};
+  const partnerReasons = {};
+
+  items.forEach(item => {
+    allOffers.forEach(o => {
+      if (!o.partner) return;
+      let score = 0;
+      const reasons = [];
+      if (item.geo && o.geo === item.geo) { score += 3; reasons.push(item.geo); }
+      if (item.brand && o.brand && o.brand.toLowerCase() === item.brand.toLowerCase()) { score += 5; reasons.push(item.brand); }
+      if (item.traffic_source && o.traffic_source && o.traffic_source.toLowerCase() === item.traffic_source.toLowerCase()) { score += 2; reasons.push(item.traffic_source); }
+      if (item.game_type && o.game_type && o.game_type.toLowerCase() === item.game_type.toLowerCase()) { score += 1; reasons.push(item.game_type); }
+      if (score > 0) {
+        partnerScores[o.partner] = (partnerScores[o.partner] || 0) + score;
+        if (!partnerReasons[o.partner]) partnerReasons[o.partner] = new Set();
+        reasons.forEach(r => partnerReasons[o.partner].add(r));
+      }
+    });
+  });
+
+  return Object.entries(partnerScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([partner, score]) => ({
+      partner,
+      score,
+      reasons: [...partnerReasons[partner]].slice(0, 4)
+    }));
+}
+
+async function sendDispatch(reqId) {
+  const partner = document.getElementById(`dispatchPartner-${reqId}`).value.trim();
+  if (!partner) { showToast('Укажите партнёра', 'error'); return; }
+  const selectedItems = [...document.querySelectorAll('.item-cb:checked')].map(cb => cb.value);
+  const { error } = await sb.from('request_dispatches').insert({
+    request_id: reqId,
+    partner,
+    request_item_ids: selectedItems.length ? selectedItems : null,
+    status: 'sent',
+    sent_at: new Date().toISOString()
+  });
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  // auto-update request status to 'sent' if it was 'new'
+  const req = allRequests.find(r => r.id === reqId);
+  if (req && req.status === 'new') {
+    await sb.from('requests').update({ status: 'sent' }).eq('id', reqId);
+  }
+  showToast(`Отправлен партнёру ${partner}`, 'success');
+  await loadRequests();
+  openReqDetail(reqId);
+}
+
+async function updateDispatchStatus(dispId, status, reqId) {
+  await sb.from('request_dispatches').update({ status }).eq('id', dispId);
+  await loadRequests();
+  openReqDetail(reqId);
+}
+
+async function deleteDispatch(dispId, reqId) {
+  await sb.from('request_dispatches').delete().eq('id', dispId);
+  await loadRequests();
+  openReqDetail(reqId);
+}
+
+async function updateReqStatus(reqId, status) {
+  await sb.from('requests').update({ status }).eq('id', reqId);
+  await loadRequests();
+}
+
+async function deleteRequest(reqId) {
+  if (!confirm('Удалить запрос?')) return;
+  await sb.from('requests').delete().eq('id', reqId);
+  await loadRequests();
+}
+
+// ── NEW REQUEST ───────────────────────────────────────
+let pendingReqItems = [];
+
+function openNewRequestModal() {
+  pendingReqItems = [];
+  document.getElementById('reqTitle').value = '';
+  document.getElementById('reqDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('reqNotes').value = '';
+  document.getElementById('reqJsonInput').value = '';
+  document.getElementById('reqItemsPreview').innerHTML = '';
+  document.getElementById('newReqOverlay').classList.remove('hidden');
+}
+
+function parseReqJson() {
+  const raw = document.getElementById('reqJsonInput').value.trim();
+  try {
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    if (!Array.isArray(parsed)) throw new Error('Ожидается массив');
+    pendingReqItems = parsed;
+    renderReqItemsPreview(parsed);
+    showToast(`Загружено ${parsed.length} оффер(ов)`, 'success');
+  } catch(e) {
+    document.getElementById('reqItemsPreview').innerHTML = `<div style="color:var(--red);font-size:11px;padding:8px">Ошибка парсинга JSON: ${e.message}</div>`;
+  }
+}
+
+function renderReqItemsPreview(items) {
+  const preview = document.getElementById('reqItemsPreview');
+  if (!items.length) { preview.innerHTML = ''; return; }
+  preview.innerHTML = `
+    <div class="parse-preview">
+      <div class="parse-preview-header">
+        <span class="parse-preview-title">Предпросмотр</span>
+        <span class="parse-preview-count">${items.length} оффер(ов)</span>
+      </div>
+      ${items.map(item => `
+        <div style="display:grid;grid-template-columns:45px 1fr 70px 60px 80px 70px;gap:6px;padding:6px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2);align-items:center">
+          <span>${item.geo ? `${flag(item.geo)} ${item.geo}` : '—'}</span>
+          <span style="color:var(--text1);font-weight:500">${item.brand||'—'}</span>
+          <span>${item.traffic_source||'—'}</span>
+          <span>${item.game_type||'—'}</span>
+          <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${item.rate||'—'}</span>
+          <span style="font-size:10px">${item.platform||'—'}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function saveNewRequest() {
+  const title = document.getElementById('reqTitle').value.trim();
+  const received_at = document.getElementById('reqDate').value || null;
+  const notes = document.getElementById('reqNotes').value.trim() || null;
+  if (!title) { showToast('Укажите заголовок', 'error'); return; }
+  const { data: reqData, error: reqErr } = await sb.from('requests').insert({ title, received_at, notes, status: 'new' }).select().single();
+  if (reqErr) { showToast('Ошибка: ' + reqErr.message, 'error'); return; }
+  if (pendingReqItems.length) {
+    const itemsToInsert = pendingReqItems.map(item => ({ ...item, request_id: reqData.id }));
+    const { error: itemErr } = await sb.from('request_items').insert(itemsToInsert);
+    if (itemErr) { showToast('Ошибка сохранения офферов: ' + itemErr.message, 'error'); return; }
+  }
+  document.getElementById('newReqOverlay').classList.add('hidden');
+  showToast('Запрос сохранён', 'success');
+  loadRequests();
+}
+
+
 let bulkMode = false;
 
 function toggleBulkMode() {
@@ -1105,5 +1510,95 @@ function showToast(msg,type='success') {
   t._timer=setTimeout(()=>t.classList.add('hidden'),3000);
 }
 </script>
+<!-- ── REQUESTS SECTION ─────────────────────────────── -->
+<div id="requestsSection" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">СТАТУС:</span>
+      <div style="display:flex;gap:4px" id="reqStatusFilters">
+        <span class="chip active" onclick="setReqFilter('all')" id="rf-all">Все</span>
+        <span class="chip" onclick="setReqFilter('new')" id="rf-new"><i class="ti ti-circle" style="font-size:9px;color:#818cf8"></i>Новый</span>
+        <span class="chip" onclick="setReqFilter('sent')" id="rf-sent"><i class="ti ti-circle" style="font-size:9px;color:#f59e0b"></i>Отправлен</span>
+        <span class="chip" onclick="setReqFilter('proposed')" id="rf-proposed"><i class="ti ti-circle" style="font-size:9px;color:#10b981"></i>Предложен</span>
+        <span class="chip" onclick="setReqFilter('rejected')" id="rf-rejected"><i class="ti ti-circle" style="font-size:9px;color:#ef4444"></i>Отклонён</span>
+        <span class="chip" onclick="setReqFilter('closed')" id="rf-closed"><i class="ti ti-circle" style="font-size:9px;color:var(--text3)"></i>Закрыт</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="openNewRequestModal()"><i class="ti ti-plus"></i>Новый запрос</button>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:16px 24px" id="requestsList"></div>
+</div>
+
+<!-- ── LOGIN MODAL ──────────────────────────────────── -->
+<div class="modal-overlay hidden" id="loginOverlay">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-lock"></i>Вход</span>
+      <button class="icon-btn" onclick="closeLoginModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div class="form-group">
+        <label class="form-label">Пароль</label>
+        <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div style="color:var(--red);font-size:11px;margin-top:8px;display:none" id="loginError">Неверный пароль</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeLoginModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="doLogin()"><i class="ti ti-login"></i>Войти</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── NEW REQUEST MODAL ────────────────────────────── -->
+<div class="modal-overlay hidden" id="newReqOverlay">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-inbox"></i>Новый запрос</span>
+      <button class="icon-btn" onclick="document.getElementById('newReqOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:14px">
+        <div class="form-group">
+          <label class="form-label">Заголовок запроса</label>
+          <input class="form-input" type="text" id="reqTitle" placeholder="Например: Rich Traff — ES Crash">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Дата получения</label>
+          <input class="form-input" type="date" id="reqDate">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Заметки</label>
+          <input class="form-input" type="text" id="reqNotes" placeholder="От кого получен, контекст...">
+        </div>
+      </div>
+
+      <div style="border-top:0.5px solid var(--border);padding-top:14px;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:10px">ОФФЕРЫ В ЗАПРОСЕ — вставьте JSON из парсера</div>
+        <div class="template-area">
+          <textarea id="reqJsonInput" placeholder='[{"brand":"Gamblerina","geo":"ES","traffic_source":null,"game_type":"Crash","rate":"130 EUR","platform":null,"notes":null}]' style="min-height:90px;font-size:11px"></textarea>
+          <button class="template-parse-btn" onclick="parseReqJson()"><i class="ti ti-wand"></i>Загрузить офферы</button>
+        </div>
+        <div id="reqItemsPreview" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('newReqOverlay').classList.add('hidden')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveNewRequest()"><i class="ti ti-check"></i>Сохранить запрос</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── REQUEST DETAIL MODAL ─────────────────────────── -->
+<div class="modal-overlay hidden" id="reqDetailOverlay">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-header">
+      <span class="modal-title" id="reqDetailTitle"><i class="ti ti-inbox"></i>Запрос</span>
+      <button class="icon-btn" onclick="document.getElementById('reqDetailOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="reqDetailBody"></div>
+  </div>
+</div>
+
 </body>
 </html>
