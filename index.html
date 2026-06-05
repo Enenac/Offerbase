@@ -1145,7 +1145,7 @@ function renderRequests() {
 function renderKbCard(req) {
   const items = allRequestItems.filter(i => i.request_id === req.id);
   const dispatches = allDispatches.filter(d => d.request_id === req.id);
-  const partners = [...new Set(dispatches.map(d => d.partner))];
+  const partners = [...new Set(dispatches.map(d => d.partner))].sort();
   const found = items.filter(i => i.found_status === 'found').length;
   const total = items.length;
   const pct = total > 0 ? Math.round((found / total) * 100) : 0;
