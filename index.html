@@ -1085,6 +1085,8 @@ function renderRequests() {
           </div>
           <div class="req-card-meta">
             <span><i class="ti ti-list-numbers" style="font-size:11px"></i> ${items.length} оффер(ов)</span>
+            ${items.filter(i=>i.found_status==='found').length > 0 ? `<span style="color:#10b981"><i class="ti ti-check" style="font-size:11px"></i> ${items.filter(i=>i.found_status==='found').length} найдено</span>` : ''}
+            ${items.filter(i=>i.found_status==='not_found').length > 0 ? `<span style="color:#ef4444"><i class="ti ti-x" style="font-size:11px"></i> ${items.filter(i=>i.found_status==='not_found').length} нет</span>` : ''}
             ${dateStr ? `<span><i class="ti ti-calendar" style="font-size:11px"></i> ${dateStr}</span>` : ''}
             ${partners.length ? `<span><i class="ti ti-send" style="font-size:11px"></i> ${partners.join(', ')}</span>` : ''}
             ${req.notes ? `<span style="color:var(--text2)">${req.notes}</span>` : ''}
@@ -1109,71 +1111,74 @@ async function openReqDetail(reqId) {
   if (!req) return;
   const items = allRequestItems.filter(i => i.request_id === reqId);
   const dispatches = allDispatches.filter(d => d.request_id === reqId);
-
-  // Build partner suggestions from existing offers
-  const suggestions = getPartnerSuggestions(items);
-
-  // Get all known partners
   const knownPartners = [...new Set(allOffers.map(o => o.partner).filter(Boolean))].sort();
 
   document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i>${req.title || 'Без названия'}`;
 
-  document.getElementById('reqDetailBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  // For each item, collect which dispatch partners include it
+  const itemDispatchMap = {};
+  dispatches.forEach(d => {
+    if (d.request_item_ids && d.request_item_ids.length) {
+      d.request_item_ids.forEach(iid => {
+        if (!itemDispatchMap[iid]) itemDispatchMap[iid] = [];
+        itemDispatchMap[iid].push(d.partner);
+      });
+    }
+  });
 
-      <!-- LEFT: items -->
+  const foundStatusLabel = { pending: '—', found: '✓ Найден', not_found: '✗ Нет' };
+  const foundStatusStyle = {
+    pending: 'color:var(--text3)',
+    found: 'color:#10b981;font-weight:500',
+    not_found: 'color:#ef4444'
+  };
+
+  document.getElementById('reqDetailBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:20px">
+
+      <!-- LEFT: items list -->
       <div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Офферы в запросе</div>
-        <table class="req-items-table" style="width:100%">
-          <thead><tr>
-            <th></th><th>GEO</th><th>Бренд</th><th>Источник</th><th>Тип</th><th>Ставка</th><th>Платформа</th>
-          </tr></thead>
-          <tbody>
-            ${items.map(item => `
-              <tr>
-                <td><input type="checkbox" class="item-cb" value="${item.id}" style="accent-color:var(--accent)"></td>
-                <td>${item.geo ? `<span class="td-geo">${flag(item.geo)} ${item.geo}</span>` : '—'}</td>
-                <td style="color:var(--text1);font-weight:500">${item.brand||'—'}</td>
-                <td>${item.traffic_source ? `<span class="badge-source">${item.traffic_source}</span>` : '—'}</td>
-                <td>${item.game_type ? `<span class="badge-game">${item.game_type}</span>` : '—'}</td>
-                <td style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${item.rate||'—'}</td>
-                <td style="font-size:10px">${item.platform||'—'}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
+          Офферы в запросе (${items.length})
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px" id="items-list-${reqId}">
+          ${items.map((item, idx) => {
+            const partners = itemDispatchMap[item.id] || [];
+            const fs = item.found_status || 'pending';
+            return `
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:6px;border:0.5px solid var(--border);font-size:12px" id="item-row-${item.id}">
+              <input type="checkbox" class="item-cb" value="${item.id}" style="accent-color:var(--accent);flex-shrink:0">
+              <span style="flex:1;color:var(--text1);font-family:'IBM Plex Mono',monospace;font-size:11px">${item.raw_text || (item.brand || '—')}</span>
+              ${partners.length ? `<div style="position:relative;display:inline-block">
+                <span class="dispatch-tag partner-hover-trigger" data-item-id="${item.id}" style="cursor:default">
+                  ${partners.length} партн.
+                </span>
+              </div>` : ''}
+              <select style="font-size:10px;padding:3px 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:5px;color:var(--text2);cursor:pointer;outline:none"
+                onchange="updateItemFoundStatus('${item.id}', this.value, '${reqId}')">
+                <option value="pending" ${fs==='pending'?'selected':''}>—</option>
+                <option value="found" ${fs==='found'?'selected':''}>✓ Найден</option>
+                <option value="not_found" ${fs==='not_found'?'selected':''}>✗ Нет</option>
+              </select>
+            </div>`;
+          }).join('')}
+        </div>
+        <button class="btn btn-ghost" onclick="addItemToRequest('${reqId}')" style="font-size:11px;margin-top:8px;padding:5px 10px"><i class="ti ti-plus"></i>Добавить оффер</button>
       </div>
 
-      <!-- RIGHT: dispatch + suggestions -->
+      <!-- RIGHT: dispatch -->
       <div>
-        <!-- Suggestions -->
-        ${suggestions.length ? `
-        <div style="margin-bottom:16px">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">💡 Подходящие партнёры</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            ${suggestions.map(s => `
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border)">
-                <div>
-                  <span style="font-size:12px;color:var(--text1);font-weight:500">${s.partner}</span>
-                  <div style="font-size:10px;color:var(--text3);margin-top:2px">${s.reasons.join(' · ')}</div>
-                </div>
-                <span class="match-badge">${s.score} совп.</span>
-              </div>`).join('')}
-          </div>
-        </div>` : ''}
-
         <!-- Send to partner -->
         <div style="margin-bottom:16px">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправить партнёру</div>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <input class="form-input" list="partners-list-${reqId}" id="dispatchPartner-${reqId}" placeholder="Партнёр..." style="flex:1;font-size:12px">
-            <datalist id="partners-list-${reqId}">
-              ${knownPartners.map(p => `<option value="${p}">`).join('')}
-            </datalist>
-          </div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Выберите офферы (или оставьте пустым = весь запрос):</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" style="font-size:11px;flex:1" onclick="sendDispatch('${reqId}')"><i class="ti ti-send"></i>Отправить</button>
-          </div>
+          <input class="form-input" list="partners-list-${reqId}" id="dispatchPartner-${reqId}" placeholder="Партнёр..." style="font-size:12px;margin-bottom:6px">
+          <datalist id="partners-list-${reqId}">
+            ${knownPartners.map(p => `<option value="${p}">`).join('')}
+          </datalist>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Отметьте офферы слева (пусто = весь запрос)</div>
+          <button class="btn btn-primary" style="font-size:11px;width:100%" onclick="sendDispatch('${reqId}')">
+            <i class="ti ti-send"></i>Отправить
+          </button>
         </div>
 
         <!-- Existing dispatches -->
@@ -1181,31 +1186,57 @@ async function openReqDetail(reqId) {
         <div>
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправлено партнёрам</div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            ${dispatches.map(d => `
-              <div style="padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-                <div>
-                  <span style="font-size:12px;color:var(--text1);font-weight:500">${d.partner}</span>
-                  <div style="font-size:10px;color:var(--text3);margin-top:2px">
-                    ${d.sent_at ? new Date(d.sent_at).toLocaleDateString('ru-RU') : ''}
-                    ${d.request_item_ids?.length ? `· ${d.request_item_ids.length} оффер(ов)` : '· весь запрос'}
-                    ${d.notes ? `· ${d.notes}` : ''}
+            ${dispatches.map(d => {
+              const dispItems = d.request_item_ids?.length
+                ? allRequestItems.filter(i => d.request_item_ids.includes(i.id))
+                : [];
+              const tooltipLines = dispItems.map(i => (i.raw_text || i.brand || '?').replace(/"/g,'&quot;')).join('&#10;');
+              return `
+              <div style="padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border)">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div>
+                    <span style="font-size:12px;color:var(--text1);font-weight:500">${d.partner}</span>
+                    <div style="font-size:10px;color:var(--text3);margin-top:2px">
+                      ${d.sent_at ? new Date(d.sent_at).toLocaleDateString('ru-RU') : ''}
+                      ${d.request_item_ids?.length
+                        ? `· <span style="cursor:help;border-bottom:1px dashed var(--text3)" title="${tooltipLines}">${d.request_item_ids.length} оффер(ов)</span>`
+                        : '· весь запрос'}
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onchange="updateDispatchStatus('${d.id}', this.value, '${reqId}')">
+                      <option value="sent" ${d.status==='sent'?'selected':''}>Отправлен</option>
+                      <option value="replied" ${d.status==='replied'?'selected':''}>Ответил</option>
+                      <option value="no" ${d.status==='no'?'selected':''}>Нет ответа</option>
+                    </select>
+                    <button class="icon-btn" onclick="deleteDispatch('${d.id}','${reqId}')" style="color:var(--red);font-size:12px"><i class="ti ti-x"></i></button>
                   </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onchange="updateDispatchStatus('${d.id}', this.value, '${reqId}')">
-                    <option value="sent" ${d.status==='sent'?'selected':''}>Отправлен</option>
-                    <option value="replied" ${d.status==='replied'?'selected':''}>Ответил</option>
-                    <option value="no" ${d.status==='no'?'selected':''}>Нет ответа</option>
-                  </select>
-                  <button class="icon-btn" onclick="deleteDispatch('${d.id}','${reqId}')" style="color:var(--red);font-size:12px"><i class="ti ti-x"></i></button>
-                </div>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>
         </div>` : ''}
       </div>
     </div>`;
 
   document.getElementById('reqDetailOverlay').classList.remove('hidden');
+}
+
+async function updateItemFoundStatus(itemId, status, reqId) {
+  await sb.from('request_items').update({ found_status: status }).eq('id', itemId);
+  const item = allRequestItems.find(i => i.id === itemId);
+  if (item) item.found_status = status;
+}
+
+async function addItemToRequest(reqId) {
+  const text = prompt('Текст оффера:');
+  if (!text || !text.trim()) return;
+  const { data, error } = await sb.from('request_items')
+    .insert({ request_id: reqId, raw_text: text.trim(), found_status: 'pending' })
+    .select().single();
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  allRequestItems.push(data);
+  openReqDetail(reqId);
 }
 
 function getPartnerSuggestions(items) {
@@ -1285,51 +1316,31 @@ async function deleteRequest(reqId) {
 }
 
 // ── NEW REQUEST ───────────────────────────────────────
-let pendingReqItems = [];
+let reqItemRowCount = 0;
 
 function openNewRequestModal() {
-  pendingReqItems = [];
+  reqItemRowCount = 0;
   document.getElementById('reqTitle').value = '';
   document.getElementById('reqDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('reqNotes').value = '';
-  document.getElementById('reqJsonInput').value = '';
-  document.getElementById('reqItemsPreview').innerHTML = '';
+  document.getElementById('reqItemsRows').innerHTML = '';
+  addReqItemRow();
   document.getElementById('newReqOverlay').classList.remove('hidden');
 }
 
-function parseReqJson() {
-  const raw = document.getElementById('reqJsonInput').value.trim();
-  try {
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    if (!Array.isArray(parsed)) throw new Error('Ожидается массив');
-    pendingReqItems = parsed;
-    renderReqItemsPreview(parsed);
-    showToast(`Загружено ${parsed.length} оффер(ов)`, 'success');
-  } catch(e) {
-    document.getElementById('reqItemsPreview').innerHTML = `<div style="color:var(--red);font-size:11px;padding:8px">Ошибка парсинга JSON: ${e.message}</div>`;
-  }
-}
-
-function renderReqItemsPreview(items) {
-  const preview = document.getElementById('reqItemsPreview');
-  if (!items.length) { preview.innerHTML = ''; return; }
-  preview.innerHTML = `
-    <div class="parse-preview">
-      <div class="parse-preview-header">
-        <span class="parse-preview-title">Предпросмотр</span>
-        <span class="parse-preview-count">${items.length} оффер(ов)</span>
-      </div>
-      ${items.map(item => `
-        <div style="display:grid;grid-template-columns:45px 1fr 70px 60px 80px 70px;gap:6px;padding:6px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2);align-items:center">
-          <span>${item.geo ? `${flag(item.geo)} ${item.geo}` : '—'}</span>
-          <span style="color:var(--text1);font-weight:500">${item.brand||'—'}</span>
-          <span>${item.traffic_source||'—'}</span>
-          <span>${item.game_type||'—'}</span>
-          <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${item.rate||'—'}</span>
-          <span style="font-size:10px">${item.platform||'—'}</span>
-        </div>`).join('')}
-    </div>`;
+function addReqItemRow() {
+  const id = ++reqItemRowCount;
+  const row = document.createElement('div');
+  row.id = `req-row-${id}`;
+  row.style.cssText = 'display:flex;align-items:center;gap:6px';
+  row.innerHTML = `
+    <input class="form-input req-item-text" data-id="${id}" type="text"
+      placeholder="Например: Gamblerina | ES | Crash | 130 EUR | ASO"
+      style="flex:1;font-size:12px;font-family:'IBM Plex Mono',monospace"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();addReqItemRow()}">
+    <button class="icon-btn" onclick="document.getElementById('req-row-${id}').remove()" style="color:var(--text3);flex-shrink:0"><i class="ti ti-x"></i></button>`;
+  document.getElementById('reqItemsRows').appendChild(row);
+  row.querySelector('input').focus();
 }
 
 async function saveNewRequest() {
@@ -1337,10 +1348,16 @@ async function saveNewRequest() {
   const received_at = document.getElementById('reqDate').value || null;
   const notes = document.getElementById('reqNotes').value.trim() || null;
   if (!title) { showToast('Укажите заголовок', 'error'); return; }
-  const { data: reqData, error: reqErr } = await sb.from('requests').insert({ title, received_at, notes, status: 'new' }).select().single();
+
+  const lines = [...document.querySelectorAll('.req-item-text')]
+    .map(el => el.value.trim()).filter(v => v);
+
+  const { data: reqData, error: reqErr } = await sb.from('requests')
+    .insert({ title, received_at, notes, status: 'new' }).select().single();
   if (reqErr) { showToast('Ошибка: ' + reqErr.message, 'error'); return; }
-  if (pendingReqItems.length) {
-    const itemsToInsert = pendingReqItems.map(item => ({ ...item, request_id: reqData.id }));
+
+  if (lines.length) {
+    const itemsToInsert = lines.map(text => ({ request_id: reqData.id, raw_text: text, found_status: 'pending' }));
     const { error: itemErr } = await sb.from('request_items').insert(itemsToInsert);
     if (itemErr) { showToast('Ошибка сохранения офферов: ' + itemErr.message, 'error'); return; }
   }
@@ -1552,7 +1569,7 @@ function showToast(msg,type='success') {
 
 <!-- ── NEW REQUEST MODAL ────────────────────────────── -->
 <div class="modal-overlay hidden" id="newReqOverlay">
-  <div class="modal" style="max-width:760px">
+  <div class="modal" style="max-width:780px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-inbox"></i>Новый запрос</span>
       <button class="icon-btn" onclick="document.getElementById('newReqOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
@@ -1568,18 +1585,16 @@ function showToast(msg,type='success') {
           <input class="form-input" type="date" id="reqDate">
         </div>
         <div class="form-group full">
-          <label class="form-label">Заметки</label>
+          <label class="form-label">Заметки / контекст</label>
           <input class="form-input" type="text" id="reqNotes" placeholder="От кого получен, контекст...">
         </div>
       </div>
-
-      <div style="border-top:0.5px solid var(--border);padding-top:14px;margin-bottom:10px">
-        <div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:10px">ОФФЕРЫ В ЗАПРОСЕ — вставьте JSON из парсера</div>
-        <div class="template-area">
-          <textarea id="reqJsonInput" placeholder='[{"brand":"Gamblerina","geo":"ES","traffic_source":null,"game_type":"Crash","rate":"130 EUR","platform":null,"notes":null}]' style="min-height:90px;font-size:11px"></textarea>
-          <button class="template-parse-btn" onclick="parseReqJson()"><i class="ti ti-wand"></i>Загрузить офферы</button>
+      <div style="border-top:0.5px solid var(--border);padding-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">ОФФЕРЫ — каждая строка это один оффер</span>
+          <button class="btn btn-ghost" onclick="addReqItemRow()" style="font-size:11px;padding:4px 10px"><i class="ti ti-plus"></i>Добавить строку</button>
         </div>
-        <div id="reqItemsPreview" style="margin-top:10px"></div>
+        <div id="reqItemsRows" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
     </div>
     <div class="modal-footer">
