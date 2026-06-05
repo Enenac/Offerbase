@@ -1556,7 +1556,6 @@ function openExport() {
     if (val(o.capa))           parts.push('Cap ' + val(o.capa));
     if (val(o.kpi))            parts.push(val(o.kpi));
     if (val(o.platform))       parts.push(val(o.platform));
-    if (val(o.partner))        parts.push(val(o.partner));
     return parts.join(' • ');
   });
   document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
