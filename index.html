@@ -1188,7 +1188,7 @@ async function openReqDetail(reqId) {
   const dispatches = allDispatches.filter(d => d.request_id === reqId);
   const knownPartners = [...new Set(allOffers.map(o => o.partner).filter(Boolean))].sort();
 
-  document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i>${req.title || 'Без названия'}`;
+  document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i><span id="reqTitleDisplay" style="cursor:pointer;border-bottom:1px dashed var(--border2)" title="Нажмите чтобы изменить" onclick="editReqTitle('${req.id}','${(req.title||'').replace(/'/g,"\\'")}')"> ${req.title || 'Без названия'}</span>`;
 
   // For each item, collect which dispatch partners include it
   const itemDispatchMap = {};
@@ -1281,8 +1281,9 @@ async function openReqDetail(reqId) {
                   <div style="display:flex;align-items:center;gap:6px">
                     <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onchange="updateDispatchStatus('${d.id}', this.value, '${reqId}')">
                       <option value="sent" ${d.status==='sent'?'selected':''}>Отправлен</option>
-                      <option value="replied" ${d.status==='replied'?'selected':''}>Ответил</option>
-                      <option value="no" ${d.status==='no'?'selected':''}>Нет ответа</option>
+                      <option value="searching" ${d.status==='searching'?'selected':''}>В поиске</option>
+                      <option value="found" ${d.status==='found'?'selected':''}>Найден</option>
+                      <option value="no" ${d.status==='no'?'selected':''}>Не найден</option>
                     </select>
                     <button class="icon-btn" onclick="deleteDispatch('${d.id}','${reqId}')" style="color:var(--red);font-size:12px"><i class="ti ti-x"></i></button>
                   </div>
@@ -1295,6 +1296,35 @@ async function openReqDetail(reqId) {
     </div>`;
 
   document.getElementById('reqDetailOverlay').classList.remove('hidden');
+}
+
+function editReqTitle(reqId, currentTitle) {
+  const span = document.getElementById('reqTitleDisplay');
+  if (!span) return;
+  const input = document.createElement('input');
+  input.value = currentTitle;
+  input.style.cssText = 'background:var(--bg3);border:0.5px solid var(--accent);border-radius:5px;padding:2px 8px;font-size:14px;color:var(--text1);font-family:inherit;font-weight:600;outline:none;min-width:200px';
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  const save = async () => {
+    const newTitle = input.value.trim() || currentTitle;
+    const el = document.createElement('span');
+    el.id = 'reqTitleDisplay';
+    el.style.cssText = 'cursor:pointer;border-bottom:1px dashed var(--border2)';
+    el.title = 'Нажмите чтобы изменить';
+    el.onclick = () => editReqTitle(reqId, newTitle);
+    el.textContent = ' ' + newTitle;
+    input.replaceWith(el);
+    if (newTitle !== currentTitle) {
+      await sb.from('requests').update({ title: newTitle }).eq('id', reqId);
+      const req = allRequests.find(r => r.id === reqId);
+      if (req) req.title = newTitle;
+      renderRequests();
+    }
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') { input.value = currentTitle; input.blur(); } });
 }
 
 async function updateItemFoundStatus(itemId, status, reqId) {
