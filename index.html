@@ -1683,7 +1683,7 @@ function showToast(msg,type='success') {
 </div>
 
 <!-- ── REQUEST DETAIL MODAL ─────────────────────────── -->
-<div class="modal-overlay hidden" id="reqDetailOverlay">
+<div class="modal-overlay hidden" id="reqDetailOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
   <div class="modal" style="max-width:860px">
     <div class="modal-header">
       <span class="modal-title" id="reqDetailTitle"><i class="ti ti-inbox"></i>Запрос</span>
