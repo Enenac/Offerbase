@@ -208,6 +208,22 @@ tr:hover .row-actions{opacity:1}
 .req-items-table tr:last-child td{border-bottom:none}
 .dispatch-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace}
 .match-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:10px;font-size:10px;background:#0a2a0a;border:0.5px solid #1a5a1a;color:#10b981;font-family:'IBM Plex Mono',monospace}
+
+/* Kanban board */
+.kb-col{display:flex;flex-direction:column;background:var(--bg2);border:0.5px solid var(--border2);border-radius:10px;overflow:hidden;min-width:0}
+.kb-col-header{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:0.5px solid var(--border);flex-shrink:0}
+.kb-col-title{font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:6px}
+.kb-col-count{font-size:10px;padding:1px 7px;border-radius:10px;font-weight:500;font-family:'IBM Plex Mono',monospace}
+.kb-cards{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
+.kb-card{background:var(--bg);border:0.5px solid var(--border2);border-radius:8px;padding:9px 11px;cursor:pointer;transition:border-color 0.12s}
+.kb-card:hover{border-color:var(--accent-border)}
+.kb-card-title{font-size:12px;font-weight:500;color:var(--text1);margin-bottom:5px;line-height:1.35}
+.kb-card-meta{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.kb-tag{padding:1px 6px;border-radius:7px;font-size:10px;background:var(--bg3);border:0.5px solid var(--border);color:var(--text3);font-family:'IBM Plex Mono',monospace}
+.kb-progress{display:flex;align-items:center;gap:6px;margin-top:5px}
+.kb-progress-bar{flex:1;height:2px;background:var(--border2);border-radius:2px;overflow:hidden}
+.kb-progress-fill{height:100%;border-radius:2px;transition:width 0.3s}
+.kb-partner{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:7px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace;margin-top:4px;margin-right:3px}
 </style>
 </head>
 <body>
@@ -1051,58 +1067,92 @@ async function loadRequests() {
   renderRequests();
 }
 
-function setReqFilter(f) {
-  reqFilter = f;
-  ['all','new','sent','proposed','rejected','closed'].forEach(x => {
-    document.getElementById('rf-'+x)?.classList.toggle('active', x === f);
-  });
-  renderRequests();
-}
-
 const REQ_STATUS_LABELS = {
   new: 'Новый', sent: 'Отправлен', proposed: 'Предложен', rejected: 'Отклонён', closed: 'Закрыт'
 };
 
+const KB_COLUMNS = [
+  { key: 'new',      label: 'Новый',      dot: '#818cf8', countCls: 'cnt-new' },
+  { key: 'sent',     label: 'Отправлен',  dot: '#f59e0b', countCls: 'cnt-sent' },
+  { key: 'proposed', label: 'Предложен',  dot: '#10b981', countCls: 'cnt-prop' },
+  { key: 'closed',   label: 'Закрыт',     dot: '#6b7280', countCls: 'cnt-cls' },
+];
+
+const KB_COUNT_STYLES = {
+  'cnt-new':  'background:#1a1a3a;color:#818cf8;border:0.5px solid #3a3a7a',
+  'cnt-sent': 'background:#2a1f0a;color:#f59e0b;border:0.5px solid #5a3f0a',
+  'cnt-prop': 'background:#0a2a1a;color:#10b981;border:0.5px solid #0a5a2a',
+  'cnt-rej':  'background:#2a0a0a;color:#ef4444;border:0.5px solid #5a1a1a',
+  'cnt-cls':  'background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)',
+};
+
 function renderRequests() {
-  const list = document.getElementById('requestsList');
-  let rows = reqFilter === 'all' ? allRequests : allRequests.filter(r => r.status === reqFilter);
-  if (rows.length === 0) {
-    list.innerHTML = `<div class="empty"><i class="ti ti-inbox"></i><span>Запросов нет</span></div>`;
-    return;
-  }
-  list.innerHTML = rows.map(req => {
-    const items = allRequestItems.filter(i => i.request_id === req.id);
-    const dispatches = allDispatches.filter(d => d.request_id === req.id);
-    const partners = [...new Set(dispatches.map(d => d.partner))];
-    const dateStr = req.received_at ? new Date(req.received_at).toLocaleDateString('ru-RU', {day:'2-digit',month:'2-digit'}) : '';
+  const board = document.getElementById('kanbanBoard');
+  const showRejected = document.getElementById('showRejected')?.checked;
+
+  const cols = showRejected
+    ? [...KB_COLUMNS.slice(0,3), { key:'rejected', label:'Отклонён', dot:'#ef4444', countCls:'cnt-rej' }, KB_COLUMNS[3]]
+    : KB_COLUMNS;
+
+  board.style.gridTemplateColumns = `repeat(${cols.length}, minmax(0, 1fr))`;
+
+  board.innerHTML = cols.map(col => {
+    const reqs = allRequests.filter(r => r.status === col.key);
     return `
-    <div class="req-card">
-      <div class="req-card-header" onclick="openReqDetail('${req.id}')">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-            <span class="req-card-title">${req.title || 'Без названия'}</span>
-            <span class="req-status ${req.status}">${REQ_STATUS_LABELS[req.status]||req.status}</span>
-          </div>
-          <div class="req-card-meta">
-            <span><i class="ti ti-list-numbers" style="font-size:11px"></i> ${items.length} оффер(ов)</span>
-            ${items.filter(i=>i.found_status==='found').length > 0 ? `<span style="color:#10b981"><i class="ti ti-check" style="font-size:11px"></i> ${items.filter(i=>i.found_status==='found').length} найдено</span>` : ''}
-            ${items.filter(i=>i.found_status==='not_found').length > 0 ? `<span style="color:#ef4444"><i class="ti ti-x" style="font-size:11px"></i> ${items.filter(i=>i.found_status==='not_found').length} нет</span>` : ''}
-            ${dateStr ? `<span><i class="ti ti-calendar" style="font-size:11px"></i> ${dateStr}</span>` : ''}
-            ${partners.length ? `<span><i class="ti ti-send" style="font-size:11px"></i> ${partners.join(', ')}</span>` : ''}
-            ${req.notes ? `<span style="color:var(--text2)">${req.notes}</span>` : ''}
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onclick="event.stopPropagation()" onchange="updateReqStatus('${req.id}', this.value)">
-            ${['new','sent','proposed','rejected','closed'].map(s =>
-              `<option value="${s}" ${req.status===s?'selected':''}>${REQ_STATUS_LABELS[s]}</option>`
-            ).join('')}
-          </select>
-          <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red)"><i class="ti ti-trash"></i></button>
-        </div>
+    <div class="kb-col">
+      <div class="kb-col-header">
+        <span class="kb-col-title">
+          <span style="width:7px;height:7px;border-radius:50%;background:${col.dot};display:inline-block;flex-shrink:0"></span>
+          ${col.label}
+        </span>
+        <span class="kb-col-count" style="${KB_COUNT_STYLES[col.countCls]}">${reqs.length}</span>
+      </div>
+      <div class="kb-cards">
+        ${reqs.length === 0
+          ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:20px 8px;font-family:'IBM Plex Mono',monospace">—</div>`
+          : reqs.map(req => renderKbCard(req)).join('')
+        }
       </div>
     </div>`;
   }).join('');
+}
+
+function renderKbCard(req) {
+  const items = allRequestItems.filter(i => i.request_id === req.id);
+  const dispatches = allDispatches.filter(d => d.request_id === req.id);
+  const partners = [...new Set(dispatches.map(d => d.partner))];
+  const found = items.filter(i => i.found_status === 'found').length;
+  const total = items.length;
+  const pct = total > 0 ? Math.round((found / total) * 100) : 0;
+  const dateStr = req.received_at
+    ? new Date(req.received_at).toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'})
+    : '';
+
+  const progressColor = req.status === 'rejected' ? '#ef4444' : '#10b981';
+
+  return `
+  <div class="kb-card" onclick="openReqDetail('${req.id}')">
+    <div class="kb-card-title">${req.title || 'Без названия'}</div>
+    <div class="kb-card-meta">
+      ${total ? `<span class="kb-tag">${total} оффер(ов)</span>` : ''}
+      ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
+      ${req.notes ? `<span class="kb-tag" style="color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${req.notes}</span>` : ''}
+    </div>
+    ${partners.length ? `<div style="margin-bottom:4px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${p}</span>`).join('')}</div>` : ''}
+    ${total > 0 ? `
+    <div class="kb-progress">
+      <div class="kb-progress-bar"><div class="kb-progress-fill" style="width:${pct}%;background:${progressColor}"></div></div>
+      <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0">${found}/${total}</span>
+    </div>` : ''}
+    <div style="display:flex;justify-content:flex-end;margin-top:6px">
+      <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onclick="event.stopPropagation()" onchange="updateReqStatus('${req.id}', this.value)">
+        ${['new','sent','proposed','rejected','closed'].map(s =>
+          `<option value="${s}" ${req.status===s?'selected':''}>${REQ_STATUS_LABELS[s]}</option>`
+        ).join('')}
+      </select>
+      <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red);margin-left:4px"><i class="ti ti-trash"></i></button>
+    </div>
+  </div>`;
 }
 
 // ── REQUEST DETAIL ────────────────────────────────────
@@ -1529,21 +1579,21 @@ function showToast(msg,type='success') {
 </script>
 <!-- ── REQUESTS SECTION ─────────────────────────────── -->
 <div id="requestsSection" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">СТАТУС:</span>
-      <div style="display:flex;gap:4px" id="reqStatusFilters">
-        <span class="chip active" onclick="setReqFilter('all')" id="rf-all">Все</span>
-        <span class="chip" onclick="setReqFilter('new')" id="rf-new"><i class="ti ti-circle" style="font-size:9px;color:#818cf8"></i>Новый</span>
-        <span class="chip" onclick="setReqFilter('sent')" id="rf-sent"><i class="ti ti-circle" style="font-size:9px;color:#f59e0b"></i>Отправлен</span>
-        <span class="chip" onclick="setReqFilter('proposed')" id="rf-proposed"><i class="ti ti-circle" style="font-size:9px;color:#10b981"></i>Предложен</span>
-        <span class="chip" onclick="setReqFilter('rejected')" id="rf-rejected"><i class="ti ti-circle" style="font-size:9px;color:#ef4444"></i>Отклонён</span>
-        <span class="chip" onclick="setReqFilter('closed')" id="rf-closed"><i class="ti ti-circle" style="font-size:9px;color:var(--text3)"></i>Закрыт</span>
-      </div>
+  <!-- Kanban toolbar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">ЗАПРОСЫ</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+        <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
+        <span>Показать отклонённые</span>
+      </label>
     </div>
     <button class="btn btn-primary" onclick="openNewRequestModal()"><i class="ti ti-plus"></i>Новый запрос</button>
   </div>
-  <div style="flex:1;overflow-y:auto;padding:16px 24px" id="requestsList"></div>
+  <!-- Kanban board -->
+  <div style="flex:1;overflow-x:auto;overflow-y:hidden;padding:16px 24px">
+    <div id="kanbanBoard" style="display:grid;gap:12px;height:100%;min-width:700px"></div>
+  </div>
 </div>
 
 <!-- ── LOGIN MODAL ──────────────────────────────────── -->
