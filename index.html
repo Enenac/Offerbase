@@ -1035,6 +1035,7 @@ window.switchProject = function(p) {
     ['smerch','phantom','requests'].forEach(x => {
       document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
     });
+    updateReqProjectTabs();
     loadRequests();
   } else {
     currentProject = p;
@@ -1054,17 +1055,40 @@ let allRequests = [];
 let allRequestItems = [];
 let allDispatches = [];
 let reqFilter = 'all';
+let reqProject = 'smerch'; // current project for requests tab
+
+function setReqProject(p) {
+  reqProject = p;
+  updateReqProjectTabs();
+  loadRequests();
+}
+
+function updateReqProjectTabs() {
+  ['smerch','phantom'].forEach(p => {
+    const btn = document.getElementById('rp-'+p);
+    if (!btn) return;
+    if (p === reqProject) {
+      btn.style.background = 'var(--accent)';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--text3)';
+    }
+  });
+}
 
 async function loadRequests() {
   const [r1, r2, r3] = await Promise.all([
-    sb.from('requests').select('*').order('created_at', { ascending: false }),
+    sb.from('requests').select('*').eq('project', reqProject).order('created_at', { ascending: false }),
     sb.from('request_items').select('*'),
     sb.from('request_dispatches').select('*')
   ]);
   allRequests = r1.data || [];
   allRequestItems = r2.data || [];
   allDispatches = r3.data || [];
-  document.getElementById('count-requests').textContent = allRequests.filter(r => r.status === 'new' || r.status === 'sent').length;
+  // count active requests across ALL projects for the tab badge
+  const { data: allReqCount } = await sb.from('requests').select('status').in('status', ['new','sent']);
+  document.getElementById('count-requests').textContent = (allReqCount || []).length;
   renderRequests();
 }
 
@@ -1404,7 +1428,7 @@ async function saveNewRequest() {
     .map(el => el.value.trim()).filter(v => v);
 
   const { data: reqData, error: reqErr } = await sb.from('requests')
-    .insert({ title, received_at, notes, status: 'new' }).select().single();
+    .insert({ title, received_at, notes, status: 'new', project: reqProject }).select().single();
   if (reqErr) { showToast('Ошибка: ' + reqErr.message, 'error'); return; }
 
   if (lines.length) {
@@ -1581,8 +1605,12 @@ function showToast(msg,type='success') {
 <div id="requestsSection" style="display:none;flex-direction:column;flex:1;overflow:hidden">
   <!-- Kanban toolbar -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">ЗАПРОСЫ</span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <!-- Project subtabs -->
+      <div style="display:flex;gap:2px;background:var(--bg3);border-radius:7px;padding:2px">
+        <button id="rp-smerch" onclick="setReqProject('smerch')" style="font-size:11px;padding:4px 12px;border-radius:5px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;background:var(--accent);color:#fff;transition:all 0.15s">Smerch</button>
+        <button id="rp-phantom" onclick="setReqProject('phantom')" style="font-size:11px;padding:4px 12px;border-radius:5px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;background:transparent;color:var(--text3);transition:all 0.15s">Phantom</button>
+      </div>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
         <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
         <span>Показать отклонённые</span>
