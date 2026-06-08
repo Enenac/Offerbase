@@ -238,6 +238,7 @@ tr:hover .row-actions{opacity:1}
       </div>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
       <button class="btn btn-ghost" id="loginBtn" onclick="openLoginModal()" style="font-size:11px;padding:6px 10px;color:var(--text3)"><i class="ti ti-lock"></i></button>
+      <span id="rateIndicator" style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:nowrap"></span>
     </div>
   </div>
 
@@ -355,6 +356,27 @@ tr:hover .row-actions{opacity:1}
 
     <span class="chip-clear hidden" id="clearFilters" onclick="clearAllFilters()"><i class="ti ti-x" style="font-size:10px"></i>Сбросить</span>
 
+    <!-- Rate filter -->
+    <div class="filter-dropdown">
+      <div class="chip" id="chip-rate" onclick="toggleFilterMenu('rate')"><i class="ti ti-currency-dollar"></i>Ставка</div>
+      <div class="filter-menu hidden" id="menu-rate" style="min-width:210px">
+        <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Валюта</div>
+          <select id="rateCurrency" class="form-select" style="font-size:11px" onchange="applyRateFilter()">
+            <option value="usd">USD ($)</option>
+            <option value="eur">EUR (€)</option>
+          </select>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Диапазон</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="rateMin" placeholder="От" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace;outline:none" onchange="applyRateFilter()">
+            <span style="color:var(--text3);font-size:11px">—</span>
+            <input type="number" id="rateMax" placeholder="До" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace;outline:none" onchange="applyRateFilter()">
+          </div>
+          <button class="btn btn-ghost" onclick="clearRateFilter();toggleFilterMenu('rate')" style="font-size:11px;padding:4px">Сбросить</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Date filter -->
     <div class="filter-dropdown" style="margin-left:auto">
       <div class="chip" id="chip-date" onclick="toggleFilterMenu('date')"><i class="ti ti-calendar"></i>Дата</div>
@@ -404,7 +426,8 @@ tr:hover .row-actions{opacity:1}
           <th class="bulk-mode-th"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
           <th onclick="sortBy('geo')">GEO <i class="ti ti-selector"></i></th>
           <th onclick="sortBy('brand')">Бренд <i class="ti ti-selector"></i></th>
-          <th onclick="sortBy('rate')">Ставка <i class="ti ti-selector"></i></th>
+          <th onclick="sortBy('rate_eur')" style="cursor:pointer">EUR <i class="ti ti-selector"></i></th>
+          <th onclick="sortBy('rate_usd')" style="cursor:pointer">USD <i class="ti ti-selector"></i></th>
           <th>Источник</th>
           <th>Тип игры</th>
           <th>Мин. деп</th>
@@ -535,6 +558,8 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let allOffers = [];
+let eurUsd = null; // EUR→USD rate
+let usdEur = null; // USD→EUR rate
 let currentProject = 'smerch';
 let currentMode = 'template';
 let editingId = null;
@@ -559,10 +584,24 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('bulk-date').value = today;
 });
 
+async function fetchRates() {
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
+    const data = await res.json();
+    eurUsd = data.rates.USD;
+    usdEur = +(1 / eurUsd).toFixed(4);
+    const el = document.getElementById('rateIndicator');
+    if (el) el.textContent = `1 EUR = ${eurUsd} USD`;
+  } catch(e) {
+    console.warn('Rate fetch failed', e);
+  }
+}
+
 async function loadOffers() {
   document.getElementById('loadingState').classList.remove('hidden');
   document.getElementById('offersTable').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
+  await fetchRates();
   const { data, error } = await sb.from('offers').select('*').order('created_at', { ascending: false });
   document.getElementById('loadingState').classList.add('hidden');
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
@@ -730,7 +769,29 @@ function getFiltered() {
     (o.partner||'').toLowerCase().includes(searchQuery) ||
     (o.platform||'').toLowerCase().includes(searchQuery)
   );
-  if (sortField) rows.sort((a,b) => ((a[sortField]||'') > (b[sortField]||'') ? 1 : -1) * sortDir);
+  if (rateFilter.min != null || rateFilter.max != null) {
+    rows = rows.filter(o => {
+      const conv = convertRate(o.rate);
+      const isEur = parseRate(o.rate)?.currency === 'EUR';
+      const isUsd = parseRate(o.rate)?.currency === 'USD';
+      const val = rateFilter.currency === 'eur' ? conv.eur : conv.usd;
+      if (val == null) return false;
+      if (rateFilter.min != null && val < rateFilter.min) return false;
+      if (rateFilter.max != null && val > rateFilter.max) return false;
+      return true;
+    });
+  }
+  if (sortField === 'rate_eur' || sortField === 'rate_usd') {
+    rows.sort((a, b) => {
+      const ca = convertRate(a.rate);
+      const cb = convertRate(b.rate);
+      const va = sortField === 'rate_eur' ? (ca.eur ?? 0) : (ca.usd ?? 0);
+      const vb = sortField === 'rate_eur' ? (cb.eur ?? 0) : (cb.usd ?? 0);
+      return (va - vb) * sortDir;
+    });
+  } else if (sortField) {
+    rows.sort((a,b) => ((a[sortField]||'') > (b[sortField]||'') ? 1 : -1) * sortDir);
+  }
   return rows;
 }
 
@@ -757,7 +818,8 @@ function renderTable() {
       <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
       <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
       <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
-      <td><span class="td-rate">${esc(o.rate)||'—'}</span></td>
+      <td><span class="td-rate" style="${isEur?'':'opacity:0.55'}">${fmtEur(conv.eur)}</span></td>
+      <td><span class="td-rate" style="${isUsd?'':'opacity:0.55'}">${fmtUsd(conv.usd)}</span></td>
       <td>${sourceBadge(o.traffic_source)}</td>
       <td>${o.game_type?`<span class="badge badge-game">${esc(o.game_type)}</span>`:'<span class="td-empty">—</span>'}</td>
       <td>${o.min_deposit?`<span style="color:var(--text3);font-size:11px">${esc(o.min_deposit)}</span>`:'<span class="td-empty">—</span>'}</td>
@@ -1528,6 +1590,71 @@ async function deleteSelected() {
   clearSelection();
   loadOffers();
 }
+
+// ── RATE CONVERSION ───────────────────────────────────
+function parseRate(rateStr) {
+  if (!rateStr) return null;
+  const s = rateStr.toString().trim();
+  const hasEur = /€|eur/i.test(s);
+  const hasUsd = /\$|usd/i.test(s);
+  const match = s.match(/[\d]+(?:[.,]\d+)?/);
+  if (!match) return null;
+  const value = parseFloat(match[0].replace(',', '.'));
+  if (isNaN(value)) return null;
+  const currency = hasEur ? 'EUR' : hasUsd ? 'USD' : null;
+  return { value, currency };
+}
+
+function convertRate(rateStr) {
+  const parsed = parseRate(rateStr);
+  if (!parsed || !parsed.currency) return { eur: null, usd: null };
+  if (parsed.currency === 'EUR') {
+    return { eur: parsed.value, usd: eurUsd ? +(parsed.value * eurUsd).toFixed(0) : null };
+  } else {
+    return { eur: usdEur ? +(parsed.value * usdEur).toFixed(0) : null, usd: parsed.value };
+  }
+}
+
+function fmtEur(v) { return v != null ? `€${v}` : '—'; }
+function fmtUsd(v) { return v != null ? `$${v}` : '—'; }
+
+let rateFilter = { currency: 'usd', min: null, max: null };
+
+function applyRateFilter() {
+  const min = document.getElementById('rateMin')?.value;
+  const max = document.getElementById('rateMax')?.value;
+  const cur = document.getElementById('rateCurrency')?.value || 'usd';
+  rateFilter = { currency: cur, min: min ? parseFloat(min) : null, max: max ? parseFloat(max) : null };
+  updateRateChip();
+  renderTable();
+}
+
+function clearRateFilter() {
+  rateFilter = { currency: 'usd', min: null, max: null };
+  const mn = document.getElementById('rateMin');
+  const mx = document.getElementById('rateMax');
+  if (mn) mn.value = '';
+  if (mx) mx.value = '';
+  updateRateChip();
+  renderTable();
+}
+
+function updateRateChip() {
+  const chip = document.getElementById('chip-rate');
+  if (!chip) return;
+  if (rateFilter.min != null || rateFilter.max != null) {
+    chip.classList.add('active');
+    const sym = rateFilter.currency === 'eur' ? '€' : '$';
+    const lbl = rateFilter.min != null && rateFilter.max != null
+      ? `${sym}${rateFilter.min}–${sym}${rateFilter.max}`
+      : rateFilter.min != null ? `от ${sym}${rateFilter.min}` : `до ${sym}${rateFilter.max}`;
+    chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearRateFilter();event.stopPropagation()"></i>${lbl}`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-currency-dollar"></i>Ставка`;
+  }
+}
+
 
 // ── DATE FILTER ───────────────────────────────────────
 let dateFilter = null;
