@@ -620,10 +620,12 @@ async function autoExpireOffers() {
   weekAgo.setDate(weekAgo.getDate() - 7);
   const weekAgoStr = weekAgo.toISOString().split('T')[0];
 
-  // Find active/paused offers received more than 7 days ago
   const toExpire = allOffers.filter(o =>
     (o.status === 'active' || o.status === 'pause') &&
-    o.received_at && o.received_at <= weekAgoStr
+    o.received_at !== null &&
+    o.received_at !== undefined &&
+    o.received_at !== '' &&
+    o.received_at < weekAgoStr
   );
 
   if (toExpire.length === 0) return;
