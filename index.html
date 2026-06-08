@@ -592,6 +592,7 @@ async function fetchRates() {
     usdEur = +(1 / eurUsd).toFixed(4);
     const el = document.getElementById('rateIndicator');
     if (el) el.textContent = `1 EUR = ${eurUsd} USD`;
+    renderTable(); // re-render with fresh rates
   } catch(e) {
     console.warn('Rate fetch failed', e);
   }
