@@ -772,8 +772,6 @@ function getFiltered() {
   if (rateFilter.min != null || rateFilter.max != null) {
     rows = rows.filter(o => {
       const conv = convertRate(o.rate);
-      const isEur = parseRate(o.rate)?.currency === 'EUR';
-      const isUsd = parseRate(o.rate)?.currency === 'USD';
       const val = rateFilter.currency === 'eur' ? conv.eur : conv.usd;
       if (val == null) return false;
       if (rateFilter.min != null && val < rateFilter.min) return false;
@@ -813,7 +811,11 @@ function renderTable() {
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('offersTable').classList.remove('hidden');
 
-  document.getElementById('offersBody').innerHTML = rows.map(o => `
+  document.getElementById('offersBody').innerHTML = rows.map(o => {
+    const conv = convertRate(o.rate);
+    const isEur = parseRate(o.rate)?.currency === 'EUR';
+    const isUsd = parseRate(o.rate)?.currency === 'USD';
+    return `
     <tr data-id="${o.id}">
       <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
       <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
@@ -834,7 +836,7 @@ function renderTable() {
         <button class="act-btn danger" onclick="deleteOffer('${o.id}')"><i class="ti ti-trash"></i></button>
       </div></td>
     </tr>
-  `).join('');
+  `;}).join('');
 }
 
 function flag(geo) {
