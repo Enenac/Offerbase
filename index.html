@@ -609,9 +609,30 @@ async function loadOffers() {
   document.getElementById('loadingState').classList.add('hidden');
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
   allOffers = data || [];
+  await autoExpireOffers();
   updateCounts();
   buildDynamicFilters();
   renderTable();
+}
+
+async function autoExpireOffers() {
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+  // Find active/paused offers received more than 7 days ago
+  const toExpire = allOffers.filter(o =>
+    (o.status === 'active' || o.status === 'pause') &&
+    o.received_at && o.received_at <= weekAgoStr
+  );
+
+  if (toExpire.length === 0) return;
+
+  const ids = toExpire.map(o => o.id);
+  const { error } = await sb.from('offers').update({ status: 'old' }).in('id', ids);
+  if (!error) {
+    toExpire.forEach(o => { o.status = 'old'; });
+  }
 }
 
 function showLoading(v) {
@@ -844,8 +865,8 @@ function renderTable() {
 
 function flag(geo) {
   if (!geo) return '';
-  const f={BR:'🇧🇷',IN:'🇮🇳',PL:'🇵🇱',NG:'🇳🇬',MX:'🇲🇽',TR:'🇹🇷',PH:'🇵🇭',DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',PT:'🇵🇹',RO:'🇷🇴',HU:'🇭🇺',CZ:'🇨🇿',SK:'🇸🇰',BG:'🇧🇬',GR:'🇬🇷',UA:'🇺🇦',KZ:'🇰🇿',AZ:'🇦🇿',UZ:'🇺🇿',TH:'🇹🇭',VN:'🇻🇳',ID:'🇮🇩',MY:'🇲🇾',ZA:'🇿🇦',KE:'🇰🇪',GH:'🇬🇭',AR:'🇦🇷',CL:'🇨🇱',CO:'🇨🇴',PE:'🇵🇪',CA:'🇨🇦',US:'🇺🇸',GB:'🇬🇧',AU:'🇦🇺',NZ:'🇳🇿',JP:'🇯🇵',KR:'🇰🇷',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',CH:'🇨🇭',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮',RS:'🇷🇸',HR:'🇭🇷',SI:'🇸🇮',LT:'🇱🇹',LV:'🇱🇻',EE:'🇪🇪'};
-  return f[geo.trim().toUpperCase()]||'';
+  const code = geo.trim().toLowerCase();
+  return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" width="16" height="12" alt="${geo}" style="border-radius:2px;vertical-align:middle;margin-right:2px;flex-shrink:0" onerror="this.style.display='none'">`;
 }
 
 function sourceBadge(s) {
