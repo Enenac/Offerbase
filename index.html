@@ -100,15 +100,16 @@ td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
 .status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .dot-active{background:var(--green)}
-.dot-pause{background:var(--amber)}
-.dot-old{background:var(--border2)}
+.dot-stop{background:var(--red)}
+.dot-capped{background:#f97316}
+.dot-outdated{background:var(--border2)}
 
 .date-badge{display:inline-block;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text3)}
 .date-badge.today{color:var(--green)}
 .date-badge.yesterday{color:var(--amber)}
 .date-badge.old{color:var(--red);opacity:0.7}
 
-.partner-cell{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.partner-cell{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;white-space:nowrap}
 .partner-name{font-size:11px;color:var(--text2)}
 
 .row-actions{display:flex;gap:4px;opacity:0;transition:opacity 0.15s}
@@ -239,7 +240,13 @@ tr:hover .row-actions{opacity:1}
       </div>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
       <button class="btn btn-ghost" id="loginBtn" onclick="openLoginModal()" style="font-size:11px;padding:6px 10px;color:var(--text3)"><i class="ti ti-lock"></i></button>
-      <span id="rateIndicator" style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:nowrap"></span>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:nowrap">
+        <span>1 EUR =</span>
+        <input type="number" id="rateInput" step="0.001" min="0.01"
+          style="width:68px;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:3px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace;outline:none;text-align:right"
+          oninput="onRateInputChange(this.value)" onfocus="this.select()">
+        <span>USD</span>
+      </div>
     </div>
   </div>
 
@@ -349,8 +356,9 @@ tr:hover .row-actions{opacity:1}
       <div class="filter-menu hidden" id="menu-status">
         <div class="filter-menu-list">
           <div class="filter-option" onclick="setFilter('status','active')">Активен</div>
-          <div class="filter-option" onclick="setFilter('status','pause')">Пауза</div>
-          <div class="filter-option" onclick="setFilter('status','old')">Устарел</div>
+          <div class="filter-option" onclick="setFilter('status','stop')">На стопе</div>
+          <div class="filter-option" onclick="setFilter('status','capped')">Закончился кап</div>
+          <div class="filter-option" onclick="setFilter('status','outdated')">Надо актуализировать</div>
         </div>
       </div>
     </div>
@@ -517,8 +525,9 @@ tr:hover .row-actions{opacity:1}
           <div class="form-group"><label class="form-label">Статус</label>
             <select class="form-select" id="f-status">
               <option value="active">Активен</option>
-              <option value="pause">Пауза</option>
-              <option value="old">Устарел</option>
+              <option value="stop">На стопе</option>
+              <option value="capped">Закончился кап</option>
+              <option value="outdated">Надо актуализировать</option>
             </select>
           </div>
           <div class="form-group"><label class="form-label">Дата получения</label><input class="form-input" type="date" id="f-date"></div>
@@ -586,18 +595,24 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchRates() {
-  const el = document.getElementById('rateIndicator');
-  if (el) el.textContent = 'Загрузка курса...';
   try {
     const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
     const data = await res.json();
     eurUsd = data.rates.USD;
-    usdEur = +(1 / eurUsd).toFixed(4);
-    if (el) el.textContent = `1 EUR = ${eurUsd} USD`;
   } catch(e) {
     eurUsd = 1.08;
-    usdEur = 0.9259;
-    if (el) el.textContent = `1 EUR = ${eurUsd} USD (офлайн)`;
+  }
+  usdEur = +(1 / eurUsd).toFixed(4);
+  const inp = document.getElementById('rateInput');
+  if (inp) inp.value = eurUsd;
+}
+
+function onRateInputChange(val) {
+  const v = parseFloat(val);
+  if (!isNaN(v) && v > 0) {
+    eurUsd = v;
+    usdEur = +(1 / v).toFixed(4);
+    renderTable();
   }
 }
 
@@ -624,7 +639,7 @@ async function autoExpireOffers() {
   // Safety: only touch offers where received_at is explicitly set,
   // is a valid date string, and is strictly older than 7 days ago
   const toExpire = allOffers.filter(o => {
-    if (o.status !== 'active' && o.status !== 'pause') return false;
+    if (o.status !== 'active') return false;
     if (!o.received_at || typeof o.received_at !== 'string') return false;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(o.received_at)) return false;
     return o.received_at < weekAgoStr;
@@ -639,9 +654,9 @@ async function autoExpireOffers() {
   }
 
   const ids = toExpire.map(o => o.id);
-  const { error } = await sb.from('offers').update({ status: 'old' }).in('id', ids);
+  const { error } = await sb.from('offers').update({ status: 'outdated' }).in('id', ids);
   if (!error) {
-    toExpire.forEach(o => { o.status = 'old'; });
+    toExpire.forEach(o => { o.status = 'outdated'; });
     console.log(`autoExpire: marked ${ids.length} offers as old`);
   }
 }
@@ -763,7 +778,7 @@ function updateChips() {
     platform: {icon:'ti-layout-grid',    label:'Платформа'},
     partner:  {icon:'ti-users',          label:'Партнёр'},
     ptype:    {icon:'ti-building',       label:'Тип партнёра'},
-    status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',pause:'Пауза',old:'Устарел'}},
+    status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',stop:'На стопе',capped:'Закончился кап',outdated:'Надо актуализировать'}},
   };
   Object.entries(defs).forEach(([key, def]) => {
     const chip = document.getElementById('chip-'+key);
@@ -892,8 +907,16 @@ function kpiBadge(k) {
 }
 
 function statusBadge(s) {
-  const m={active:['dot-active','Активен'],pause:['dot-pause','Пауза'],old:['dot-old','Устарел']};
-  const [dot,lbl]=m[s]||['dot-old',s||'—'];
+  const m={
+    active:   ['dot-active',  'Активен'],
+    stop:     ['dot-stop',    'На стопе'],
+    capped:   ['dot-capped',  'Закончился кап'],
+    outdated: ['dot-outdated','Надо актуализировать'],
+    // legacy fallbacks
+    pause:    ['dot-stop',    'На стопе'],
+    old:      ['dot-outdated','Надо актуализировать'],
+  };
+  const [dot,lbl]=m[s]||['dot-outdated',s||'—'];
   return `<span class="status"><span class="dot ${dot}"></span>${lbl}</span>`;
 }
 
@@ -996,7 +1019,8 @@ function editOffer(id) {
   document.getElementById('f-platform').value = o.platform||'';
   document.getElementById('f-partner').value = o.partner||'';
   document.getElementById('f-ptype').value = o.partner_type||'';
-  document.getElementById('f-status').value = o.status||'active';
+  const legacyStatus = { pause: 'stop', old: 'outdated' };
+  document.getElementById('f-status').value = legacyStatus[o.status] || o.status || 'active';
   document.getElementById('f-date').value = o.received_at||new Date().toISOString().split('T')[0];
   document.getElementById('f-notes').value = o.notes||'';
   document.getElementById('saveBtn').innerHTML = '<i class="ti ti-check"></i>Сохранить';
