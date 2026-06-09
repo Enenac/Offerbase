@@ -595,12 +595,17 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function fetchRates() {
-  try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
-    const data = await res.json();
-    eurUsd = data.rates.USD;
-  } catch(e) {
-    eurUsd = 1.08;
+  const saved = localStorage.getItem('eurUsdRate');
+  if (saved) {
+    eurUsd = parseFloat(saved);
+  } else {
+    try {
+      const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
+      const data = await res.json();
+      eurUsd = data.rates.USD;
+    } catch(e) {
+      eurUsd = 1.08;
+    }
   }
   usdEur = +(1 / eurUsd).toFixed(4);
   const inp = document.getElementById('rateInput');
@@ -612,6 +617,7 @@ function onRateInputChange(val) {
   if (!isNaN(v) && v > 0) {
     eurUsd = v;
     usdEur = +(1 / v).toFixed(4);
+    localStorage.setItem('eurUsdRate', v);
     renderTable();
   }
 }
