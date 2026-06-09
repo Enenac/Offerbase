@@ -606,7 +606,7 @@ async function loadOffers() {
   document.getElementById('offersTable').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
   await fetchRates();
-  const { data, error } = await sb.from('offers').select('*').order('created_at', { ascending: false }).limit(10000);
+  const { data, error } = await sb.from('offers').select('*').order('created_at', { ascending: false }).limit(100000);
   document.getElementById('loadingState').classList.add('hidden');
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
   allOffers = data || [];
