@@ -226,6 +226,16 @@ tr:hover .row-actions{opacity:1}
 .kb-progress{display:flex;align-items:center;gap:6px;margin-top:5px}
 .kb-progress-bar{flex:1;height:2px;background:var(--border2);border-radius:2px;overflow:hidden}
 .kb-progress-fill{height:100%;border-radius:2px;transition:width 0.3s}
+.partners-list{display:flex;flex-direction:column;gap:0}
+.partner-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border)}
+.partner-row:last-child{border-bottom:none}
+.partner-name{flex:1;font-size:13px;color:var(--text1)}
+.partner-type-toggle{display:flex;border-radius:6px;overflow:hidden;border:0.5px solid var(--border2);flex-shrink:0}
+.ptt-btn{padding:4px 10px;font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;border:none;background:var(--bg3);color:var(--text3);transition:all 0.12s}
+.ptt-btn.active-direct{background:#0a1e14;color:var(--green)}
+.ptt-btn.active-network{background:var(--accent-bg);color:var(--accent)}
+.partner-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 4px;border-radius:4px;transition:color 0.12s;flex-shrink:0}
+.partner-del:hover{color:var(--red)}
 .kb-partner{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:7px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace;margin-top:4px;margin-right:3px}
 </style>
 </head>
@@ -240,6 +250,7 @@ tr:hover .row-actions{opacity:1}
       </div>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
       <button class="btn btn-ghost" id="loginBtn" onclick="openLoginModal()" style="font-size:11px;padding:6px 10px;color:var(--text3)"><i class="ti ti-lock"></i></button>
+      <button class="btn btn-ghost" onclick="openPartnersModal()" style="font-size:12px;padding:6px 12px"><i class="ti ti-users"></i>Партнёры</button>
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:nowrap">
         <span>1 EUR =</span>
         <input type="number" id="rateInput" step="0.001" min="0.01"
@@ -556,6 +567,32 @@ tr:hover .row-actions{opacity:1}
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeExport()">Закрыть</button>
       <button class="btn btn-green" onclick="copyExport()"><i class="ti ti-copy"></i>Скопировать</button>
+    </div>
+  </div>
+</div>
+
+<!-- PARTNERS MODAL -->
+<div class="modal-overlay hidden" id="partnersOverlay" onclick="handlePartnersClick(event)">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-users"></i>Справочник партнёров</span>
+      <button class="act-btn" onclick="closePartnersModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="partnersListWrap">
+        <div class="partners-list" id="partnersList"></div>
+      </div>
+      <div class="partner-add-row">
+        <input class="form-input" id="newPartnerName" placeholder="Название партнёра..." style="flex:1" onkeydown="if(event.key==='Enter')addPartner()">
+        <select class="form-select" id="newPartnerType" style="width:130px">
+          <option value="direct">Direct</option>
+          <option value="network">Network</option>
+        </select>
+        <button class="btn btn-primary" onclick="addPartner()"><i class="ti ti-plus"></i>Добавить</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePartnersModal()">Закрыть</button>
     </div>
   </div>
 </div>
@@ -1816,6 +1853,84 @@ function handleExportClick(e) { if(e.target===document.getElementById('exportOve
 function copyExport() {
   navigator.clipboard.writeText(document.getElementById('exportText').textContent)
     .then(()=>showToast('Скопировано!','success'));
+}
+
+// ── PARTNERS ──────────────────────────────────────────
+let allPartners = [];
+
+async function openPartnersModal() {
+  document.getElementById('partnersOverlay').classList.remove('hidden');
+  await loadPartners();
+}
+
+function closePartnersModal() {
+  document.getElementById('partnersOverlay').classList.add('hidden');
+}
+
+function handlePartnersClick(e) {
+  if (e.target === document.getElementById('partnersOverlay')) closePartnersModal();
+}
+
+async function loadPartners() {
+  const { data, error } = await sb.from('partners').select('*').order('name');
+  if (error) { showToast('Ошибка загрузки партнёров: ' + error.message, 'error'); return; }
+  allPartners = data || [];
+  renderPartnersList();
+}
+
+function renderPartnersList() {
+  const el = document.getElementById('partnersList');
+  if (allPartners.length === 0) {
+    el.innerHTML = '<div style="padding:12px 0;font-size:12px;color:var(--text3)">Партнёров пока нет. Добавьте первого.</div>';
+    return;
+  }
+  el.innerHTML = allPartners.map(p => `
+    <div class="partner-row">
+      <span class="partner-name">${esc(p.name)}</span>
+      <div class="partner-type-toggle">
+        <button class="ptt-btn ${p.partner_type==='direct'?'active-direct':''}" onclick="setPartnerType('${p.id}','direct','${esc(p.name)}')">Direct</button>
+        <button class="ptt-btn ${p.partner_type==='network'?'active-network':''}" onclick="setPartnerType('${p.id}','network','${esc(p.name)}')">Network</button>
+      </div>
+      <button class="partner-del" onclick="deletePartner('${p.id}','${esc(p.name)}')" title="Удалить"><i class="ti ti-trash"></i></button>
+    </div>
+  `).join('');
+}
+
+async function addPartner() {
+  const nameEl = document.getElementById('newPartnerName');
+  const typeEl = document.getElementById('newPartnerType');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  const type = typeEl.value;
+  const { error } = await sb.from('partners').insert({ name, partner_type: type });
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  nameEl.value = '';
+  showToast('Партнёр добавлен', 'success');
+  await loadPartners();
+}
+
+async function setPartnerType(id, type, name) {
+  const { error } = await sb.from('partners').update({ partner_type: type }).eq('id', id);
+  if (error) { showToast('Ошибка обновления', 'error'); return; }
+  // Update all offers with this partner name
+  const typeLabel = type === 'direct' ? 'Direct' : 'Network';
+  const { error: err2 } = await sb.from('offers').update({ partner_type: typeLabel }).ilike('partner', name);
+  if (err2) { showToast('Партнёр обновлён, офферы — ошибка: ' + err2.message, 'error'); }
+  else {
+    // Update local cache too
+    allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === name.toLowerCase()) o.partner_type = typeLabel; });
+    renderTable();
+    showToast(`Тип обновлён → ${typeLabel} (все офферы)`, 'success');
+  }
+  await loadPartners();
+}
+
+async function deletePartner(id, name) {
+  if (!confirm(`Удалить партнёра «${name}»?\nОфферы с этим партнёром останутся, только запись в справочнике будет удалена.`)) return;
+  const { error } = await sb.from('partners').delete().eq('id', id);
+  if (error) { showToast('Ошибка удаления', 'error'); return; }
+  showToast('Партнёр удалён', 'success');
+  await loadPartners();
 }
 
 function showToast(msg,type='success') {
