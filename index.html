@@ -358,7 +358,7 @@ tr:hover .row-actions{opacity:1}
           <div class="filter-option" onclick="setFilter('status','active')">Активен</div>
           <div class="filter-option" onclick="setFilter('status','stop')">На стопе</div>
           <div class="filter-option" onclick="setFilter('status','capped')">Закончился кап</div>
-          <div class="filter-option" onclick="setFilter('status','outdated')">Надо актуализировать</div>
+          <div class="filter-option" onclick="setFilter('status','outdated')">Нужно актуализировать</div>
         </div>
       </div>
     </div>
@@ -527,7 +527,7 @@ tr:hover .row-actions{opacity:1}
               <option value="active">Активен</option>
               <option value="stop">На стопе</option>
               <option value="capped">Закончился кап</option>
-              <option value="outdated">Надо актуализировать</option>
+              <option value="outdated">Нужно актуализировать</option>
             </select>
           </div>
           <div class="form-group"><label class="form-label">Дата получения</label><input class="form-input" type="date" id="f-date"></div>
@@ -778,7 +778,7 @@ function updateChips() {
     platform: {icon:'ti-layout-grid',    label:'Платформа'},
     partner:  {icon:'ti-users',          label:'Партнёр'},
     ptype:    {icon:'ti-building',       label:'Тип партнёра'},
-    status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',stop:'На стопе',capped:'Закончился кап',outdated:'Надо актуализировать'}},
+    status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',stop:'На стопе',capped:'Закончился кап',outdated:'Нужно актуализировать'}},
   };
   Object.entries(defs).forEach(([key, def]) => {
     const chip = document.getElementById('chip-'+key);
@@ -911,10 +911,10 @@ function statusBadge(s) {
     active:   ['dot-active',  'Активен'],
     stop:     ['dot-stop',    'На стопе'],
     capped:   ['dot-capped',  'Закончился кап'],
-    outdated: ['dot-outdated','Надо актуализировать'],
+    outdated: ['dot-outdated','Нужно актуализировать'],
     // legacy fallbacks
     pause:    ['dot-stop',    'На стопе'],
-    old:      ['dot-outdated','Надо актуализировать'],
+    old:      ['dot-outdated','Нужно актуализировать'],
   };
   const [dot,lbl]=m[s]||['dot-outdated',s||'—'];
   return `<span class="status"><span class="dot ${dot}"></span>${lbl}</span>`;
