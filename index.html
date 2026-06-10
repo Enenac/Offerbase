@@ -555,13 +555,24 @@ tr:hover .row-actions{opacity:1}
 
 <!-- EXPORT MODAL -->
 <div class="modal-overlay hidden" id="exportOverlay" onclick="handleExportClick(event)">
-  <div class="modal" style="max-width:600px">
+  <div class="modal" style="max-width:620px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-copy"></i>Экспорт для Telegram</span>
       <button class="act-btn" onclick="closeExport()"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
-      <p class="export-count" id="exportCount"></p>
+      <!-- Field toggles -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Поля в экспорте</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="exportFieldToggles"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <p class="export-count" id="exportCount" style="flex:1;margin:0"></p>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3);white-space:nowrap">
+          <input type="checkbox" id="dedupToggle" onchange="refreshExportText()" style="accent-color:var(--accent)" checked>
+          <span>Убирать дубли (оставлять макс. ставку)</span>
+        </label>
+      </div>
       <div class="export-text" id="exportText"></div>
     </div>
     <div class="modal-footer">
@@ -1827,25 +1838,99 @@ function clearDateFilter(e) {
 }
 
 
+// ── EXPORT ────────────────────────────────────────────
+const EXPORT_FIELDS = [
+  { key: 'geo',            label: 'GEO' },
+  { key: 'brand',          label: 'Бренд' },
+  { key: 'traffic_source', label: 'Источник' },
+  { key: 'game_type',      label: 'Тип игры' },
+  { key: 'rate',           label: 'Ставка' },
+  { key: 'min_deposit',    label: 'MinDep',  prefix: 'MinDep ' },
+  { key: 'capa',           label: 'Капа',    prefix: 'Cap ' },
+  { key: 'kpi',            label: 'KPI' },
+  { key: 'platform',       label: 'Платформа' },
+  { key: 'notes',          label: 'Заметки' },
+];
+// Persisted per-field visibility
+let exportFieldsEnabled = JSON.parse(localStorage.getItem('exportFields') || 'null')
+  || Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, f.key !== 'notes']));
+
+let _exportRows = [];
+
 function openExport() {
-  const rows = getFiltered();
+  _exportRows = getFiltered();
+  // Build toggles
+  const wrap = document.getElementById('exportFieldToggles');
+  wrap.innerHTML = EXPORT_FIELDS.map(f => `
+    <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+      padding:4px 10px;border-radius:6px;border:0.5px solid var(--border2);
+      background:${exportFieldsEnabled[f.key]?'var(--accent-bg)':'var(--bg3)'};
+      color:${exportFieldsEnabled[f.key]?'var(--accent)':'var(--text3)'};
+      font-size:11px;font-family:'IBM Plex Mono',monospace;transition:all 0.12s"
+      id="lbl-export-${f.key}">
+      <input type="checkbox" ${exportFieldsEnabled[f.key]?'checked':''} 
+        style="display:none" onchange="toggleExportField('${f.key}',this.checked)">
+      ${f.label}
+    </label>
+  `).join('');
+  refreshExportText();
+  document.getElementById('exportOverlay').classList.remove('hidden');
+}
+
+function toggleExportField(key, val) {
+  exportFieldsEnabled[key] = val;
+  localStorage.setItem('exportFields', JSON.stringify(exportFieldsEnabled));
+  // Update label style
+  const lbl = document.getElementById('lbl-export-' + key);
+  if (lbl) {
+    lbl.style.background = val ? 'var(--accent-bg)' : 'var(--bg3)';
+    lbl.style.color = val ? 'var(--accent)' : 'var(--text3)';
+  }
+  refreshExportText();
+}
+
+function parseRateToUsd(rate) {
+  if (!rate) return 0;
+  const n = parseFloat(rate.replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return 0;
+  if (rate.includes('€') || rate.toLowerCase().includes('eur')) return n * (eurUsd || 1.08);
+  return n;
+}
+
+function deduplicateOffers(rows) {
+  const map = new Map();
+  for (const o of rows) {
+    const key = [
+      (o.geo||'').toUpperCase(),
+      (o.brand||'').toLowerCase(),
+      (o.traffic_source||'').toLowerCase(),
+      (o.game_type||'').toLowerCase(),
+      (o.partner||'').toLowerCase(),
+    ].join('|');
+    const existing = map.get(key);
+    if (!existing || parseRateToUsd(o.rate) > parseRateToUsd(existing.rate)) {
+      map.set(key, o);
+    }
+  }
+  return Array.from(map.values());
+}
+
+function refreshExportText() {
+  const dedup = document.getElementById('dedupToggle').checked;
+  let rows = dedup ? deduplicateOffers(_exportRows) : _exportRows;
   const val = v => (v && v.trim() !== '-') ? v.trim() : null;
   const lines = rows.map(o => {
     const parts = [];
-    if (val(o.geo))            parts.push(val(o.geo));
-    if (val(o.brand))          parts.push(val(o.brand));
-    if (val(o.traffic_source)) parts.push(val(o.traffic_source));
-    if (val(o.game_type))      parts.push(val(o.game_type));
-    if (val(o.rate))           parts.push(val(o.rate));
-    if (val(o.min_deposit))    parts.push('MinDep ' + val(o.min_deposit));
-    if (val(o.capa))           parts.push('Cap ' + val(o.capa));
-    if (val(o.kpi))            parts.push(val(o.kpi));
-    if (val(o.platform))       parts.push(val(o.platform));
+    for (const f of EXPORT_FIELDS) {
+      if (!exportFieldsEnabled[f.key]) continue;
+      const v = val(o[f.key]);
+      if (v) parts.push((f.prefix || '') + v);
+    }
     return parts.join(' • ');
-  });
-  document.getElementById('exportCount').textContent = `${rows.length} оффер(ов)`;
+  }).filter(Boolean);
+  const dedupNote = dedup ? ` (после дедупликации: ${rows.length} из ${_exportRows.length})` : ` (${rows.length})`;
+  document.getElementById('exportCount').textContent = `${_exportRows.length} оффер(ов)${dedupNote}`;
   document.getElementById('exportText').textContent = lines.join('\n');
-  document.getElementById('exportOverlay').classList.remove('hidden');
 }
 
 function closeExport() { document.getElementById('exportOverlay').classList.add('hidden'); }
