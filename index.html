@@ -690,10 +690,9 @@ async function autoExpireOffers() {
   weekAgo.setDate(weekAgo.getDate() - 7);
   const weekAgoStr = weekAgo.toISOString().split('T')[0];
 
-  // Safety: only touch offers where received_at is explicitly set,
-  // is a valid date string, and is strictly older than 7 days ago
+  const activeStatuses = ['active', 'stop', 'capped', 'pause']; // pause = legacy
   const toExpire = allOffers.filter(o => {
-    if (o.status !== 'active') return false;
+    if (!activeStatuses.includes(o.status)) return false;
     if (!o.received_at || typeof o.received_at !== 'string') return false;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(o.received_at)) return false;
     return o.received_at < weekAgoStr;
@@ -701,17 +700,19 @@ async function autoExpireOffers() {
 
   if (toExpire.length === 0) return;
 
-  // Safety limit — never expire more than 50 at once
-  if (toExpire.length > 50) {
-    console.warn(`autoExpire: ${toExpire.length} offers would expire, skipping for safety`);
-    return;
+  // Batch update — 500 ids at a time to avoid URL length limits
+  const ids = toExpire.map(o => o.id);
+  const BATCH = 500;
+  let failed = false;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const chunk = ids.slice(i, i + BATCH);
+    const { error } = await sb.from('offers').update({ status: 'outdated' }).in('id', chunk);
+    if (error) { failed = true; console.error('autoExpire batch error:', error); break; }
   }
 
-  const ids = toExpire.map(o => o.id);
-  const { error } = await sb.from('offers').update({ status: 'outdated' }).in('id', ids);
-  if (!error) {
+  if (!failed) {
     toExpire.forEach(o => { o.status = 'outdated'; });
-    console.log(`autoExpire: marked ${ids.length} offers as old`);
+    console.log(`autoExpire: помечено ${ids.length} офферов как "Нужно актуализировать"`);
   }
 }
 
