@@ -1410,7 +1410,8 @@ async function loadRequests() {
   allDispatches = r3.data || [];
   // count active requests across ALL projects for the tab badge
   const { data: allReqCount } = await sb.from('requests').select('status').in('status', ['new','sent']);
-  document.getElementById('count-requests').textContent = (allReqCount || []).length;
+  const countEl = document.getElementById('count-requests');
+  if (countEl) countEl.textContent = (allReqCount || []).length;
   renderRequests();
 }
 
