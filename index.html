@@ -1362,8 +1362,11 @@ window.switchProject = function(p) {
     loadRequests();
   } else {
     currentProject = p;
-    offersView.style.display = 'flex';
-    requestsSection.style.display = 'none';
+    // Only show offersView if we're actually on the offers page
+    if (currentPage === 'offers') {
+      offersView.style.display = 'flex';
+      requestsSection.style.display = 'none';
+    }
     ['smerch','phantom','requests'].forEach(x => {
       document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
     });
@@ -2276,8 +2279,9 @@ function switchPage(page) {
   // Show correct content
   if (page === 'offers') {
     document.getElementById('offersView').style.display = 'flex';
-    // also update project tabs
-    switchProject(currentProject === 'requests' ? 'smerch' : currentProject);
+    updateCounts();
+    buildDynamicFilters();
+    renderTable();
   } else if (page === 'partners') {
     document.getElementById('partnersPage').style.display = 'flex';
     loadPartners();
