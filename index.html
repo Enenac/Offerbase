@@ -237,6 +237,72 @@ tr:hover .row-actions{opacity:1}
 .partner-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 4px;border-radius:4px;transition:color 0.12s;flex-shrink:0}
 .partner-del:hover{color:var(--red)}
 .kb-partner{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:7px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace;margin-top:4px;margin-right:3px}
+
+/* ── MOBILE ≤600px ────────────────────────────────── */
+.m-topbar,.m-search-row,.m-filter-row,.m-offers,.m-bottom-nav{display:none}
+@media(max-width:600px){
+  .topbar,.projects-nav,.stats-bar,.filters-bar,.table-wrap,#bulkBar{display:none!important}
+  .m-topbar{display:flex!important}
+  .m-search-row{display:flex!important}
+  .m-filter-row{display:flex!important}
+  .m-offers{display:flex!important}
+  .m-bottom-nav{display:flex!important}
+  #offersView{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+  #app{overflow:hidden}
+
+  .m-topbar{align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0}
+  .m-logo{font-size:14px;font-weight:600;color:var(--accent);font-family:'IBM Plex Mono',monospace}
+  .m-topbar-right{display:flex;align-items:center;gap:7px}
+  .m-rate{background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+  .m-rate span{color:var(--accent)}
+  .m-export-btn{display:flex;align-items:center;gap:3px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:10px;color:var(--text2);cursor:pointer;border:none;background:none}
+  .m-export-btn i{font-size:16px;color:var(--text3)}
+
+  .m-search-row{align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0}
+  .m-search-wrap{position:relative;flex:1}
+  .m-search-wrap i{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none}
+  .m-search-inp{width:100%;background:var(--bg3);border:0.5px solid var(--border);border-radius:7px;padding:7px 10px 7px 29px;font-size:12px;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;outline:none}
+  .m-search-inp::placeholder{color:var(--text3)}
+  .m-add-btn{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:0.5px solid var(--accent-border);border-radius:7px;color:var(--accent);cursor:pointer}
+  .m-add-btn i{font-size:16px}
+
+  .m-filter-row{gap:5px;padding:7px 12px;overflow-x:auto;background:var(--bg);border-bottom:0.5px solid var(--border);flex-shrink:0;scrollbar-width:none}
+  .m-filter-row::-webkit-scrollbar{display:none}
+  .m-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;border:0.5px solid var(--border);font-size:10px;color:var(--text3);background:var(--bg3);white-space:nowrap;cursor:pointer;transition:all 0.12s}
+  .m-chip.active{border-color:var(--accent);color:var(--accent)}
+
+  .m-offers{flex:1;flex-direction:column;gap:4px;padding:6px 10px;overflow-y:auto;scrollbar-width:none}
+  .m-offers::-webkit-scrollbar{display:none}
+  .m-card{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:border-color 0.12s}
+  .m-card:active{border-color:var(--border2)}
+  .m-flag{width:17px;height:12px;border-radius:2px;flex-shrink:0;object-fit:cover}
+  .m-card-main{flex:1;min-width:0}
+  .m-card-r1{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+  .m-brand{font-size:12px;font-weight:500;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-geo{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
+  .m-card-r2{display:flex;align-items:center;gap:4px}
+  .m-bdg{padding:1px 5px;border-radius:4px;font-size:9px;font-weight:500;flex-shrink:0}
+  .m-bsrc{background:#1e2a3a;color:#60a5fa}
+  .m-bgame{background:#1a2a1a;color:var(--green)}
+  .m-partner{font-size:9px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+  .m-rate-eur{font-size:13px;font-weight:600;color:var(--accent)}
+  .m-rate-usd{font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+  .m-dot{width:5px;height:5px;border-radius:50%}
+  .m-dot.active{background:var(--green)}
+  .m-dot.stop{background:var(--red)}
+  .m-dot.capped{background:#fb923c}
+  .m-dot.outdated{background:#374151}
+
+  .m-bottom-nav{background:var(--bg2);border-top:0.5px solid var(--border);flex-shrink:0}
+  .m-nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 0 20px;border:none;background:none;cursor:pointer}
+  .m-nav-tab i{font-size:20px;color:var(--text3)}
+  .m-nav-tab span{font-size:10px;color:var(--text3)}
+  .m-nav-tab.active i,.m-nav-tab.active span{color:var(--accent)}
+
+  .modal-overlay{align-items:flex-end!important;padding:0!important}
+  .modal{max-width:100%!important;width:100%!important;border-radius:14px 14px 0 0!important;margin:0!important;max-height:90dvh!important;overflow-y:auto}
+}
 </style>
 </head>
 <body>
@@ -274,6 +340,39 @@ tr:hover .row-actions{opacity:1}
   </div>
 
 <div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+
+  <!-- ── MOBILE UI ── -->
+  <div class="m-topbar">
+    <span class="m-logo">OfferBase</span>
+    <div class="m-topbar-right">
+      <div class="m-rate">1 EUR = <span id="mRateVal">—</span> USD</div>
+      <button class="m-export-btn" onclick="openExport()"><i class="ti ti-copy"></i></button>
+    </div>
+  </div>
+  <div class="m-search-row">
+    <div class="m-search-wrap">
+      <i class="ti ti-search"></i>
+      <input class="m-search-inp" id="mSearchInput" placeholder="Поиск по бренду, партнёру..." oninput="onMobileSearch(this.value)">
+    </div>
+    <button class="m-add-btn" onclick="openAddModal()"><i class="ti ti-plus"></i></button>
+  </div>
+  <div class="m-filter-row">
+    <div class="m-chip active" id="mchip-all" onclick="setMobileFilter('all')"><i class="ti ti-list"></i>Все</div>
+    <div class="m-chip" id="mchip-active" onclick="setMobileFilter('active')">Активен</div>
+    <div class="m-chip" id="mchip-stop" onclick="setMobileFilter('stop')">На стопе</div>
+    <div class="m-chip" id="mchip-capped" onclick="setMobileFilter('capped')">Кап</div>
+    <div class="m-chip" id="mchip-outdated" onclick="setMobileFilter('outdated')">Актуализировать</div>
+  </div>
+  <div class="m-offers" id="mOffersList"></div>
+  <div class="m-bottom-nav">
+    <button class="m-nav-tab active" id="m-tab-smerch" onclick="mSwitchProject('smerch')">
+      <i class="ti ti-building-store"></i><span>Smerch</span>
+    </button>
+    <button class="m-nav-tab" id="m-tab-phantom" onclick="mSwitchProject('phantom')">
+      <i class="ti ti-ghost"></i><span>Phantom</span>
+    </button>
+  </div>
+  <!-- ── /MOBILE UI ── -->
   <div class="stats-bar">
     <div class="stat"><span class="stat-val" id="s-total">—</span><span class="stat-lbl">Всего офферов</span></div>
     <div class="stat"><span class="stat-val" id="s-active">—</span><span class="stat-lbl">Активных</span></div>
@@ -1940,6 +2039,112 @@ function copyExport() {
   navigator.clipboard.writeText(document.getElementById('exportText').textContent)
     .then(()=>showToast('Скопировано!','success'));
 }
+
+// ── MOBILE ────────────────────────────────────────────
+let mobileStatusFilter = 'all';
+let mobileSearchQuery = '';
+
+function isMobile() { return window.innerWidth <= 600; }
+
+function onMobileSearch(val) {
+  mobileSearchQuery = val.toLowerCase();
+  renderMobile();
+}
+
+function setMobileFilter(status) {
+  mobileStatusFilter = status;
+  document.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  const el = document.getElementById('mchip-' + status);
+  if (el) el.classList.add('active');
+  renderMobile();
+}
+
+function mSwitchProject(p) {
+  currentProject = p;
+  document.querySelectorAll('.m-nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('m-tab-' + p).classList.add('active');
+  mobileStatusFilter = 'all';
+  mobileSearchQuery = '';
+  document.getElementById('mSearchInput').value = '';
+  document.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('mchip-all').classList.add('active');
+  renderMobile();
+}
+
+function renderMobile() {
+  if (!isMobile()) return;
+  const el = document.getElementById('mOffersList');
+  if (!el) return;
+
+  // Update rate display
+  const rv = document.getElementById('mRateVal');
+  if (rv) rv.textContent = eurUsd ? eurUsd.toFixed(3) : '—';
+
+  let rows = allOffers.filter(o => o.project === currentProject);
+
+  if (mobileStatusFilter !== 'all') {
+    rows = rows.filter(o => o.status === mobileStatusFilter);
+  }
+
+  if (mobileSearchQuery) {
+    rows = rows.filter(o =>
+      (o.brand||'').toLowerCase().includes(mobileSearchQuery) ||
+      (o.partner||'').toLowerCase().includes(mobileSearchQuery) ||
+      (o.geo||'').toLowerCase().includes(mobileSearchQuery)
+    );
+  }
+
+  // Sort by USD desc (same as desktop default)
+  rows = rows.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
+
+  if (rows.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Нет офферов</div>';
+    return;
+  }
+
+  const dotClass = { active:'active', stop:'stop', capped:'capped', outdated:'outdated', pause:'stop', old:'outdated' };
+
+  el.innerHTML = rows.map(o => {
+    const flagCode = (o.geo||'').toLowerCase().slice(0,2);
+    const dc = dotClass[o.status] || 'outdated';
+    const eur = (o.rate||'').includes('€') || (o.rate||'').toLowerCase().includes('eur');
+    let usdVal = '';
+    if (o.rate) {
+      const n = parseFloat((o.rate||'').replace(/[^0-9.]/g,''));
+      if (!isNaN(n)) usdVal = '$' + Math.round(eur ? n * eurUsd : n);
+    }
+    return `<div class="m-card" onclick="editOffer('${o.id}')">
+      <img class="m-flag" src="https://flagcdn.com/w40/${flagCode}.png" onerror="this.style.display='none'">
+      <div class="m-card-main">
+        <div class="m-card-r1">
+          <span class="m-brand">${esc(o.brand||'—')}</span>
+          <span class="m-geo">${esc(o.geo||'')}</span>
+        </div>
+        <div class="m-card-r2">
+          ${o.traffic_source ? `<span class="m-bdg m-bsrc">${esc(o.traffic_source)}</span>` : ''}
+          ${o.game_type ? `<span class="m-bdg m-bgame">${esc(o.game_type)}</span>` : ''}
+          ${o.partner ? `<span class="m-partner">${esc(o.partner)}</span>` : ''}
+        </div>
+      </div>
+      <div class="m-card-right">
+        <span class="m-rate-eur">${esc(o.rate||'—')}</span>
+        ${usdVal ? `<span class="m-rate-usd">${usdVal}</span>` : ''}
+        <div class="m-dot ${dc}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Hook into existing renderTable to also update mobile
+const _origRenderTable = renderTable;
+function renderTable() {
+  _origRenderTable();
+  renderMobile();
+}
+
+window.addEventListener('resize', () => {
+  if (isMobile()) renderMobile();
+});
 
 // ── PARTNERS ──────────────────────────────────────────
 let allPartners = [];
