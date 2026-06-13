@@ -250,7 +250,7 @@ tr:hover .row-actions{opacity:1}
 
   html,body,#app{height:100dvh!important;overflow:hidden!important}
   #offersView{display:flex!important;flex-direction:column!important;height:100dvh!important;overflow:hidden!important;flex:none!important}
-  .stats-bar,.filters-bar,.table-wrap,#bulkBar,.topbar,.projects-nav{display:none!important;height:0!important;overflow:hidden!important}
+  .stats-bar,.filters-bar,.table-wrap,#bulkBar,.topbar,.projects-nav{display:none!important}
 
   .m-topbar{align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0}
   .m-logo{font-size:14px;font-weight:600;color:var(--accent);font-family:'IBM Plex Mono',monospace}
@@ -1051,6 +1051,7 @@ function renderTable() {
       </div></td>
     </tr>
   `;}).join('');
+  if (typeof renderMobile === 'function') renderMobile();
 }
 
 function flag(geo) {
@@ -2215,12 +2216,6 @@ function renderMobile() {
       </div>
     </div>`;
   }).join('');
-}
-
-const _origRenderTable = renderTable;
-function renderTable() {
-  _origRenderTable();
-  renderMobile();
 }
 
 window.addEventListener('resize', () => { if (isMobile()) renderMobile(); });
