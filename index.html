@@ -302,6 +302,9 @@ tr:hover .row-actions{opacity:1}
 
   .modal-overlay{align-items:flex-end!important;padding:0!important}
   .modal{max-width:100%!important;width:100%!important;border-radius:14px 14px 0 0!important;margin:0!important;max-height:90dvh!important;overflow-y:auto}
+  .m-menu-opt{padding:12px 4px;font-size:13px;color:var(--text2);border-bottom:0.5px solid var(--border);cursor:pointer}
+  .m-menu-opt:last-child{border-bottom:none}
+  .m-menu-opt:active{color:var(--accent)}
 }
 </style>
 </head>
@@ -356,14 +359,19 @@ tr:hover .row-actions{opacity:1}
     </div>
     <button class="m-add-btn" onclick="openAddModal()"><i class="ti ti-plus"></i></button>
   </div>
-  <div class="m-filter-row">
-    <div class="m-chip active" id="mchip-all" onclick="setMobileFilter('all')"><i class="ti ti-list"></i>Все</div>
-    <div class="m-chip" id="mchip-active" onclick="setMobileFilter('active')">Активен</div>
-    <div class="m-chip" id="mchip-stop" onclick="setMobileFilter('stop')">На стопе</div>
-    <div class="m-chip" id="mchip-capped" onclick="setMobileFilter('capped')">Кап</div>
-    <div class="m-chip" id="mchip-outdated" onclick="setMobileFilter('outdated')">Актуализировать</div>
+  <div class="m-filter-row" id="mFilterRow">
+    <div class="m-chip active" id="mchip-all" onclick="setMobileFilter('status','all')"><i class="ti ti-list" style="font-size:10px"></i>Все</div>
+    <div class="m-chip" id="mchip-geo" onclick="toggleMobileMenu('geo')"><i class="ti ti-world" style="font-size:10px"></i>GEO</div>
+    <div class="m-chip" id="mchip-source" onclick="toggleMobileMenu('source')"><i class="ti ti-arrow-up-right" style="font-size:10px"></i>Источник</div>
+    <div class="m-chip" id="mchip-gametype" onclick="toggleMobileMenu('gametype')"><i class="ti ti-device-gamepad" style="font-size:10px"></i>Тип игры</div>
+    <div class="m-chip" id="mchip-status" onclick="toggleMobileMenu('status')"><i class="ti ti-circle-dot" style="font-size:10px"></i>Статус</div>
+    <div class="m-chip" id="mchip-partner" onclick="toggleMobileMenu('partner')"><i class="ti ti-users" style="font-size:10px"></i>Партнёр</div>
   </div>
-  <div class="m-offers" id="mOffersList"></div>
+  <!-- mobile filter dropdown -->
+  <div id="mMenuOverlay" class="hidden" style="position:fixed;inset:0;z-index:200" onclick="closeMobileMenu()"></div>
+  <div id="mMenuSheet" class="hidden" style="position:fixed;bottom:0;left:0;right:0;z-index:201;background:var(--bg2);border-top:0.5px solid var(--border2);border-radius:14px 14px 0 0;max-height:60dvh;overflow-y:auto;padding:16px 14px 32px"></div>
+
+  <div class="m-offers" id="mOffersList" style="flex:1;min-height:0"></div>
   <div class="m-bottom-nav">
     <button class="m-nav-tab active" id="m-tab-smerch" onclick="mSwitchProject('smerch')">
       <i class="ti ti-building-store"></i><span>Smerch</span>
@@ -2041,7 +2049,7 @@ function copyExport() {
 }
 
 // ── MOBILE ────────────────────────────────────────────
-let mobileStatusFilter = 'all';
+let mobileFilters = {};
 let mobileSearchQuery = '';
 
 function isMobile() { return window.innerWidth <= 600; }
@@ -2051,23 +2059,95 @@ function onMobileSearch(val) {
   renderMobile();
 }
 
-function setMobileFilter(status) {
-  mobileStatusFilter = status;
-  document.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
-  const el = document.getElementById('mchip-' + status);
-  if (el) el.classList.add('active');
+// Mobile filter menu (bottom sheet)
+let _mobileMenuKey = null;
+function toggleMobileMenu(key) {
+  if (_mobileMenuKey === key) { closeMobileMenu(); return; }
+  _mobileMenuKey = key;
+  const sheet = document.getElementById('mMenuSheet');
+  const overlay = document.getElementById('mMenuOverlay');
+  sheet.innerHTML = buildMobileMenuContent(key);
+  sheet.classList.remove('hidden');
+  overlay.classList.remove('hidden');
+}
+function closeMobileMenu() {
+  _mobileMenuKey = null;
+  document.getElementById('mMenuSheet').classList.add('hidden');
+  document.getElementById('mMenuOverlay').classList.add('hidden');
+}
+function buildMobileMenuContent(key) {
+  const titles = { geo:'GEO', source:'Источник', gametype:'Тип игры', status:'Статус', partner:'Партнёр' };
+  let opts = [];
+  if (key === 'geo') {
+    const geos = [...new Set(allOffers.filter(o=>o.project===currentProject).map(o=>o.geo).filter(Boolean))].sort();
+    opts = geos.map(g => `<div class="m-menu-opt" onclick="setMobileFilter('geo','${g}')">${g}</div>`);
+  } else if (key === 'source') {
+    ['FB','In-App','ASO','SEO','UAC','PPC','Sms/Email','Influence','Tik-Tok'].forEach(s =>
+      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${s}')">${s}</div>`));
+  } else if (key === 'gametype') {
+    ['Slots','Casino','Live','Sport','Poker','Bingo','Scratch'].forEach(g =>
+      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${g}')">${g}</div>`));
+  } else if (key === 'status') {
+    [['active','Активен'],['stop','На стопе'],['capped','Закончился кап'],['outdated','Нужно актуализировать']].forEach(([v,l]) =>
+      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('status','${v}')">${l}</div>`));
+  } else if (key === 'partner') {
+    const partners = [...new Set(allOffers.filter(o=>o.project===currentProject).map(o=>o.partner).filter(Boolean))].sort();
+    opts = partners.map(p => `<div class="m-menu-opt" onclick="setMobileFilter('partner','${esc(p)}')">${esc(p)}</div>`);
+  }
+  return `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:10px">${titles[key]}</div>
+    <div class="m-menu-opt" onclick="clearMobileFilter('${key}')" style="color:var(--accent)">Сбросить</div>
+    ${opts.join('')}`;
+}
+function setMobileFilter(key, val) {
+  if (key === 'status' && val === 'all') {
+    delete mobileFilters[key];
+  } else {
+    mobileFilters[key] = val;
+  }
+  closeMobileMenu();
+  updateMobileChips();
   renderMobile();
+}
+function clearMobileFilter(key) {
+  delete mobileFilters[key];
+  closeMobileMenu();
+  updateMobileChips();
+  renderMobile();
+}
+function updateMobileChips() {
+  const keys = ['geo','source','gametype','status','partner'];
+  const labels = { geo:'GEO', source:'Источник', gametype:'Тип игры', status:'Статус', partner:'Партнёр' };
+  keys.forEach(k => {
+    const el = document.getElementById('mchip-' + k);
+    if (!el) return;
+    if (mobileFilters[k]) {
+      el.classList.add('active');
+      el.innerHTML = `<i class="ti ti-x" style="font-size:9px" onclick="event.stopPropagation();clearMobileFilter('${k}')"></i>${mobileFilters[k]}`;
+    } else {
+      el.classList.remove('active');
+      const icons = { geo:'ti-world', source:'ti-arrow-up-right', gametype:'ti-device-gamepad', status:'ti-circle-dot', partner:'ti-users' };
+      el.innerHTML = `<i class="ti ${icons[k]}" style="font-size:10px"></i>${labels[k]}`;
+    }
+  });
+  const allEl = document.getElementById('mchip-all');
+  if (allEl) {
+    if (Object.keys(mobileFilters).length === 0) {
+      allEl.classList.add('active');
+    } else {
+      allEl.classList.remove('active');
+    }
+  }
 }
 
 function mSwitchProject(p) {
   currentProject = p;
   document.querySelectorAll('.m-nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('m-tab-' + p).classList.add('active');
-  mobileStatusFilter = 'all';
+  mobileFilters = {};
   mobileSearchQuery = '';
-  document.getElementById('mSearchInput').value = '';
-  document.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
-  document.getElementById('mchip-all').classList.add('active');
+  const inp = document.getElementById('mSearchInput');
+  if (inp) inp.value = '';
+  updateMobileChips();
   renderMobile();
 }
 
@@ -2076,15 +2156,16 @@ function renderMobile() {
   const el = document.getElementById('mOffersList');
   if (!el) return;
 
-  // Update rate display
   const rv = document.getElementById('mRateVal');
   if (rv) rv.textContent = eurUsd ? eurUsd.toFixed(3) : '—';
 
   let rows = allOffers.filter(o => o.project === currentProject);
 
-  if (mobileStatusFilter !== 'all') {
-    rows = rows.filter(o => o.status === mobileStatusFilter);
-  }
+  if (mobileFilters.status) rows = rows.filter(o => o.status === mobileFilters.status);
+  if (mobileFilters.geo) rows = rows.filter(o => (o.geo||'').toUpperCase() === mobileFilters.geo.toUpperCase());
+  if (mobileFilters.source) rows = rows.filter(o => o.traffic_source === mobileFilters.source);
+  if (mobileFilters.gametype) rows = rows.filter(o => o.game_type === mobileFilters.gametype);
+  if (mobileFilters.partner) rows = rows.filter(o => o.partner === mobileFilters.partner);
 
   if (mobileSearchQuery) {
     rows = rows.filter(o =>
@@ -2094,7 +2175,6 @@ function renderMobile() {
     );
   }
 
-  // Sort by USD desc (same as desktop default)
   rows = rows.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
 
   if (rows.length === 0) {
@@ -2107,11 +2187,11 @@ function renderMobile() {
   el.innerHTML = rows.map(o => {
     const flagCode = (o.geo||'').toLowerCase().slice(0,2);
     const dc = dotClass[o.status] || 'outdated';
-    const eur = (o.rate||'').includes('€') || (o.rate||'').toLowerCase().includes('eur');
+    const isEur = (o.rate||'').includes('€') || (o.rate||'').toLowerCase().includes('eur');
     let usdVal = '';
     if (o.rate) {
       const n = parseFloat((o.rate||'').replace(/[^0-9.]/g,''));
-      if (!isNaN(n)) usdVal = '$' + Math.round(eur ? n * eurUsd : n);
+      if (!isNaN(n)) usdVal = '$' + Math.round(isEur ? n * eurUsd : n);
     }
     return `<div class="m-card" onclick="editOffer('${o.id}')">
       <img class="m-flag" src="https://flagcdn.com/w40/${flagCode}.png" onerror="this.style.display='none'">
@@ -2121,30 +2201,27 @@ function renderMobile() {
           <span class="m-geo">${esc(o.geo||'')}</span>
         </div>
         <div class="m-card-r2">
-          ${o.traffic_source ? `<span class="m-bdg m-bsrc">${esc(o.traffic_source)}</span>` : ''}
-          ${o.game_type ? `<span class="m-bdg m-bgame">${esc(o.game_type)}</span>` : ''}
-          ${o.partner ? `<span class="m-partner">${esc(o.partner)}</span>` : ''}
+          ${o.traffic_source?`<span class="m-bdg m-bsrc">${esc(o.traffic_source)}</span>`:''}
+          ${o.game_type?`<span class="m-bdg m-bgame">${esc(o.game_type)}</span>`:''}
+          ${o.partner?`<span class="m-partner">${esc(o.partner)}</span>`:''}
         </div>
       </div>
       <div class="m-card-right">
         <span class="m-rate-eur">${esc(o.rate||'—')}</span>
-        ${usdVal ? `<span class="m-rate-usd">${usdVal}</span>` : ''}
+        ${usdVal?`<span class="m-rate-usd">${usdVal}</span>`:''}
         <div class="m-dot ${dc}"></div>
       </div>
     </div>`;
   }).join('');
 }
 
-// Hook into existing renderTable to also update mobile
 const _origRenderTable = renderTable;
 function renderTable() {
   _origRenderTable();
   renderMobile();
 }
 
-window.addEventListener('resize', () => {
-  if (isMobile()) renderMobile();
-});
+window.addEventListener('resize', () => { if (isMobile()) renderMobile(); });
 
 // ── PARTNERS ──────────────────────────────────────────
 let allPartners = [];
