@@ -1399,6 +1399,7 @@ function updateReqProjectTabs() {
 }
 
 async function loadRequests() {
+  reqProject = currentProject; // always sync with global project
   const [r1, r2, r3] = await Promise.all([
     sb.from('requests').select('*').eq('project', reqProject).order('created_at', { ascending: false }),
     sb.from('request_items').select('*'),
@@ -2505,11 +2506,6 @@ function showToast(msg,type='success') {
   <!-- Kanban toolbar -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)">
     <div style="display:flex;align-items:center;gap:12px">
-      <!-- Project subtabs -->
-      <div style="display:flex;gap:2px;background:var(--bg3);border-radius:7px;padding:2px">
-        <button id="rp-smerch" onclick="setReqProject('smerch')" style="font-size:11px;padding:4px 12px;border-radius:5px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;background:var(--accent);color:#fff;transition:all 0.15s">Smerch</button>
-        <button id="rp-phantom" onclick="setReqProject('phantom')" style="font-size:11px;padding:4px 12px;border-radius:5px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;background:transparent;color:var(--text3);transition:all 0.15s">Phantom</button>
-      </div>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
         <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
         <span>Показать отклонённые</span>
