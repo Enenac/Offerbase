@@ -238,6 +238,48 @@ tr:hover .row-actions{opacity:1}
 .partner-del:hover{color:var(--red)}
 .kb-partner{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:7px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace;margin-top:4px;margin-right:3px}
 
+.icon-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px 5px;border-radius:6px;display:inline-flex;align-items:center;transition:all 0.15s}
+.icon-btn:hover{color:var(--text1);background:var(--bg3)}
+/* ── PARTNER SIDEBAR ─────────────────────────────── */
+#partnerSidebar{position:fixed;top:0;right:0;width:420px;height:100vh;background:var(--bg2);border-left:0.5px solid var(--border2);z-index:90;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);box-shadow:-8px 0 32px rgba(0,0,0,0.4)}
+#partnerSidebar.open{transform:translateX(0)}
+#sidebarOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:89;opacity:0;pointer-events:none;transition:opacity 0.25s}
+#sidebarOverlay.open{opacity:1;pointer-events:all}
+.sb-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--border);flex-shrink:0}
+.sb-title{font-size:14px;font-weight:500;color:var(--text1);font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:8px}
+.sb-title i{color:var(--accent);font-size:17px}
+.sb-tabs{display:flex;background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:3px;gap:3px;margin:12px 18px;flex-shrink:0}
+.sb-tab{flex:1;padding:7px;font-size:12px;border:none;border-radius:6px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-weight:500;transition:all 0.15s;color:var(--text3);background:none;display:flex;align-items:center;justify-content:center;gap:6px}
+.sb-tab.active{background:var(--accent-bg);color:var(--accent);border:0.5px solid var(--accent-border)}
+.sb-tab i{font-size:13px}
+.sb-body{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.sb-section{padding:0 18px 18px}
+/* Partner list in sidebar */
+.sb-partner-item{border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden;transition:border-color 0.15s}
+.sb-partner-item:hover{border-color:var(--border2)}
+.sb-partner-item.expanded{border-color:var(--accent-border)}
+.sb-partner-head{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;user-select:none}
+.sb-partner-info{flex:1;min-width:0}
+.sb-partner-name{font-size:13px;color:var(--text1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-partner-meta{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px}
+.sb-partner-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.sb-chevron{font-size:14px;color:var(--text3);transition:transform 0.2s;flex-shrink:0}
+.sb-partner-item.expanded .sb-chevron{transform:rotate(90deg)}
+.sb-partner-offers{display:none;border-top:0.5px solid var(--border);background:var(--bg);padding:8px}
+.sb-partner-item.expanded .sb-partner-offers{display:block}
+.sb-offer-row{display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:8px;padding:5px 6px;border-radius:5px;font-size:11px;color:var(--text2);transition:background 0.1s}
+.sb-offer-row:hover{background:var(--bg3)}
+.sb-offer-brand{font-weight:500;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-offer-rate{font-family:'IBM Plex Mono',monospace;color:var(--accent);font-weight:500;text-align:right;white-space:nowrap}
+.sb-filter-row{display:flex;align-items:center;gap:6px;padding:0 18px 10px;flex-shrink:0}
+.sb-filter-btn{padding:3px 10px;border-radius:20px;border:0.5px solid var(--border);font-size:11px;color:var(--text3);background:var(--bg3);cursor:pointer;transition:all 0.12s;font-family:'IBM Plex Mono',monospace}
+.sb-filter-btn.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
+.sb-add-row{display:flex;align-items:center;gap:6px;padding:12px 18px;border-top:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)}
+.sb-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text3);gap:10px;text-align:center}
+.sb-empty i{font-size:32px;color:var(--border2)}
+/* Edit partner modal */
+#editPartnerOverlay .modal{max-width:380px}
+
 /* ── MOBILE STYLES ────────────────────────────────── */
 #mobileApp{display:none}
 .m-topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0}
@@ -340,7 +382,7 @@ tr:hover .row-actions{opacity:1}
       </div>
       <button class="btn btn-primary" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
       <button class="btn btn-ghost" id="loginBtn" onclick="openLoginModal()" style="font-size:11px;padding:6px 10px;color:var(--text3)"><i class="ti ti-lock"></i></button>
-      <button class="btn btn-ghost" onclick="openPartnersModal()" style="font-size:12px;padding:6px 12px"><i class="ti ti-users"></i>Партнёры</button>
+      <button class="btn btn-ghost" onclick="togglePartnerSidebar()" id="partnerSidebarBtn" style="font-size:12px;padding:6px 12px" title="База партнёров"><i class="ti ti-users"></i>Партнёры</button>
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:nowrap">
         <span>1 EUR =</span>
         <input type="number" id="rateInput" step="0.001" min="0.01"
@@ -615,7 +657,7 @@ tr:hover .row-actions{opacity:1}
             </select>
           </div>
           <div class="form-group"><label class="form-label">Платформа</label><input class="form-input" id="f-platform" placeholder="Soft2Bet, Extendy..."></div>
-          <div class="form-group"><label class="form-label">Партнёр</label><input class="form-input" id="f-partner" placeholder="DEUS, Jack Lead..."></div>
+          <div class="form-group"><label class="form-label">Партнёр</label><input class="form-input" id="f-partner" placeholder="DEUS, Jack Lead..." oninput="onPartnerNameChange(this.value)"></div>
           <div class="form-group"><label class="form-label">Тип партнёра</label>
             <select class="form-select" id="f-ptype">
               <option value="">— выбрать —</option>
@@ -672,28 +714,58 @@ tr:hover .row-actions{opacity:1}
   </div>
 </div>
 
-<!-- PARTNERS MODAL -->
-<div class="modal-overlay hidden" id="partnersOverlay" onclick="handlePartnersClick(event)">
-  <div class="modal" style="max-width:480px">
+<!-- ── PARTNER SIDEBAR ────────────────────────────── -->
+<div id="sidebarOverlay" onclick="closePartnerSidebar()"></div>
+<div id="partnerSidebar">
+  <div class="sb-header">
+    <span class="sb-title"><i class="ti ti-users"></i>База партнёров</span>
+    <button class="icon-btn" onclick="closePartnerSidebar()"><i class="ti ti-x"></i></button>
+  </div>
+  <!-- Type filter -->
+  <div class="sb-filter-row">
+    <button class="sb-filter-btn active" id="sbf-all" onclick="setSbFilter('all')">Все</button>
+    <button class="sb-filter-btn" id="sbf-direct" onclick="setSbFilter('direct')"><i class="ti ti-user-check" style="font-size:10px;vertical-align:-1px"></i> Direct</button>
+    <button class="sb-filter-btn" id="sbf-network" onclick="setSbFilter('network')"><i class="ti ti-network" style="font-size:10px;vertical-align:-1px"></i> Network</button>
+  </div>
+  <!-- Partners list -->
+  <div class="sb-body">
+    <div class="sb-section" id="sbPartnersList" style="padding-top:4px"></div>
+  </div>
+  <!-- Add partner row -->
+  <div class="sb-add-row">
+    <input class="form-input" id="newPartnerName" placeholder="Название партнёра..." style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')addPartner()">
+    <select class="form-select" id="newPartnerType" style="width:110px;font-size:12px">
+      <option value="direct">Direct</option>
+      <option value="network">Network</option>
+    </select>
+    <button class="btn btn-primary" onclick="addPartner()" style="padding:7px 12px;white-space:nowrap"><i class="ti ti-plus"></i>Добавить</button>
+  </div>
+</div>
+
+<!-- EDIT PARTNER MODAL -->
+<div class="modal-overlay hidden" id="editPartnerOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal" style="max-width:380px">
     <div class="modal-header">
-      <span class="modal-title"><i class="ti ti-users"></i>Справочник партнёров</span>
-      <button class="act-btn" onclick="closePartnersModal()"><i class="ti ti-x"></i></button>
+      <span class="modal-title"><i class="ti ti-edit"></i>Редактировать партнёра</span>
+      <button class="icon-btn" onclick="document.getElementById('editPartnerOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
-      <div id="partnersListWrap">
-        <div class="partners-list" id="partnersList"></div>
+      <input type="hidden" id="editPartnerId">
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Название</label>
+        <input class="form-input" id="editPartnerName" placeholder="Название партнёра...">
       </div>
-      <div class="partner-add-row">
-        <input class="form-input" id="newPartnerName" placeholder="Название партнёра..." style="flex:1" onkeydown="if(event.key==='Enter')addPartner()">
-        <select class="form-select" id="newPartnerType" style="width:130px">
+      <div class="form-group">
+        <label class="form-label">Тип</label>
+        <select class="form-select" id="editPartnerType">
           <option value="direct">Direct</option>
           <option value="network">Network</option>
         </select>
-        <button class="btn btn-primary" onclick="addPartner()"><i class="ti ti-plus"></i>Добавить</button>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closePartnersModal()">Закрыть</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('editPartnerOverlay').classList.add('hidden')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveEditPartner()"><i class="ti ti-check"></i>Сохранить</button>
     </div>
   </div>
 </div>
@@ -2204,45 +2276,157 @@ function renderMobile() {
 
 window.addEventListener('resize', () => { if (isMobile()) renderMobile(); });
 
-// ── PARTNERS ──────────────────────────────────────────
+// ── PARTNER SIDEBAR ───────────────────────────────────
 let allPartners = [];
+let sbTypeFilter = 'all'; // 'all' | 'direct' | 'network'
+let expandedPartnerId = null;
 
-async function openPartnersModal() {
-  document.getElementById('partnersOverlay').classList.remove('hidden');
+function togglePartnerSidebar() {
+  const sb = document.getElementById('partnerSidebar');
+  if (sb.classList.contains('open')) {
+    closePartnerSidebar();
+  } else {
+    openPartnerSidebar();
+  }
+}
+
+async function openPartnerSidebar() {
+  document.getElementById('partnerSidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+  document.getElementById('partnerSidebarBtn').classList.add('btn-primary');
+  document.getElementById('partnerSidebarBtn').classList.remove('btn-ghost');
   await loadPartners();
 }
 
-function closePartnersModal() {
-  document.getElementById('partnersOverlay').classList.add('hidden');
+function closePartnerSidebar() {
+  document.getElementById('partnerSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+  document.getElementById('partnerSidebarBtn').classList.remove('btn-primary');
+  document.getElementById('partnerSidebarBtn').classList.add('btn-ghost');
+  expandedPartnerId = null;
 }
 
-function handlePartnersClick(e) {
-  if (e.target === document.getElementById('partnersOverlay')) closePartnersModal();
+function setSbFilter(f) {
+  sbTypeFilter = f;
+  ['all','direct','network'].forEach(x => {
+    document.getElementById('sbf-'+x).classList.toggle('active', x === f);
+  });
+  renderSbPartners();
 }
 
 async function loadPartners() {
   const { data, error } = await sb.from('partners').select('*').order('name');
   if (error) { showToast('Ошибка загрузки партнёров: ' + error.message, 'error'); return; }
   allPartners = data || [];
-  renderPartnersList();
+  renderSbPartners();
 }
 
-function renderPartnersList() {
-  const el = document.getElementById('partnersList');
-  if (allPartners.length === 0) {
-    el.innerHTML = '<div style="padding:12px 0;font-size:12px;color:var(--text3)">Партнёров пока нет. Добавьте первого.</div>';
+function renderSbPartners() {
+  const el = document.getElementById('sbPartnersList');
+  let partners = allPartners;
+  if (sbTypeFilter !== 'all') partners = partners.filter(p => p.partner_type === sbTypeFilter);
+
+  if (partners.length === 0) {
+    el.innerHTML = `<div class="sb-empty"><i class="ti ti-users-off"></i><span>${sbTypeFilter==='all'?'Партнёров пока нет':'Нет партнёров этого типа'}</span></div>`;
     return;
   }
-  el.innerHTML = allPartners.map(p => `
-    <div class="partner-row">
-      <span class="partner-name">${esc(p.name)}</span>
-      <div class="partner-type-toggle">
-        <button class="ptt-btn ${p.partner_type==='direct'?'active-direct':''}" onclick="setPartnerType('${p.id}','direct','${esc(p.name)}')">Direct</button>
-        <button class="ptt-btn ${p.partner_type==='network'?'active-network':''}" onclick="setPartnerType('${p.id}','network','${esc(p.name)}')">Network</button>
+
+  el.innerHTML = partners.map(p => {
+    const isExpanded = expandedPartnerId === p.id;
+    const typeBadge = p.partner_type === 'direct'
+      ? `<span class="badge badge-direct" style="font-size:10px">Direct</span>`
+      : `<span class="badge badge-network" style="font-size:10px">Network</span>`;
+
+    // Get this partner's offers
+    const partnerOffers = allOffers.filter(o => (o.partner||'').toLowerCase() === p.name.toLowerCase());
+    const offerCount = partnerOffers.length;
+    const activeCount = partnerOffers.filter(o => o.status === 'active').length;
+
+    let offersHtml = '';
+    if (isExpanded) {
+      if (partnerOffers.length === 0) {
+        offersHtml = `<div style="padding:8px 6px;font-size:11px;color:var(--text3)">Офферов от этого партнёра нет</div>`;
+      } else {
+        // Group by brand
+        const byBrand = {};
+        partnerOffers.forEach(o => {
+          const key = o.brand || '—';
+          if (!byBrand[key]) byBrand[key] = [];
+          byBrand[key].push(o);
+        });
+        offersHtml = Object.entries(byBrand).sort((a,b)=>a[0].localeCompare(b[0])).map(([brand, offers]) => {
+          const best = offers.sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
+          return best.map((o, i) => {
+            const statusDot = `<div class="dot dot-${o.status||'outdated'}" style="width:5px;height:5px;border-radius:50%;flex-shrink:0"></div>`;
+            const geoFlag = `<img src="https://flagcdn.com/w20/${(o.geo||'').toLowerCase().slice(0,2)}.png" style="width:13px;height:9px;border-radius:1px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`;
+            return `<div class="sb-offer-row">
+              ${geoFlag}
+              <div style="min-width:0">
+                <div class="sb-offer-brand">${i===0?esc(brand):'↳'} <span style="color:var(--text3);font-weight:400">${esc(o.geo||'')}</span></div>
+                ${o.traffic_source?`<div style="font-size:10px;color:var(--text3)">${esc(o.traffic_source)}${o.game_type?' · '+esc(o.game_type):''}</div>`:''}
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                ${statusDot}
+                <span class="sb-offer-rate">${esc(o.rate||'—')}</span>
+              </div>
+            </div>`;
+          }).join('');
+        }).join('');
+      }
+    }
+
+    return `<div class="sb-partner-item ${isExpanded?'expanded':''}" id="sbp-${p.id}">
+      <div class="sb-partner-head" onclick="toggleSbPartner('${p.id}')">
+        <div class="sb-partner-info">
+          <div class="sb-partner-name">${esc(p.name)}</div>
+          <div class="sb-partner-meta">${typeBadge} &nbsp;${offerCount} офферов${activeCount>0?` · <span style="color:var(--green)">${activeCount} активных</span>`:''}</div>
+        </div>
+        <div class="sb-partner-actions" onclick="event.stopPropagation()">
+          <button class="act-btn" onclick="openEditPartner('${p.id}')" title="Редактировать"><i class="ti ti-edit"></i></button>
+          <button class="act-btn danger" onclick="deletePartner('${p.id}','${esc(p.name).replace(/'/g,"\\'")}', event)" title="Удалить"><i class="ti ti-trash"></i></button>
+        </div>
+        <i class="ti ti-chevron-right sb-chevron"></i>
       </div>
-      <button class="partner-del" onclick="deletePartner('${p.id}','${esc(p.name)}')" title="Удалить"><i class="ti ti-trash"></i></button>
-    </div>
-  `).join('');
+      ${isExpanded ? `<div class="sb-partner-offers">${offersHtml}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleSbPartner(id) {
+  expandedPartnerId = (expandedPartnerId === id) ? null : id;
+  renderSbPartners();
+}
+
+function openEditPartner(id) {
+  const p = allPartners.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('editPartnerId').value = p.id;
+  document.getElementById('editPartnerName').value = p.name;
+  document.getElementById('editPartnerType').value = p.partner_type;
+  document.getElementById('editPartnerOverlay').classList.remove('hidden');
+}
+
+async function saveEditPartner() {
+  const id = document.getElementById('editPartnerId').value;
+  const oldPartner = allPartners.find(x => x.id === id);
+  const name = document.getElementById('editPartnerName').value.trim();
+  const type = document.getElementById('editPartnerType').value;
+  if (!name) return;
+  const { error } = await sb.from('partners').update({ name, partner_type: type }).eq('id', id);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  // If name changed, update offers
+  if (oldPartner && oldPartner.name !== name) {
+    await sb.from('offers').update({ partner: name }).ilike('partner', oldPartner.name);
+    allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === oldPartner.name.toLowerCase()) o.partner = name; });
+  }
+  // Update type on offers
+  const typeLabel = type === 'direct' ? 'Direct' : 'Network';
+  await sb.from('offers').update({ partner_type: typeLabel }).ilike('partner', name);
+  allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === name.toLowerCase()) o.partner_type = typeLabel; });
+  document.getElementById('editPartnerOverlay').classList.add('hidden');
+  showToast('Партнёр обновлён', 'success');
+  await loadPartners();
+  renderTable();
 }
 
 async function addPartner() {
@@ -2261,12 +2445,10 @@ async function addPartner() {
 async function setPartnerType(id, type, name) {
   const { error } = await sb.from('partners').update({ partner_type: type }).eq('id', id);
   if (error) { showToast('Ошибка обновления', 'error'); return; }
-  // Update all offers with this partner name
   const typeLabel = type === 'direct' ? 'Direct' : 'Network';
   const { error: err2 } = await sb.from('offers').update({ partner_type: typeLabel }).ilike('partner', name);
   if (err2) { showToast('Партнёр обновлён, офферы — ошибка: ' + err2.message, 'error'); }
   else {
-    // Update local cache too
     allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === name.toLowerCase()) o.partner_type = typeLabel; });
     renderTable();
     showToast(`Тип обновлён → ${typeLabel} (все офферы)`, 'success');
@@ -2274,12 +2456,24 @@ async function setPartnerType(id, type, name) {
   await loadPartners();
 }
 
-async function deletePartner(id, name) {
-  if (!confirm(`Удалить партнёра «${name}»?\nОфферы с этим партнёром останутся, только запись в справочнике будет удалена.`)) return;
+async function deletePartner(id, name, e) {
+  if (e) e.stopPropagation();
+  if (!confirm(`Удалить партнёра «${name}»?\nОфферы с этим партнёром останутся.`)) return;
   const { error } = await sb.from('partners').delete().eq('id', id);
   if (error) { showToast('Ошибка удаления', 'error'); return; }
+  if (expandedPartnerId === id) expandedPartnerId = null;
   showToast('Партнёр удалён', 'success');
   await loadPartners();
+}
+
+// Auto-fill partner_type when partner name is entered in add offer form
+async function onPartnerNameChange(val) {
+  const name = val.trim();
+  if (!name) return;
+  const match = allPartners.find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (match) {
+    document.getElementById('f-ptype').value = match.partner_type === 'direct' ? 'Direct' : 'Network';
+  }
 }
 
 function showToast(msg,type='success') {
