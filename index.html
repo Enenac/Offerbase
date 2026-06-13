@@ -248,7 +248,7 @@ tr:hover .row-actions{opacity:1}
   .m-offers{display:flex!important}
   .m-bottom-nav{display:flex!important}
 
-  html,body,#app{height:100dvh!important;overflow:hidden!important}
+  html,body{height:100dvh;overflow:hidden}
   #offersView{display:flex!important;flex-direction:column!important;height:100dvh!important;overflow:hidden!important;flex:none!important}
   .stats-bar,.filters-bar,.table-wrap,#bulkBar,.topbar,.projects-nav{display:none!important}
 
@@ -737,6 +737,17 @@ let searchQuery = '';
 let parsedOffers = [];
 
 window.addEventListener('DOMContentLoaded', () => {
+  // On mobile: hide all desktop-only elements immediately via JS
+  if (window.innerWidth <= 600) {
+    const hideIds = ['loadingState','offersTable','emptyState','bulkBar'];
+    const hideClasses = ['topbar','projects-nav','stats-bar','filters-bar','table-wrap'];
+    hideIds.forEach(id => { const el = document.getElementById(id); if(el) el.style.display='none'; });
+    hideClasses.forEach(cls => { document.querySelectorAll('.'+cls).forEach(el => el.style.display='none'); });
+    // offersView must be a plain flex column, not overflow:hidden from desktop
+    const ov = document.getElementById('offersView');
+    if (ov) { ov.style.cssText = 'display:flex;flex-direction:column;height:100dvh;overflow:hidden'; }
+  }
+
   loadOffers();
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
