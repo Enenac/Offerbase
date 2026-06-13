@@ -240,67 +240,13 @@ tr:hover .row-actions{opacity:1}
 
 /* ── MOBILE ≤600px ────────────────────────────────── */
 .m-topbar,.m-search-row,.m-filter-row,.m-offers,.m-bottom-nav{display:none}
+/* mobileApp hidden by default */
+#mobileApp{display:none}
+
 @media(max-width:600px){
-  .topbar,.projects-nav,.stats-bar,.filters-bar,.table-wrap,#bulkBar{display:none!important}
-  .m-topbar{display:flex!important}
-  .m-search-row{display:flex!important}
-  .m-filter-row{display:flex!important}
-  .m-offers{display:flex!important}
-  .m-bottom-nav{display:flex!important}
-
-  html,body{height:100dvh;overflow:hidden}
-  #offersView{display:flex!important;flex-direction:column!important;height:100dvh!important;overflow:hidden!important;flex:none!important}
-  .stats-bar,.filters-bar,.table-wrap,#bulkBar,.topbar,.projects-nav{display:none!important}
-
-  .m-topbar{align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0}
-  .m-logo{font-size:14px;font-weight:600;color:var(--accent);font-family:'IBM Plex Mono',monospace}
-  .m-topbar-right{display:flex;align-items:center;gap:7px}
-  .m-rate{background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
-  .m-rate span{color:var(--accent)}
-  .m-export-btn{display:flex;align-items:center;gap:3px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:10px;color:var(--text2);cursor:pointer;border:none;background:none}
-  .m-export-btn i{font-size:16px;color:var(--text3)}
-
-  .m-search-row{align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0}
-  .m-search-wrap{position:relative;flex:1}
-  .m-search-wrap i{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none}
-  .m-search-inp{width:100%;background:var(--bg3);border:0.5px solid var(--border);border-radius:7px;padding:7px 10px 7px 29px;font-size:12px;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;outline:none}
-  .m-search-inp::placeholder{color:var(--text3)}
-  .m-add-btn{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:0.5px solid var(--accent-border);border-radius:7px;color:var(--accent);cursor:pointer}
-  .m-add-btn i{font-size:16px}
-
-  .m-filter-row{gap:5px;padding:7px 12px;overflow-x:auto;background:var(--bg);border-bottom:0.5px solid var(--border);flex-shrink:0;scrollbar-width:none}
-  .m-filter-row::-webkit-scrollbar{display:none}
-  .m-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;border:0.5px solid var(--border);font-size:10px;color:var(--text3);background:var(--bg3);white-space:nowrap;cursor:pointer;transition:all 0.12s}
-  .m-chip.active{border-color:var(--accent);color:var(--accent)}
-
-  .m-offers{flex:1;flex-direction:column;gap:4px;padding:6px 10px;overflow-y:auto;scrollbar-width:none}
-  .m-offers::-webkit-scrollbar{display:none}
-  .m-card{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:border-color 0.12s}
-  .m-card:active{border-color:var(--border2)}
-  .m-flag{width:17px;height:12px;border-radius:2px;flex-shrink:0;object-fit:cover}
-  .m-card-main{flex:1;min-width:0}
-  .m-card-r1{display:flex;align-items:center;gap:5px;margin-bottom:3px}
-  .m-brand{font-size:12px;font-weight:500;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .m-geo{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
-  .m-card-r2{display:flex;align-items:center;gap:4px}
-  .m-bdg{padding:1px 5px;border-radius:4px;font-size:9px;font-weight:500;flex-shrink:0}
-  .m-bsrc{background:#1e2a3a;color:#60a5fa}
-  .m-bgame{background:#1a2a1a;color:var(--green)}
-  .m-partner{font-size:9px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .m-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
-  .m-rate-eur{font-size:13px;font-weight:600;color:var(--accent)}
-  .m-rate-usd{font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
-  .m-dot{width:5px;height:5px;border-radius:50%}
-  .m-dot.active{background:var(--green)}
-  .m-dot.stop{background:var(--red)}
-  .m-dot.capped{background:#fb923c}
-  .m-dot.outdated{background:#374151}
-
-  .m-bottom-nav{background:var(--bg2);border-top:0.5px solid var(--border);flex-shrink:0}
-  .m-nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 0 20px;border:none;background:none;cursor:pointer}
-  .m-nav-tab i{font-size:20px;color:var(--text3)}
-  .m-nav-tab span{font-size:10px;color:var(--text3)}
-  .m-nav-tab.active i,.m-nav-tab.active span{color:var(--accent)}
+  /* show mobile, hide desktop */
+  #mobileApp{display:flex!important}
+  #app{display:none!important}
 
   .modal-overlay{align-items:flex-end!important;padding:0!important}
   .modal{max-width:100%!important;width:100%!important;border-radius:14px 14px 0 0!important;margin:0!important;max-height:90dvh!important;overflow-y:auto}
@@ -344,9 +290,8 @@ tr:hover .row-actions{opacity:1}
     </div>
   </div>
 
-<div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
-
-  <!-- ── MOBILE UI ── -->
+<!-- ── MOBILE UI (отдельный от десктопа блок) ── -->
+<div id="mobileApp" style="display:none;flex-direction:column;height:100dvh;overflow:hidden;position:fixed;inset:0;z-index:10;background:var(--bg)">
   <div class="m-topbar">
     <span class="m-logo">OfferBase</span>
     <div class="m-topbar-right">
@@ -369,11 +314,7 @@ tr:hover .row-actions{opacity:1}
     <div class="m-chip" id="mchip-status" onclick="toggleMobileMenu('status')"><i class="ti ti-circle-dot" style="font-size:10px"></i>Статус</div>
     <div class="m-chip" id="mchip-partner" onclick="toggleMobileMenu('partner')"><i class="ti ti-users" style="font-size:10px"></i>Партнёр</div>
   </div>
-  <!-- mobile filter dropdown -->
-  <div id="mMenuOverlay" class="hidden" style="position:fixed;inset:0;z-index:200" onclick="closeMobileMenu()"></div>
-  <div id="mMenuSheet" class="hidden" style="position:fixed;bottom:0;left:0;right:0;z-index:201;background:var(--bg2);border-top:0.5px solid var(--border2);border-radius:14px 14px 0 0;max-height:60dvh;overflow-y:auto;padding:16px 14px 32px"></div>
-
-  <div class="m-offers" id="mOffersList" style="flex:1;min-height:0"></div>
+  <div id="mOffersList" style="flex:1;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:4px;scrollbar-width:none"></div>
   <div class="m-bottom-nav">
     <button class="m-nav-tab active" id="m-tab-smerch" onclick="mSwitchProject('smerch')">
       <i class="ti ti-building-store"></i><span>Smerch</span>
@@ -382,7 +323,13 @@ tr:hover .row-actions{opacity:1}
       <i class="ti ti-ghost"></i><span>Phantom</span>
     </button>
   </div>
-  <!-- ── /MOBILE UI ── -->
+</div>
+<!-- mobile filter overlay -->
+<div id="mMenuOverlay" class="hidden" style="position:fixed;inset:0;z-index:200" onclick="closeMobileMenu()"></div>
+<div id="mMenuSheet" class="hidden" style="position:fixed;bottom:0;left:0;right:0;z-index:201;background:var(--bg2);border-top:0.5px solid var(--border2);border-radius:14px 14px 0 0;max-height:60dvh;overflow-y:auto;padding:16px 14px 32px"></div>
+<!-- ── /MOBILE UI ── -->
+
+<div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
   <div class="stats-bar">
     <div class="stat"><span class="stat-val" id="s-total">—</span><span class="stat-lbl">Всего офферов</span></div>
     <div class="stat"><span class="stat-val" id="s-active">—</span><span class="stat-lbl">Активных</span></div>
@@ -737,17 +684,6 @@ let searchQuery = '';
 let parsedOffers = [];
 
 window.addEventListener('DOMContentLoaded', () => {
-  // On mobile: hide all desktop-only elements immediately via JS
-  if (window.innerWidth <= 600) {
-    const hideIds = ['loadingState','offersTable','emptyState','bulkBar'];
-    const hideClasses = ['topbar','projects-nav','stats-bar','filters-bar','table-wrap'];
-    hideIds.forEach(id => { const el = document.getElementById(id); if(el) el.style.display='none'; });
-    hideClasses.forEach(cls => { document.querySelectorAll('.'+cls).forEach(el => el.style.display='none'); });
-    // offersView must be a plain flex column, not overflow:hidden from desktop
-    const ov = document.getElementById('offersView');
-    if (ov) { ov.style.cssText = 'display:flex;flex-direction:column;height:100dvh;overflow:hidden'; }
-  }
-
   loadOffers();
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
@@ -2166,7 +2102,6 @@ function mSwitchProject(p) {
 }
 
 function renderMobile() {
-  if (!isMobile()) return;
   const el = document.getElementById('mOffersList');
   if (!el) return;
 
