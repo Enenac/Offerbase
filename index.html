@@ -430,9 +430,6 @@ tr:hover .row-actions{opacity:1}
     <div class="proj-tab" onclick="switchProject('phantom')" id="tab-phantom">
       <i class="ti ti-ghost"></i>Phantom Partners<span class="proj-count" id="count-phantom">0</span>
     </div>
-    <div class="proj-tab hidden" onclick="switchProject('requests')" id="tab-requests" style="margin-left:auto;color:var(--accent)">
-      <i class="ti ti-inbox"></i>Запросы<span class="proj-count" id="count-requests" style="background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)">0</span>
-    </div>
   </div>
 
 <div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
@@ -1325,7 +1322,6 @@ function doLogin() {
   if (pw === ADMIN_PASSWORD) {
     isAdmin = true;
     closeLoginModal();
-    document.getElementById('tab-requests').classList.remove('hidden');
     document.getElementById('lnav-requests').style.display = 'flex';
     document.getElementById('loginBtn').innerHTML = '<i class="ti ti-lock-open"></i>';
     document.getElementById('loginBtn').style.color = 'var(--accent)';
@@ -1337,42 +1333,41 @@ function doLogin() {
 }
 function doLogout() {
   isAdmin = false;
-  document.getElementById('tab-requests').classList.add('hidden');
   document.getElementById('lnav-requests').style.display = 'none';
   document.getElementById('loginBtn').innerHTML = '<i class="ti ti-lock"></i>';
   document.getElementById('loginBtn').style.color = 'var(--text3)';
-  if (currentProject === 'requests') switchProject('smerch');
+  if (currentPage === 'requests') switchPage('offers');
 }
 
-// ── SWITCH PROJECT (extend existing) ─────────────────
-const _origSwitch = switchProject;
-// patch switchProject to handle 'requests'
+// ── SWITCH PROJECT (global) ───────────────────────────
 window.switchProject = function(p) {
   const offersView = document.getElementById('offersView');
   const requestsSection = document.getElementById('requestsSection');
-  if (p === 'requests') {
-    if (!isAdmin) return;
-    currentProject = 'requests';
-    offersView.style.display = 'none';
-    requestsSection.style.display = 'flex';
-    ['smerch','phantom','requests'].forEach(x => {
+
+  // Update tab highlights (only smerch/phantom tabs, not requests)
+  if (p !== 'requests') {
+    ['smerch','phantom'].forEach(x => {
       document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
     });
-    updateReqProjectTabs();
-    loadRequests();
-  } else {
     currentProject = p;
-    // Only show offersView if we're actually on the offers page
-    if (currentPage === 'offers') {
-      offersView.style.display = 'flex';
-      requestsSection.style.display = 'none';
-    }
-    ['smerch','phantom','requests'].forEach(x => {
-      document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
-    });
+  }
+
+  if (currentPage === 'offers') {
+    offersView.style.display = 'flex';
+    if (requestsSection) requestsSection.style.display = 'none';
     updateCounts();
     buildDynamicFilters();
     renderTable();
+  } else if (currentPage === 'partners') {
+    loadPartners();
+  } else if (currentPage === 'requests') {
+    if (!isAdmin) return;
+    if (requestsSection) requestsSection.style.display = 'flex';
+    offersView.style.display = 'none';
+    // sync reqProject with currentProject
+    reqProject = p;
+    updateReqProjectTabs();
+    loadRequests();
   }
 };
 
@@ -2290,7 +2285,8 @@ function switchPage(page) {
   } else if (page === 'requests') {
     if (!isAdmin) return;
     if (reqSec) reqSec.style.display = 'flex';
-    currentProject = 'requests';
+    currentProject = currentProject === 'requests' ? 'smerch' : currentProject;
+    reqProject = currentProject;
     updateReqProjectTabs();
     loadRequests();
   }
@@ -2324,7 +2320,7 @@ function openAddPartnerModal() {
 }
 
 async function loadPartners() {
-  const { data, error } = await sb.from('partners').select('*').order('name');
+  const { data, error } = await sb.from('partners').select('*').eq('project', currentProject).order('name');
   if (error) { showToast('Ошибка загрузки партнёров: ' + error.message, 'error'); return; }
   allPartners = data || [];
   renderPartnersGrid();
@@ -2451,7 +2447,7 @@ async function addPartner() {
   const name = nameEl.value.trim();
   if (!name) { nameEl.focus(); return; }
   const type = typeEl.value;
-  const { error } = await sb.from('partners').insert({ name, partner_type: type });
+  const { error } = await sb.from('partners').insert({ name, partner_type: type, project: currentProject });
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   nameEl.value = '';
   document.getElementById('addPartnerOverlay').classList.add('hidden');
