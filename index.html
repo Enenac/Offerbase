@@ -1219,7 +1219,7 @@ function renderTable() {
   const rows = getFiltered();
   const proj = allOffers.filter(o => o.project === currentProject);
   document.getElementById('s-total').textContent = proj.length;
-  document.getElementById('s-active').textContent = proj.filter(o=>o.status==='active').length;
+  document.getElementById('s-active').textContent = proj.filter(o=>o.status==='active' && (o.partner_type||'').toLowerCase() !== 'direct').length;
   document.getElementById('s-geo').textContent = new Set(proj.map(o=>o.geo).filter(Boolean)).size;
   document.getElementById('s-partners').textContent = new Set(proj.map(o=>o.partner).filter(Boolean)).size;
   document.getElementById('resultsCount').textContent = `${rows.length} оффер(ов)`;
