@@ -659,7 +659,7 @@ tr:hover .row-actions{opacity:1}
       <div id="manualSection" class="hidden">
         <div class="form-grid">
           <div class="form-group"><label class="form-label">GEO</label><input class="form-input" id="f-geo" placeholder="IT, BR, PL..."></div>
-          <div class="form-group"><label class="form-label">Бренд</label><input class="form-input" id="f-brand" placeholder="Turbowinz"></div>
+          <div class="form-group"><label class="form-label">Бренд</label><input class="form-input" id="f-brand" placeholder="Turbowinz" oninput="onBrandInputChange(this.value)"></div>
           <div class="form-group"><label class="form-label">Ставка</label><input class="form-input" id="f-rate" placeholder="$120 или €150"></div>
           <div class="form-group"><label class="form-label">Источник трафика</label>
             <select class="form-select" id="f-source">
@@ -819,6 +819,7 @@ async function loadOffers() {
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
   allOffers = data || [];
   await autoExpireOffers();
+  await syncPlatforms();
   updateCounts();
   buildDynamicFilters();
   renderTable();
@@ -856,7 +857,130 @@ async function autoExpireOffers() {
   }
 }
 
-function showLoading(v) {
+async function syncPlatforms() {
+  // Build brand→platforms map (case-insensitive brand key)
+  const brandPlatforms = {}; // key: brand.toLowerCase() → Set of platforms
+  const brandCanon = {};     // key: brand.toLowerCase() → canonical casing (first seen with platform)
+
+  allOffers.forEach(o => {
+    const key = (o.brand || '').toLowerCase().trim();
+    if (!key) return;
+    const plat = (o.platform || '').trim();
+    if (!brandPlatforms[key]) brandPlatforms[key] = new Set();
+    if (plat && plat !== '-' && plat !== '—') {
+      brandPlatforms[key].add(plat);
+      if (!brandCanon[key]) brandCanon[key] = o.brand;
+    }
+  });
+
+  // Find conflicts (brand has 2+ different platforms)
+  const conflicts = [];
+  Object.entries(brandPlatforms).forEach(([key, platforms]) => {
+    if (platforms.size > 1) {
+      conflicts.push({ brand: brandCanon[key] || key, platforms: [...platforms] });
+    }
+  });
+
+  // Fill missing platforms (no conflict, exactly 1 known platform)
+  const toFill = allOffers.filter(o => {
+    const key = (o.brand || '').toLowerCase().trim();
+    if (!key) return false;
+    const plat = (o.platform || '').trim();
+    if (plat && plat !== '-' && plat !== '—') return false; // already has platform
+    const known = brandPlatforms[key];
+    return known && known.size === 1; // exactly one known platform → safe to fill
+  });
+
+  if (toFill.length > 0) {
+    const BATCH = 500;
+    for (let i = 0; i < toFill.length; i += BATCH) {
+      const chunk = toFill.slice(i, i + BATCH);
+      // Group by platform value to minimise requests
+      const byPlat = {};
+      chunk.forEach(o => {
+        const key = (o.brand || '').toLowerCase().trim();
+        const plat = [...brandPlatforms[key]][0];
+        if (!byPlat[plat]) byPlat[plat] = [];
+        byPlat[plat].push(o.id);
+      });
+      for (const [plat, ids] of Object.entries(byPlat)) {
+        const { error } = await sb.from('offers').update({ platform: plat }).in('id', ids);
+        if (!error) ids.forEach(id => {
+          const o = allOffers.find(x => x.id === id);
+          if (o) o.platform = plat;
+        });
+      }
+    }
+    console.log(`syncPlatforms: заполнено платформ у ${toFill.length} офферов`);
+  }
+
+  // Show conflict modal if needed
+  if (conflicts.length > 0) {
+    showPlatformConflicts(conflicts);
+  }
+}
+
+function showPlatformConflicts(conflicts) {
+  const body = document.getElementById('platformConflictBody');
+  body.innerHTML = conflicts.map((c, i) => `
+    <div style="border:0.5px solid var(--border2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:500;color:var(--text1);margin-bottom:8px">
+        <i class="ti ti-alert-triangle" style="color:#f59e0b;margin-right:6px"></i>${esc(c.brand)}
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Найдено несколько платформ — выбери правильную:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${c.platforms.map(p => `
+          <button onclick="resolvePlatformConflict('${esc(c.brand)}', '${esc(p)}', ${i})"
+            style="padding:5px 14px;border-radius:6px;border:0.5px solid var(--border2);background:var(--bg3);
+                   color:var(--text1);cursor:pointer;font-size:12px;font-family:'IBM Plex Mono',monospace;transition:all 0.15s"
+            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+            onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text1)'">
+            ${esc(p)}
+          </button>`).join('')}
+        <button onclick="resolvePlatformConflict('${esc(c.brand)}', '', ${i})"
+          style="padding:5px 14px;border-radius:6px;border:0.5px solid var(--border);background:transparent;
+                 color:var(--text3);cursor:pointer;font-size:12px;font-family:'IBM Plex Mono',monospace">
+          Пропустить
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  // Store conflicts for resolution
+  window._platformConflicts = conflicts;
+  window._platformConflictsResolved = 0;
+  document.getElementById('platformConflictOverlay').classList.remove('hidden');
+}
+
+async function resolvePlatformConflict(brand, platform, idx) {
+  // Remove this conflict item visually
+  const body = document.getElementById('platformConflictBody');
+  const items = body.querySelectorAll('div[style*="border:0.5px solid var(--border2)"]');
+  if (items[idx]) items[idx].style.opacity = '0.3';
+
+  if (platform) {
+    // Update all offers with this brand to the chosen platform
+    const brandLower = brand.toLowerCase();
+    const toUpdate = allOffers.filter(o => (o.brand || '').toLowerCase().trim() === brandLower);
+    const ids = toUpdate.map(o => o.id);
+    const BATCH = 500;
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const chunk = ids.slice(i, i + BATCH);
+      const { error } = await sb.from('offers').update({ platform }).in('id', chunk);
+      if (!error) chunk.forEach(id => {
+        const o = allOffers.find(x => x.id === id);
+        if (o) o.platform = platform;
+      });
+    }
+    showToast(`Платформа «${platform}» установлена для всех офферов «${brand}»`, 'success');
+  }
+
+  window._platformConflictsResolved = (window._platformConflictsResolved || 0) + 1;
+  if (window._platformConflictsResolved >= window._platformConflicts.length) {
+    document.getElementById('platformConflictOverlay').classList.add('hidden');
+    renderTable();
+  }
+}
   document.getElementById('loadingState').classList.toggle('hidden', !v);
   if (v) {
     document.getElementById('offersTable').classList.add('hidden');
@@ -2485,6 +2609,21 @@ async function deletePartner(id, name, e) {
   await loadPartners();
 }
 
+function onBrandInputChange(val) {
+  const key = val.trim().toLowerCase();
+  if (!key) return;
+  // Find known platform for this brand (only if no conflict)
+  const platforms = new Set(
+    allOffers
+      .filter(o => (o.brand || '').toLowerCase().trim() === key && (o.platform || '').trim() && o.platform !== '-' && o.platform !== '—')
+      .map(o => o.platform.trim())
+  );
+  if (platforms.size === 1) {
+    const platEl = document.getElementById('f-platform');
+    if (platEl && !platEl.value) platEl.value = [...platforms][0];
+  }
+}
+
 function onPartnerNameChange(val) {
   const name = val.trim();
   if (!name) return;
@@ -2681,6 +2820,21 @@ function showToast(msg,type='success') {
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="document.getElementById('addPartnerOverlay').classList.add('hidden')">Отмена</button>
       <button class="btn btn-primary" onclick="addPartner()"><i class="ti ti-plus"></i>Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- PLATFORM CONFLICT MODAL -->
+<div class="modal-overlay hidden" id="platformConflictOverlay">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-alert-triangle" style="color:#f59e0b"></i>Конфликт платформ</span>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+        Для некоторых брендов найдены разные платформы в базе офферов. Выбери правильную — она будет применена ко всем офферам этого бренда.
+      </div>
+      <div id="platformConflictBody"></div>
     </div>
   </div>
 </div>
