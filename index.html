@@ -832,6 +832,7 @@ async function autoExpireOffers() {
   const activeStatuses = ['active', 'stop', 'capped', 'pause']; // pause = legacy
   const toExpire = allOffers.filter(o => {
     if (!activeStatuses.includes(o.status)) return false;
+    if ((o.partner_type || '').toLowerCase() === 'direct') return false; // Direct partners never expire
     if (!o.received_at || typeof o.received_at !== 'string') return false;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(o.received_at)) return false;
     return o.received_at < weekAgoStr;
