@@ -2223,7 +2223,7 @@ function copyExport() {
 }
 
 // ── MOBILE ────────────────────────────────────────────
-let mobileFilters = {};
+let mobileFilters = { status: 'active' };
 let mobileSearchQuery = '';
 
 function isMobile() { return window.innerWidth <= 600; }
@@ -2317,7 +2317,7 @@ function mSwitchProject(p) {
   currentProject = p;
   document.querySelectorAll('.m-nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('m-tab-' + p).classList.add('active');
-  mobileFilters = {};
+  mobileFilters = { status: 'active' };
   mobileSearchQuery = '';
   const inp = document.getElementById('mSearchInput');
   if (inp) inp.value = '';
