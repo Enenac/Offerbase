@@ -768,6 +768,7 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('app').style.display = 'none';
   }
   loadOffers();
+  loadPartners(); // preload so partner_type is available during template parsing
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
     renderTable();
@@ -1270,14 +1271,22 @@ function parseTemplate() {
     const parts = line.split('/').map(p=>p.trim());
     if (parts.length < 3) { errors.push(`Строка ${i+1}: слишком мало полей`); return; }
     const [geo,brand,source,game_type,rate,min_deposit,capa,kpi,platform,partner] = parts;
+    const partnerName = partner || null;
+    const partnerMatch = partnerName
+      ? allPartners.find(p => p.name.toLowerCase() === partnerName.toLowerCase())
+      : null;
+    const partnerTypeLabel = partnerMatch
+      ? (partnerMatch.partner_type === 'direct' ? 'Direct' : 'Network')
+      : null;
+
     parsedOffers.push({
       project: currentProject,
       geo: geo||null, brand: brand||null,
       traffic_source: source||null, game_type: game_type||null,
       rate: rate||null, min_deposit: min_deposit||null,
       capa: capa||null, kpi: kpi||null,
-      platform: platform||null, partner: partner||null,
-      partner_type: null, status: 'active', notes: null,
+      platform: platform||null, partner: partnerName,
+      partner_type: partnerTypeLabel, status: 'active', notes: null,
       received_at: null,
     });
   });
