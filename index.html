@@ -426,14 +426,13 @@ tr:hover .row-actions{opacity:1}
   <!-- MAIN CONTENT -->
   <div class="main-content">
   <div class="topbar">
-    <span class="logo"><i class="ti ti-database"></i>OfferBase</span>
+    <span class="logo">OfferBase</span>
     <div class="topbar-right">
       <div class="search-box" id="topbarSearch">
         <i class="ti ti-search"></i>
         <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
       </div>
       <button class="btn btn-primary" id="topbarAddBtn" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
-      <button class="btn btn-ghost" id="loginBtn" onclick="openLoginModal()" style="font-size:11px;padding:6px 10px;color:var(--text3)"><i class="ti ti-lock"></i></button>
     </div>
   </div>
 
@@ -1502,8 +1501,8 @@ function doLogin() {
     isAdmin = true;
     closeLoginModal();
     document.getElementById('lnav-requests').style.display = 'flex';
-    document.getElementById('loginBtn').innerHTML = '<i class="ti ti-lock-open"></i>';
-    document.getElementById('loginBtn').style.color = 'var(--accent)';
+    document.getElementById('lnav-login').querySelector('i').className = 'ti ti-lock-open';
+    document.getElementById('lnav-login').style.color = 'var(--accent)';
     showToast('Добро пожаловать', 'success');
     loadRequests();
   } else {
@@ -1513,8 +1512,8 @@ function doLogin() {
 function doLogout() {
   isAdmin = false;
   document.getElementById('lnav-requests').style.display = 'none';
-  document.getElementById('loginBtn').innerHTML = '<i class="ti ti-lock"></i>';
-  document.getElementById('loginBtn').style.color = 'var(--text3)';
+  document.getElementById('lnav-login').querySelector('i').className = 'ti ti-lock';
+  document.getElementById('lnav-login').style.color = '';
   if (currentPage === 'requests') switchPage('offers');
 }
 
