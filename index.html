@@ -981,6 +981,8 @@ async function resolvePlatformConflict(brand, platform, idx) {
     renderTable();
   }
 }
+
+function showLoading(v) {
   document.getElementById('loadingState').classList.toggle('hidden', !v);
   if (v) {
     document.getElementById('offersTable').classList.add('hidden');
