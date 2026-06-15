@@ -660,6 +660,8 @@ tr:hover .row-actions{opacity:1}
       <tbody id="offersBody"></tbody>
     </table>
   </div>
+  <!-- Pagination -->
+  <div id="paginationBar" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;border-top:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)"></div>
 </div>
 
 <!-- ADD/EDIT MODAL -->
@@ -810,7 +812,9 @@ window.addEventListener('DOMContentLoaded', () => {
   loadRegions();  // preload so region filter works immediately
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
-    renderTable();
+    currentPage_offers = 0;
+    clearTimeout(window._searchTimer);
+    window._searchTimer = setTimeout(() => fetchOffers(), 400);
   });
   document.addEventListener('click', e => {
     if (!e.target.closest('.filter-dropdown')) closeAllMenus();
@@ -849,60 +853,134 @@ function onRateInputChange(val) {
   }
 }
 
+// ── SERVER-SIDE PAGINATION ────────────────────────────
+const PAGE_SIZE = 200;
+let currentPage_offers = 0; // 0-based page index
+let totalOffers = 0;        // total count from server
+
 async function loadOffers() {
   document.getElementById('loadingState').classList.remove('hidden');
   document.getElementById('offersTable').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
   await fetchRates();
-  const { data, error } = await sb.from('offers').select('*').order('created_at', { ascending: false }).limit(100000);
-  document.getElementById('loadingState').classList.add('hidden');
-  if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
-  allOffers = data || [];
+  // Run auto-expire and platform sync once on startup (without loading all data)
   await autoExpireOffers();
   await syncPlatforms();
-  updateCounts();
+  currentPage_offers = 0;
+  await fetchOffers();
+}
+
+async function fetchOffers() {
+  showLoading(true);
+  const query = buildSupabaseQuery();
+  // Count query
+  const countQuery = buildSupabaseQuery(true);
+  const [{ data, error }, { count }] = await Promise.all([
+    query.range(currentPage_offers * PAGE_SIZE, (currentPage_offers + 1) * PAGE_SIZE - 1),
+    countQuery
+  ]);
+  showLoading(false);
+  if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
+  allOffers = data || [];
+  totalOffers = count || 0;
+  await updateCounts();
   buildDynamicFilters();
   renderTable();
+}
+
+function buildSupabaseQuery(countOnly = false) {
+  let q = countOnly
+    ? sb.from('offers').select('*', { count: 'exact', head: true })
+    : sb.from('offers').select('*');
+
+  // Project filter
+  q = q.eq('project', currentProject);
+
+  // Filters
+  if (filters.geo)      q = q.eq('geo', filters.geo);
+  if (filters.status)   q = q.eq('status', filters.status);
+  if (filters.source)   q = q.ilike('traffic_source', filters.source);
+  if (filters.game)     q = q.ilike('game_type', filters.game);
+  if (filters.kpi)      q = q.eq('kpi', filters.kpi);
+  if (filters.platform) q = q.eq('platform', filters.platform);
+  if (filters.partner)  q = q.eq('partner', filters.partner);
+  if (filters.ptype)    q = q.eq('partner_type', filters.ptype);
+  if (filters.region) {
+    const regionGeos = allRegionGeos.filter(g => {
+      const r = allRegions.find(r => r.id === g.region_id);
+      return r && r.name === filters.region;
+    }).map(g => g.geo);
+    if (regionGeos.length > 0) q = q.in('geo', regionGeos);
+    else q = q.eq('geo', '__none__'); // no results if region has no GEOs
+  }
+  if (dateFilter?.from) q = q.gte('received_at', dateFilter.from);
+  if (dateFilter?.to)   q = q.lte('received_at', dateFilter.to);
+  if (searchQuery)      q = q.or(`brand.ilike.%${searchQuery}%,partner.ilike.%${searchQuery}%,platform.ilike.%${searchQuery}%`);
+
+  // Rate filter — can't do server-side easily, skip for now (applied client-side after fetch)
+
+  // Sorting
+  if (sortField === 'rate_eur' || sortField === 'rate_usd') {
+    // Sort by rate string server-side is not ideal, fallback to received_at
+    q = q.order('received_at', { ascending: sortDir === -1, nullsFirst: false });
+  } else if (sortField) {
+    q = q.order(sortField, { ascending: sortDir === 1, nullsFirst: false });
+  } else {
+    // Default: USD desc → sort by received_at desc as proxy
+    q = q.order('received_at', { ascending: false, nullsFirst: false });
+  }
+  return q;
+}
+
+async function updateCounts() {
+  // Separate count queries for stats
+  const proj = currentProject;
+  const [total, active, geos, partners] = await Promise.all([
+    sb.from('offers').select('*', {count:'exact',head:true}).eq('project', proj),
+    sb.from('offers').select('*', {count:'exact',head:true}).eq('project', proj).eq('status','active').neq('partner_type','Direct'),
+    sb.from('offers').select('geo', {count:'exact'}).eq('project', proj).not('geo','is',null),
+    sb.from('offers').select('partner', {count:'exact'}).eq('project', proj).not('partner','is',null),
+  ]);
+  document.getElementById('s-total').textContent = total.count || 0;
+  document.getElementById('s-active').textContent = active.count || 0;
+  // GEO and partners: count distinct
+  const geoSet = new Set((geos.data||[]).map(o=>o.geo));
+  const partSet = new Set((partners.data||[]).map(o=>o.partner));
+  document.getElementById('s-geo').textContent = geoSet.size;
+  document.getElementById('s-partners').textContent = partSet.size;
+  // Update tab counts
+  const [sc, pc] = await Promise.all([
+    sb.from('offers').select('*',{count:'exact',head:true}).eq('project','smerch'),
+    sb.from('offers').select('*',{count:'exact',head:true}).eq('project','phantom'),
+  ]);
+  document.getElementById('count-smerch').textContent = sc.count || 0;
+  document.getElementById('count-phantom').textContent = pc.count || 0;
 }
 
 async function autoExpireOffers() {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const weekAgoStr = weekAgo.toISOString().split('T')[0];
-
-  const activeStatuses = ['active', 'stop', 'capped', 'pause']; // pause = legacy
-  const toExpire = allOffers.filter(o => {
-    if (!activeStatuses.includes(o.status)) return false;
-    if ((o.partner_type || '').toLowerCase() === 'direct') return false; // Direct partners never expire
-    if (!o.received_at || typeof o.received_at !== 'string') return false;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(o.received_at)) return false;
-    return o.received_at < weekAgoStr;
-  });
-
-  if (toExpire.length === 0) return;
-
-  // Batch update — 500 ids at a time to avoid URL length limits
-  const ids = toExpire.map(o => o.id);
-  const BATCH = 500;
-  let failed = false;
-  for (let i = 0; i < ids.length; i += BATCH) {
-    const chunk = ids.slice(i, i + BATCH);
-    const { error } = await sb.from('offers').update({ status: 'outdated' }).in('id', chunk);
-    if (error) { failed = true; console.error('autoExpire batch error:', error); break; }
-  }
-
-  if (!failed) {
-    toExpire.forEach(o => { o.status = 'outdated'; });
-    console.log(`autoExpire: помечено ${ids.length} офферов как "Нужно актуализировать"`);
-  }
+  // Direct server-side update — no need to load all offers
+  const { error } = await sb.from('offers')
+    .update({ status: 'outdated' })
+    .in('status', ['active', 'stop', 'capped'])
+    .neq('partner_type', 'Direct')
+    .lt('received_at', weekAgoStr);
+  if (error) console.error('autoExpire error:', error);
+  else console.log('autoExpire: done');
 }
 
 async function syncPlatforms() {
-  // Build brand→platforms map (case-insensitive brand key)
-  const brandPlatforms = {}; // key: brand.toLowerCase() → Set of platforms
-  const brandCanon = {};     // key: brand.toLowerCase() → canonical casing (first seen with platform)
+  // Load only brand+platform fields to build the map
+  const { data, error } = await sb.from('offers')
+    .select('id, brand, platform')
+    .limit(100000);
+  if (error) { console.error('syncPlatforms load error:', error); return; }
 
-  allOffers.forEach(o => {
+  const brandPlatforms = {};
+  const brandCanon = {};
+  (data || []).forEach(o => {
     const key = (o.brand || '').toLowerCase().trim();
     if (!key) return;
     const plat = (o.platform || '').trim();
@@ -913,51 +991,33 @@ async function syncPlatforms() {
     }
   });
 
-  // Find conflicts (brand has 2+ different platforms)
+  // Find conflicts
   const conflicts = [];
   Object.entries(brandPlatforms).forEach(([key, platforms]) => {
-    if (platforms.size > 1) {
-      conflicts.push({ brand: brandCanon[key] || key, platforms: [...platforms] });
-    }
+    if (platforms.size > 1) conflicts.push({ brand: brandCanon[key] || key, platforms: [...platforms] });
   });
 
-  // Fill missing platforms (no conflict, exactly 1 known platform)
-  const toFill = allOffers.filter(o => {
+  // Fill missing — group by platform, update server-side
+  const byPlat = {};
+  (data || []).forEach(o => {
     const key = (o.brand || '').toLowerCase().trim();
-    if (!key) return false;
     const plat = (o.platform || '').trim();
-    if (plat && plat !== '-' && plat !== '—') return false; // already has platform
+    if (plat && plat !== '-' && plat !== '—') return; // already has platform
     const known = brandPlatforms[key];
-    return known && known.size === 1; // exactly one known platform → safe to fill
+    if (!known || known.size !== 1) return;
+    const p = [...known][0];
+    if (!byPlat[p]) byPlat[p] = [];
+    byPlat[p].push(o.id);
   });
 
-  if (toFill.length > 0) {
+  for (const [plat, ids] of Object.entries(byPlat)) {
     const BATCH = 500;
-    for (let i = 0; i < toFill.length; i += BATCH) {
-      const chunk = toFill.slice(i, i + BATCH);
-      // Group by platform value to minimise requests
-      const byPlat = {};
-      chunk.forEach(o => {
-        const key = (o.brand || '').toLowerCase().trim();
-        const plat = [...brandPlatforms[key]][0];
-        if (!byPlat[plat]) byPlat[plat] = [];
-        byPlat[plat].push(o.id);
-      });
-      for (const [plat, ids] of Object.entries(byPlat)) {
-        const { error } = await sb.from('offers').update({ platform: plat }).in('id', ids);
-        if (!error) ids.forEach(id => {
-          const o = allOffers.find(x => x.id === id);
-          if (o) o.platform = plat;
-        });
-      }
+    for (let i = 0; i < ids.length; i += BATCH) {
+      await sb.from('offers').update({ platform: plat }).in('id', ids.slice(i, i + BATCH));
     }
-    console.log(`syncPlatforms: заполнено платформ у ${toFill.length} офферов`);
   }
 
-  // Show conflict modal if needed
-  if (conflicts.length > 0) {
-    showPlatformConflicts(conflicts);
-  }
+  if (conflicts.length > 0) showPlatformConflicts(conflicts);
 }
 
 function showPlatformConflicts(conflicts) {
@@ -1036,29 +1096,31 @@ function switchProject(p) {
   updateChips();
   document.getElementById('clearFilters').classList.add('hidden');
   ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x).classList.toggle('active', x===p));
-  buildDynamicFilters();
-  renderTable();
-}
-
-function updateCounts() {
-  document.getElementById('count-smerch').textContent = allOffers.filter(o=>o.project==='smerch').length;
-  document.getElementById('count-phantom').textContent = allOffers.filter(o=>o.project==='phantom').length;
+  currentPage_offers = 0;
+  if (currentPage === 'offers') {
+    buildDynamicFilters();
+    fetchOffers();
+  } else if (currentPage === 'partners') {
+    loadPartners();
+  } else if (currentPage === 'deliveries') {
+    loadDeliveries();
+  }
 }
 
 // ── DYNAMIC FILTERS (platform, partner, geo) ──────────
-function buildDynamicFilters() {
-  const proj = allOffers.filter(o => o.project === currentProject);
+async function buildDynamicFilters() {
+  // Load distinct values from server for current project
+  const [geoRes, platRes, partRes] = await Promise.all([
+    sb.from('offers').select('geo').eq('project', currentProject).not('geo','is',null).limit(10000),
+    sb.from('offers').select('platform').eq('project', currentProject).not('platform','is',null).limit(10000),
+    sb.from('offers').select('partner').eq('project', currentProject).not('partner','is',null).limit(10000),
+  ]);
+  const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
+  const platforms = [...new Set((platRes.data||[]).map(o=>o.platform).filter(v => v && v !== '-' && v !== '—'))].sort();
+  const partners = [...new Set((partRes.data||[]).map(o=>o.partner).filter(Boolean))].sort();
 
-  // GEO list
-  const geos = [...new Set(proj.map(o=>o.geo).filter(Boolean))].sort();
   renderDynamicList('geo-list', geos, 'geo');
-
-  // Platform list
-  const platforms = [...new Set(proj.map(o=>o.platform).filter(Boolean))].sort();
   renderDynamicList('platform-list', platforms, 'platform');
-
-  // Partner list
-  const partners = [...new Set(proj.map(o=>o.partner).filter(Boolean))].sort();
   renderDynamicList('partner-list', partners, 'partner');
 
   // Region list
@@ -1121,7 +1183,8 @@ function setFilter(key, val) {
   buildDynamicFilters();
   document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0 && !dateFilter);
   closeAllMenus();
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 function clearAllFilters() {
@@ -1130,7 +1193,8 @@ function clearAllFilters() {
   updateChips();
   buildDynamicFilters();
   document.getElementById('clearFilters').classList.add('hidden');
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 function clearFilter(e, key) {
@@ -1139,7 +1203,8 @@ function clearFilter(e, key) {
   updateChips();
   buildDynamicFilters();
   document.getElementById('clearFilters').classList.toggle('hidden', Object.keys(filters).length===0 && !dateFilter);
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 function updateChips() {
@@ -1171,35 +1236,14 @@ function updateChips() {
 // ── SORT & RENDER ─────────────────────────────────────
 function sortBy(field) {
   if (sortField === field) sortDir *= -1; else { sortField = field; sortDir = 1; }
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 function getFiltered() {
-  let rows = allOffers.filter(o => o.project === currentProject);
-  if (filters.geo)      rows = rows.filter(o => o.geo === filters.geo);
-  if (filters.status)   rows = rows.filter(o => o.status === filters.status);
-  if (filters.source)   rows = rows.filter(o => (o.traffic_source||'').toLowerCase() === filters.source.toLowerCase());
-  if (filters.game)     rows = rows.filter(o => (o.game_type||'').toLowerCase() === filters.game.toLowerCase());
-  if (filters.kpi)      rows = rows.filter(o => (o.kpi||'') === filters.kpi);
-  if (filters.platform) rows = rows.filter(o => (o.platform||'') === filters.platform);
-  if (filters.partner)  rows = rows.filter(o => (o.partner||'') === filters.partner);
-  if (filters.ptype)    rows = rows.filter(o => (o.partner_type||'') === filters.ptype);
-  if (filters.region) {
-    const regionGeos = allRegionGeos.filter(g => {
-      const r = allRegions.find(r => r.id === g.region_id);
-      return r && r.name === filters.region;
-    }).map(g => g.geo);
-    rows = rows.filter(o => regionGeos.includes(o.geo));
-  }
-  if (dateFilter) {
-    if (dateFilter.from) rows = rows.filter(o => o.received_at && o.received_at >= dateFilter.from);
-    if (dateFilter.to)   rows = rows.filter(o => o.received_at && o.received_at <= dateFilter.to);
-  }
-  if (searchQuery) rows = rows.filter(o =>
-    (o.brand||'').toLowerCase().includes(searchQuery) ||
-    (o.partner||'').toLowerCase().includes(searchQuery) ||
-    (o.platform||'').toLowerCase().includes(searchQuery)
-  );
+  // With server-side pagination, allOffers is already filtered/sorted
+  // Only apply client-side rate filter (can't be done server-side easily)
+  let rows = allOffers;
   if (rateFilter.min != null || rateFilter.max != null) {
     rows = rows.filter(o => {
       const conv = convertRate(o.rate);
@@ -1210,37 +1254,33 @@ function getFiltered() {
       return true;
     });
   }
+  // Client-side rate sort
   if (sortField === 'rate_eur' || sortField === 'rate_usd') {
-    rows.sort((a, b) => {
-      const ca = convertRate(a.rate);
-      const cb = convertRate(b.rate);
+    rows = rows.slice().sort((a, b) => {
+      const ca = convertRate(a.rate), cb = convertRate(b.rate);
       const va = sortField === 'rate_eur' ? (ca.eur ?? 0) : (ca.usd ?? 0);
       const vb = sortField === 'rate_eur' ? (cb.eur ?? 0) : (cb.usd ?? 0);
       return (va - vb) * sortDir;
     });
-  } else if (sortField) {
-    rows.sort((a,b) => ((a[sortField]||'') > (b[sortField]||'') ? 1 : -1) * sortDir);
   }
   return rows;
 }
 
 function renderTable() {
   const rows = getFiltered();
-  const proj = allOffers.filter(o => o.project === currentProject);
-  document.getElementById('s-total').textContent = proj.length;
-  document.getElementById('s-active').textContent = proj.filter(o=>o.status==='active' && (o.partner_type||'').toLowerCase() !== 'direct').length;
-  document.getElementById('s-geo').textContent = new Set(proj.map(o=>o.geo).filter(Boolean)).size;
-  document.getElementById('s-partners').textContent = new Set(proj.map(o=>o.partner).filter(Boolean)).size;
-  document.getElementById('resultsCount').textContent = `${rows.length} оффер(ов)`;
+  // Counts are now handled by updateCounts() server-side
+  document.getElementById('resultsCount').textContent = `${totalOffers} оффер(ов)`;
   document.getElementById('exportBtn').style.display = rows.length > 0 ? '' : 'none';
 
   if (rows.length === 0) {
     document.getElementById('offersTable').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
+    renderPagination();
     return;
   }
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('offersTable').classList.remove('hidden');
+  renderPagination();
 
   document.getElementById('offersBody').innerHTML = rows.map(o => {
     const conv = convertRate(o.rate);
@@ -2143,7 +2183,8 @@ function setDatePreset(preset) {
   document.getElementById('date-to').value = to;
   closeAllMenus();
   updateDateChip();
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 function applyDateRange() {
@@ -2151,7 +2192,8 @@ function applyDateRange() {
   const to = document.getElementById('date-to').value;
   dateFilter = (from || to) ? { from: from||null, to: to||null } : null;
   updateDateChip();
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 function updateDateChip() {
@@ -2177,7 +2219,8 @@ function clearDateFilter(e) {
   if (df) df.value = '';
   if (dt) dt.value = '';
   updateDateChip();
-  renderTable();
+  currentPage_offers = 0;
+  fetchOffers();
 }
 
 
@@ -2450,6 +2493,40 @@ function renderMobile() {
 }
 
 window.addEventListener('resize', () => { if (isMobile()) renderMobile(); });
+
+// ── PAGINATION ────────────────────────────────────────
+function renderPagination() {
+  const el = document.getElementById('paginationBar');
+  if (!el) return;
+  const totalPages = Math.ceil(totalOffers / PAGE_SIZE);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  const p = currentPage_offers;
+  let html = '';
+  html += `<button onclick="goToPage(${p-1})" ${p===0?'disabled':''} style="padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px${p===0?';opacity:0.4':''}">&larr;</button>`;
+  const range = [];
+  for (let i = 0; i < totalPages; i++) {
+    if (i === 0 || i === totalPages-1 || (i >= p-2 && i <= p+2)) range.push(i);
+    else if (range[range.length-1] !== '...') range.push('...');
+  }
+  range.forEach(i => {
+    if (i === '...') {
+      html += `<span style="color:var(--text3);font-size:12px;padding:0 4px">…</span>`;
+    } else {
+      const active = i === p;
+      html += `<button onclick="goToPage(${i})" style="padding:5px 10px;border-radius:6px;border:0.5px solid ${active?'var(--accent-border)':'var(--border)'};background:${active?'var(--accent-bg)':'var(--bg3)'};color:${active?'var(--accent)':'var(--text2)'};cursor:pointer;font-size:12px;font-family:'IBM Plex Mono',monospace">${i+1}</button>`;
+    }
+  });
+  html += `<button onclick="goToPage(${p+1})" ${p===totalPages-1?'disabled':''} style="padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px${p===totalPages-1?';opacity:0.4':''}">&rarr;</button>`;
+  html += `<span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-left:4px">${p+1} / ${totalPages}</span>`;
+  el.innerHTML = html;
+}
+
+function goToPage(p) {
+  const totalPages = Math.ceil(totalOffers / PAGE_SIZE);
+  if (p < 0 || p >= totalPages) return;
+  currentPage_offers = p;
+  fetchOffers();
+}
 
 // ── DELIVERIES ────────────────────────────────────────
 let allDeliveries = [];
@@ -2752,9 +2829,9 @@ function switchPage(page) {
   document.getElementById('deliveriesPage').style.display = 'none';
   if (page === 'offers') {
     document.getElementById('offersView').style.display = 'flex';
-    updateCounts();
+    currentPage_offers = 0;
     buildDynamicFilters();
-    renderTable();
+    fetchOffers();
   } else if (page === 'partners') {
     document.getElementById('partnersPage').style.display = 'flex';
     loadPartners();
