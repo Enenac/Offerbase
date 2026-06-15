@@ -659,9 +659,8 @@ tr:hover .row-actions{opacity:1}
       </thead>
       <tbody id="offersBody"></tbody>
     </table>
+    <div id="infiniteLoader" style="display:none;padding:16px;text-align:center;color:var(--text3);font-size:12px"><div class="spinner" style="width:18px;height:18px;margin:0 auto 6px"></div>Загрузка...</div>
   </div>
-  <!-- Pagination -->
-  <div id="paginationBar" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;border-top:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)"></div>
 </div>
 
 <!-- ADD/EDIT MODAL -->
@@ -808,8 +807,9 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('app').style.display = 'none';
   }
   loadOffers();
-  loadPartners(); // preload so partner_type is available during template parsing
-  loadRegions();  // preload so region filter works immediately
+  loadPartners();
+  loadRegions();
+  initInfiniteScroll();
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
     currentPage_offers = 0;
@@ -873,16 +873,20 @@ async function loadOffers() {
 async function fetchOffers() {
   showLoading(true);
   const query = buildSupabaseQuery();
-  // Count query
   const countQuery = buildSupabaseQuery(true);
   const [{ data, error }, { count }] = await Promise.all([
-    query.range(currentPage_offers * PAGE_SIZE, (currentPage_offers + 1) * PAGE_SIZE - 1),
+    query.range(0, PAGE_SIZE - 1),
     countQuery
   ]);
   showLoading(false);
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
   allOffers = data || [];
   totalOffers = count || 0;
+  hasMoreOffers = allOffers.length === PAGE_SIZE && allOffers.length < totalOffers;
+  currentPage_offers = 0;
+  // Scroll table back to top
+  const container = document.querySelector('.table-container');
+  if (container) container.scrollTop = 0;
   await updateCounts();
   buildDynamicFilters();
   renderTable();
@@ -1268,19 +1272,18 @@ function getFiltered() {
 
 function renderTable() {
   const rows = getFiltered();
-  // Counts are now handled by updateCounts() server-side
   document.getElementById('resultsCount').textContent = `${totalOffers} оффер(ов)`;
   document.getElementById('exportBtn').style.display = rows.length > 0 ? '' : 'none';
+  const loader = document.getElementById('infiniteLoader');
+  if (loader) loader.style.display = 'none';
 
   if (rows.length === 0) {
     document.getElementById('offersTable').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
-    renderPagination();
     return;
   }
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('offersTable').classList.remove('hidden');
-  renderPagination();
 
   document.getElementById('offersBody').innerHTML = rows.map(o => {
     const conv = convertRate(o.rate);
@@ -2494,39 +2497,71 @@ function renderMobile() {
 
 window.addEventListener('resize', () => { if (isMobile()) renderMobile(); });
 
-// ── PAGINATION ────────────────────────────────────────
-function renderPagination() {
-  const el = document.getElementById('paginationBar');
-  if (!el) return;
-  const totalPages = Math.ceil(totalOffers / PAGE_SIZE);
-  if (totalPages <= 1) { el.innerHTML = ''; return; }
-  const p = currentPage_offers;
-  let html = '';
-  html += `<button onclick="goToPage(${p-1})" ${p===0?'disabled':''} style="padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px${p===0?';opacity:0.4':''}">&larr;</button>`;
-  const range = [];
-  for (let i = 0; i < totalPages; i++) {
-    if (i === 0 || i === totalPages-1 || (i >= p-2 && i <= p+2)) range.push(i);
-    else if (range[range.length-1] !== '...') range.push('...');
-  }
-  range.forEach(i => {
-    if (i === '...') {
-      html += `<span style="color:var(--text3);font-size:12px;padding:0 4px">…</span>`;
-    } else {
-      const active = i === p;
-      html += `<button onclick="goToPage(${i})" style="padding:5px 10px;border-radius:6px;border:0.5px solid ${active?'var(--accent-border)':'var(--border)'};background:${active?'var(--accent-bg)':'var(--bg3)'};color:${active?'var(--accent)':'var(--text2)'};cursor:pointer;font-size:12px;font-family:'IBM Plex Mono',monospace">${i+1}</button>`;
+// ── INFINITE SCROLL ───────────────────────────────────
+let isLoadingMore = false;
+let hasMoreOffers = false;
+
+function initInfiniteScroll() {
+  const container = document.querySelector('.table-container');
+  if (!container) return;
+  container.addEventListener('scroll', () => {
+    if (isLoadingMore || !hasMoreOffers) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    if (scrollTop + clientHeight >= scrollHeight - 200) {
+      loadMoreOffers();
     }
   });
-  html += `<button onclick="goToPage(${p+1})" ${p===totalPages-1?'disabled':''} style="padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px${p===totalPages-1?';opacity:0.4':''}">&rarr;</button>`;
-  html += `<span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-left:4px">${p+1} / ${totalPages}</span>`;
-  el.innerHTML = html;
 }
 
-function goToPage(p) {
-  const totalPages = Math.ceil(totalOffers / PAGE_SIZE);
-  if (p < 0 || p >= totalPages) return;
-  currentPage_offers = p;
-  fetchOffers();
+async function loadMoreOffers() {
+  if (isLoadingMore || !hasMoreOffers) return;
+  isLoadingMore = true;
+  const loader = document.getElementById('infiniteLoader');
+  if (loader) loader.style.display = 'block';
+  currentPage_offers++;
+  const query = buildSupabaseQuery();
+  const { data, error } = await query.range(currentPage_offers * PAGE_SIZE, (currentPage_offers + 1) * PAGE_SIZE - 1);
+  if (loader) loader.style.display = 'none';
+  isLoadingMore = false;
+  if (error || !data) return;
+  if (data.length < PAGE_SIZE) hasMoreOffers = false;
+  allOffers = [...allOffers, ...data];
+  appendRows(data);
 }
+
+function appendRows(rows) {
+  const tbody = document.getElementById('offersBody');
+  if (!tbody) return;
+  rows.forEach(o => {
+    const conv = convertRate(o.rate);
+    const isEur = parseRate(o.rate)?.currency === 'EUR';
+    const isUsd = parseRate(o.rate)?.currency === 'USD';
+    const tr = document.createElement('tr');
+    tr.dataset.id = o.id;
+    tr.innerHTML = `
+      <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
+      <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
+      <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
+      <td><span class="td-rate" style="${isEur?'':'opacity:0.55'}">${fmtEur(conv.eur)}</span></td>
+      <td><span class="td-rate" style="${isUsd?'':'opacity:0.55'}">${fmtUsd(conv.usd)}</span></td>
+      <td>${sourceBadge(o.traffic_source)}</td>
+      <td>${o.game_type?`<span class="badge badge-game">${esc(o.game_type)}</span>`:'<span class="td-empty">—</span>'}</td>
+      <td><span class="td-muted">${esc(o.min_deposit)||'—'}</span></td>
+      <td><span class="td-muted">${esc(o.capa)||'—'}</span></td>
+      <td>${kpiBadge(o.kpi)}</td>
+      <td><span class="td-muted">${esc(o.platform)||'—'}</span></td>
+      <td>${partnerCell(o)}</td>
+      <td>${statusBadge(o.status)}</td>
+      <td><span class="td-date ${isOld(o.received_at)?'td-date-old':''}">${fmtDate(o.received_at)}</span></td>
+    `;
+    tr.ondblclick = () => openEditModal(o.id);
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPagination() {} // no-op, kept for compatibility
+
+function goToPage() {} // no-op
 
 // ── DELIVERIES ────────────────────────────────────────
 let allDeliveries = [];
