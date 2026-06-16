@@ -1099,7 +1099,7 @@ function switchProject(p) {
   filters = {};
   updateChips();
   document.getElementById('clearFilters').classList.add('hidden');
-  ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x).classList.toggle('active', x===p));
+  ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x)?.classList.toggle('active', x===p));
   currentPage_offers = 0;
   if (currentPage === 'offers') {
     buildDynamicFilters();
@@ -1108,6 +1108,11 @@ function switchProject(p) {
     loadPartners();
   } else if (currentPage === 'deliveries') {
     loadDeliveries();
+  } else if (currentPage === 'requests') {
+    if (!isAdmin) return;
+    reqProject = p;
+    updateReqProjectTabs();
+    loadRequests();
   }
 }
 
@@ -1578,39 +1583,6 @@ function doLogout() {
 }
 
 // ── SWITCH PROJECT (global) ───────────────────────────
-window.switchProject = function(p) {
-  const offersView = document.getElementById('offersView');
-  const requestsSection = document.getElementById('requestsSection');
-
-  // Update tab highlights (only smerch/phantom tabs, not requests)
-  if (p !== 'requests') {
-    ['smerch','phantom'].forEach(x => {
-      document.getElementById('tab-'+x)?.classList.toggle('active', x === p);
-    });
-    currentProject = p;
-  }
-
-  if (currentPage === 'offers') {
-    offersView.style.display = 'flex';
-    if (requestsSection) requestsSection.style.display = 'none';
-    updateCounts();
-    buildDynamicFilters();
-    renderTable();
-  } else if (currentPage === 'partners') {
-    loadPartners();
-  } else if (currentPage === 'deliveries') {
-    loadDeliveries();
-  } else if (currentPage === 'requests') {
-    if (!isAdmin) return;
-    if (requestsSection) requestsSection.style.display = 'flex';
-    offersView.style.display = 'none';
-    // sync reqProject with currentProject
-    reqProject = p;
-    updateReqProjectTabs();
-    loadRequests();
-  }
-};
-
 // ── REQUESTS DATA ─────────────────────────────────────
 let allRequests = [];
 let allRequestItems = [];
