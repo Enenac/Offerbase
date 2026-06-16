@@ -935,8 +935,9 @@ function buildSupabaseQuery(countOnly = false) {
   } else if (sortField) {
     q = q.order(sortField, { ascending: sortDir === 1, nullsFirst: false });
   } else {
-    // Default: sort by created_at desc (most recently added first)
-    q = q.order('created_at', { ascending: false, nullsFirst: false });
+    // Default: newest received first, then newest created
+    q = q.order('received_at', { ascending: false, nullsFirst: false })
+         .order('created_at', { ascending: false, nullsFirst: false });
   }
   return q;
 }
@@ -1101,9 +1102,11 @@ function showLoading(v) {
 
 function switchProject(p) {
   currentProject = p;
+  const prevStatus = filters.status; // keep status filter across project switch
   filters = {};
+  if (prevStatus) filters.status = prevStatus;
   updateChips();
-  document.getElementById('clearFilters').classList.add('hidden');
+  document.getElementById('clearFilters').classList.toggle('hidden', !filters.status && !dateFilter);
   ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x)?.classList.toggle('active', x===p));
   currentPage_offers = 0;
   if (currentPage === 'offers') {
