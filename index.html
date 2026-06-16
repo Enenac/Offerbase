@@ -863,9 +863,14 @@ async function loadOffers() {
   document.getElementById('offersTable').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
   await fetchRates();
-  // Run auto-expire and platform sync once on startup (without loading all data)
   await autoExpireOffers();
   await syncPlatforms();
+  // Default filter: active only
+  if (!filters.status) {
+    filters.status = 'active';
+    updateChips();
+    document.getElementById('clearFilters').classList.remove('hidden');
+  }
   currentPage_offers = 0;
   await fetchOffers();
 }
