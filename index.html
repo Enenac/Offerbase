@@ -547,6 +547,15 @@ tr:hover .row-actions{opacity:1}
       </div>
     </div>
 
+    <!-- Exclude partner -->
+    <div class="filter-dropdown">
+      <div class="chip" id="chip-exclude_partner" onclick="toggleFilterMenu('exclude-partner')" style="border-color:rgba(239,68,68,0.3)"><i class="ti ti-user-off"></i>Исключить</div>
+      <div class="filter-menu hidden" id="menu-exclude-partner">
+        <div style="padding:6px 10px 4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em">Исключить партнёра</div>
+        <div class="filter-menu-list" id="exclude-partner-list"></div>
+      </div>
+    </div>
+
     <!-- Partner type -->
     <div class="filter-dropdown">
       <div class="chip" id="chip-ptype" onclick="toggleFilterMenu('ptype')"><i class="ti ti-building"></i>Тип партнёра</div>
@@ -913,6 +922,7 @@ function buildSupabaseQuery(countOnly = false) {
   if (filters.kpi)      q = q.eq('kpi', filters.kpi);
   if (filters.platform) q = q.eq('platform', filters.platform);
   if (filters.partner)  q = q.eq('partner', filters.partner);
+  if (filters.exclude_partner) q = q.neq('partner', filters.exclude_partner);
   if (filters.ptype)    q = q.eq('partner_type', filters.ptype);
   if (filters.region) {
     const regionGeos = allRegionGeos.filter(g => {
@@ -1140,6 +1150,14 @@ async function buildDynamicFilters() {
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
 
+  // Exclude partner list
+  const excEl = document.getElementById('exclude-partner-list');
+  if (excEl) {
+    excEl.innerHTML = partners.map(p =>
+      `<div class="filter-option" style="color:var(--text2)" onclick="setFilter('exclude_partner','${esc(p)}')">${esc(p)}</div>`
+    ).join('');
+  }
+
   // Region list
   const regionEl = document.getElementById('region-filter-list');
   if (regionEl) {
@@ -1232,6 +1250,7 @@ function updateChips() {
     kpi:      {icon:'ti-target',         label:'KPI'},
     platform: {icon:'ti-layout-grid',    label:'Платформа'},
     partner:  {icon:'ti-users',          label:'Партнёр'},
+    exclude_partner: {icon:'ti-user-off', label:'Исключить'},
     ptype:    {icon:'ti-building',       label:'Тип партнёра'},
     region:   {icon:'ti-map-pin',        label:'Регион'},
     status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',stop:'На стопе',capped:'Закончился кап',outdated:'Нужно актуализировать'}},
@@ -1244,8 +1263,18 @@ function updateChips() {
     if (val) {
       const lbl = def.vals ? (def.vals[val]||val) : val;
       chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearFilter(event,'${key}')"></i>${def.label}: ${lbl}`;
+      if (key === 'exclude_partner') {
+        chip.style.background = 'rgba(239,68,68,0.12)';
+        chip.style.borderColor = 'rgba(239,68,68,0.4)';
+        chip.style.color = '#ef4444';
+      }
     } else {
       chip.innerHTML = `<i class="ti ${def.icon}"></i>${def.label}`;
+      if (key === 'exclude_partner') {
+        chip.style.background = '';
+        chip.style.borderColor = 'rgba(239,68,68,0.3)';
+        chip.style.color = '';
+      }
     }
   });
 }
