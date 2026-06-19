@@ -2912,9 +2912,14 @@ function openAddPartnerModal() {
 }
 
 async function loadPartners() {
-  const { data, error } = await sb.from('partners').select('*').eq('project', currentProject).order('name');
-  if (error) { showToast('Ошибка загрузки партнёров: ' + error.message, 'error'); return; }
-  allPartners = data || [];
+  const [partnersRes, countsRes] = await Promise.all([
+    sb.from('partners').select('*').eq('project', currentProject).order('name'),
+    sb.from('offers').select('partner, status, brand').eq('project', currentProject).limit(100000)
+  ]);
+  if (partnersRes.error) { showToast('Ошибка загрузки партнёров: ' + partnersRes.error.message, 'error'); return; }
+  allPartners = partnersRes.data || [];
+  // Store offer data for partner grid
+  window._partnerOffers = countsRes.data || [];
   renderPartnersGrid();
 }
 
@@ -2938,7 +2943,7 @@ function renderPartnersGrid() {
     const typeBadge = isDirect
       ? `<span class="badge badge-direct">Direct</span>`
       : `<span class="badge badge-network">Network</span>`;
-    const partnerOffers = allOffers.filter(o => (o.partner||'').toLowerCase() === p.name.toLowerCase());
+    const partnerOffers = (window._partnerOffers || []).filter(o => (o.partner||'').toLowerCase() === p.name.toLowerCase());
     const activeOffers = partnerOffers.filter(o => o.status === 'active');
     const brands = [...new Set(partnerOffers.map(o => o.brand).filter(Boolean))];
     const isExpanded = expandedPartnerId === p.id;
