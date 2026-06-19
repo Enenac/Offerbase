@@ -1138,9 +1138,9 @@ function switchProject(p) {
 async function buildDynamicFilters() {
   // Load distinct values from server for current project
   const [geoRes, platRes, partRes] = await Promise.all([
-    sb.from('offers').select('geo').eq('project', currentProject).not('geo','is',null).limit(10000),
-    sb.from('offers').select('platform').eq('project', currentProject).not('platform','is',null).limit(10000),
-    sb.from('offers').select('partner').eq('project', currentProject).not('partner','is',null).limit(10000),
+    sb.from('offers').select('geo').eq('project', currentProject).not('geo','is',null).limit(100000),
+    sb.from('offers').select('platform').eq('project', currentProject).not('platform','is',null).limit(100000),
+    sb.from('offers').select('partner').eq('project', currentProject).not('partner','is',null).limit(100000),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
   const platforms = [...new Set((platRes.data||[]).map(o=>o.platform).filter(v => v && v !== '-' && v !== '—'))].sort();
@@ -1327,7 +1327,11 @@ function renderTable() {
   document.getElementById('emptyState').classList.add('hidden');
   document.getElementById('offersTable').classList.remove('hidden');
 
-  document.getElementById('offersBody').innerHTML = rows.map(o => {
+  document.getElementById('offersBody').innerHTML = rows.map(o => buildRowHtml(o)).join('');
+  if (typeof renderMobile === 'function') renderMobile();
+}
+
+function buildRowHtml(o) {
     const conv = convertRate(o.rate);
     const isEur = parseRate(o.rate)?.currency === 'EUR';
     const isUsd = parseRate(o.rate)?.currency === 'USD';
@@ -1352,9 +1356,7 @@ function renderTable() {
         <button class="act-btn danger" onclick="deleteOffer('${o.id}')"><i class="ti ti-trash"></i></button>
       </div></td>
     </tr>
-  `;}).join('');
-  if (typeof renderMobile === 'function') renderMobile();
-}
+  `;
 
 function flag(geo) {
   if (!geo) return '';
@@ -2542,29 +2544,14 @@ function appendRows(rows) {
   const tbody = document.getElementById('offersBody');
   if (!tbody) return;
   rows.forEach(o => {
-    const conv = convertRate(o.rate);
-    const isEur = parseRate(o.rate)?.currency === 'EUR';
-    const isUsd = parseRate(o.rate)?.currency === 'USD';
-    const tr = document.createElement('tr');
-    tr.dataset.id = o.id;
-    tr.innerHTML = `
-      <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
-      <td><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
-      <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
-      <td><span class="td-rate" style="${isEur?'':'opacity:0.55'}">${fmtEur(conv.eur)}</span></td>
-      <td><span class="td-rate" style="${isUsd?'':'opacity:0.55'}">${fmtUsd(conv.usd)}</span></td>
-      <td>${sourceBadge(o.traffic_source)}</td>
-      <td>${o.game_type?`<span class="badge badge-game">${esc(o.game_type)}</span>`:'<span class="td-empty">—</span>'}</td>
-      <td><span class="td-muted">${esc(o.min_deposit)||'—'}</span></td>
-      <td><span class="td-muted">${esc(o.capa)||'—'}</span></td>
-      <td>${kpiBadge(o.kpi)}</td>
-      <td><span class="td-muted">${esc(o.platform)||'—'}</span></td>
-      <td>${partnerCell(o)}</td>
-      <td>${statusBadge(o.status)}</td>
-      <td><span class="td-date ${isOld(o.received_at)?'td-date-old':''}">${fmtDate(o.received_at)}</span></td>
-    `;
-    tr.ondblclick = () => openEditModal(o.id);
-    tbody.appendChild(tr);
+    const html = buildRowHtml(o);
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = html;
+    const tr = tmp.firstElementChild;
+    if (tr) {
+      tr.ondblclick = () => openEditModal(o.id);
+      tbody.appendChild(tr);
+    }
   });
 }
 
