@@ -953,21 +953,17 @@ function buildSupabaseQuery(countOnly = false) {
 }
 
 async function updateCounts() {
-  // Separate count queries for stats
   const proj = currentProject;
-  const [total, active, geos, partners] = await Promise.all([
+  const [total, active, allOfferData] = await Promise.all([
     sb.from('offers').select('*', {count:'exact',head:true}).eq('project', proj),
-    sb.from('offers').select('*', {count:'exact',head:true}).eq('project', proj).eq('status','active').neq('partner_type','Direct'),
-    sb.from('offers').select('geo', {count:'exact'}).eq('project', proj).not('geo','is',null),
-    sb.from('offers').select('partner', {count:'exact'}).eq('project', proj).not('partner','is',null),
+    sb.from('offers').select('*', {count:'exact',head:true}).eq('project', proj).eq('status','active').or('partner_type.neq.Direct,partner_type.is.null'),
+    sb.from('offers').select('geo,partner').eq('project', proj).limit(100000),
   ]);
   document.getElementById('s-total').textContent = total.count || 0;
   document.getElementById('s-active').textContent = active.count || 0;
-  // GEO and partners: count distinct
-  const geoSet = new Set((geos.data||[]).map(o=>o.geo));
-  const partSet = new Set((partners.data||[]).map(o=>o.partner));
-  document.getElementById('s-geo').textContent = geoSet.size;
-  document.getElementById('s-partners').textContent = partSet.size;
+  const data = allOfferData.data || [];
+  document.getElementById('s-geo').textContent = new Set(data.map(o=>o.geo).filter(Boolean)).size;
+  document.getElementById('s-partners').textContent = new Set(data.map(o=>o.partner).filter(Boolean)).size;
   // Update tab counts
   const [sc, pc] = await Promise.all([
     sb.from('offers').select('*',{count:'exact',head:true}).eq('project','smerch'),
