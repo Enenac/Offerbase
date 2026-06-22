@@ -2560,6 +2560,13 @@ function renderPagination() {} // no-op, kept for compatibility
 
 function goToPage() {} // no-op
 
+// Convert UTC ISO string to local datetime-local input value
+function toLocalDatetimeInput(utcStr) {
+  const d = new Date(utcStr);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+}
+
 // ── DELIVERIES ────────────────────────────────────────
 let allDeliveries = [];
 let deliveryFilter = 'all';
@@ -2688,7 +2695,7 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-rate').value = d.rate||'';
   document.getElementById('edit-del-link').value = d.link||'';
   document.getElementById('edit-del-status').value = d.status||'pending';
-  document.getElementById('edit-del-remind').value = d.remind_at ? d.remind_at.slice(0,16) : '';
+  document.getElementById('edit-del-remind').value = d.remind_at ? toLocalDatetimeInput(d.remind_at) : '';
   document.getElementById('edit-del-by').value = d.created_by||'';
   document.getElementById('edit-del-notes').value = d.notes||'';
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
