@@ -977,11 +977,11 @@ async function autoExpireOffers() {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const weekAgoStr = weekAgo.toISOString().split('T')[0];
-  // Direct server-side update — no need to load all offers
+  // Expire non-Direct offers older than 7 days (include null partner_type)
   const { error } = await sb.from('offers')
     .update({ status: 'outdated' })
     .in('status', ['active', 'stop', 'capped'])
-    .neq('partner_type', 'Direct')
+    .or('partner_type.neq.Direct,partner_type.is.null')
     .lt('received_at', weekAgoStr);
   if (error) console.error('autoExpire error:', error);
   else console.log('autoExpire: done');
