@@ -2605,10 +2605,10 @@ function renderDeliveries() {
   el.innerHTML = `<table class="del-table">
     <thead><tr>
       <th>Оффер</th>
-      <th>Партнёр</th>
+      <th>Источник</th>
+      <th>Выдаём</th>
       <th>Статус</th>
       <th>Напоминание</th>
-      <th>Выдал</th>
       <th>Дата</th>
       <th></th>
     </tr></thead>
@@ -2623,10 +2623,10 @@ function renderDeliveries() {
         const createdStr = d.created_at ? new Date(d.created_at).toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}) : '—';
         return `<tr>
           <td style="font-weight:500;color:var(--text1);max-width:320px">${esc(d.notes||d.brand||'—')}</td>
+          <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
           <td><span class="del-remind ${isOverdue?'overdue':''}">${isOverdue?'⚠️ ':''} ${remindStr}</span></td>
-          <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px">${createdStr}</td>
           <td>
             <div style="display:flex;gap:4px">
@@ -3396,12 +3396,12 @@ function showToast(msg,type='success') {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group">
-          <label class="form-label">Выдал</label>
-          <input class="form-input" id="del-by" placeholder="Имя менеджера...">
+          <label class="form-label">Источник оффера</label>
+          <input class="form-input" id="del-by" placeholder="Кто нам дал оффер...">
         </div>
         <div class="form-group">
-          <label class="form-label">Партнёр (кто берёт)</label>
-          <input class="form-input" id="del-partner" placeholder="Название партнёра...">
+          <label class="form-label">Выдаём партнёру</label>
+          <input class="form-input" id="del-partner" placeholder="Кому отдаём...">
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
