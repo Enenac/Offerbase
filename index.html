@@ -2604,15 +2604,11 @@ function renderDeliveries() {
   const now = new Date();
   el.innerHTML = `<table class="del-table">
     <thead><tr>
+      <th>Оффер</th>
       <th>Партнёр</th>
-      <th>Бренд</th>
-      <th>GEO</th>
-      <th>Источник</th>
-      <th>Ставка</th>
-      <th>Ссылка</th>
       <th>Статус</th>
       <th>Напоминание</th>
-      <th>Кто выдал</th>
+      <th>Выдал</th>
       <th>Дата</th>
       <th></th>
     </tr></thead>
@@ -2626,14 +2622,8 @@ function renderDeliveries() {
         const remindStr = remindDate ? remindDate.toLocaleString('ru', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
         const createdStr = d.created_at ? new Date(d.created_at).toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}) : '—';
         return `<tr>
-          <td style="font-weight:500;color:var(--text1)">${esc(d.partner||'—')}</td>
-          <td>${esc(d.brand||'—')}</td>
-          <td>
-            ${d.geo ? `<span style="display:inline-flex;align-items:center;gap:4px"><img src="https://flagcdn.com/w20/${d.geo.toLowerCase().slice(0,2)}.png" style="width:13px;height:9px;border-radius:1px;object-fit:cover" onerror="this.style.display='none'">${esc(d.geo)}</span>` : '—'}
-          </td>
-          <td>${esc(d.traffic_source||'—')}</td>
-          <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${esc(d.rate||'—')}</td>
-          <td>${d.link ? `<a href="${esc(d.link)}" target="_blank" class="del-link" title="${esc(d.link)}">${esc(d.link)}</a>` : '—'}</td>
+          <td style="font-weight:500;color:var(--text1);max-width:320px">${esc(d.notes||d.brand||'—')}</td>
+          <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
           <td><span class="del-remind ${isOverdue?'overdue':''}">${isOverdue?'⚠️ ':''} ${remindStr}</span></td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
@@ -2651,28 +2641,29 @@ function renderDeliveries() {
 }
 
 function openAddDeliveryModal() {
-  ['partner','brand','geo','source','rate','link','notes','by'].forEach(f => {
+  ['offer','by','partner','remind'].forEach(f => {
     const el = document.getElementById('del-'+f);
     if (el) el.value = '';
   });
   document.getElementById('del-status').value = 'taken';
-  document.getElementById('del-remind').value = '';
   document.getElementById('addDeliveryOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('del-offer').focus(), 50);
 }
 
 async function saveDelivery() {
+  const offer = document.getElementById('del-offer').value.trim();
+  const partner = document.getElementById('del-partner').value.trim();
+  const by = document.getElementById('del-by').value.trim();
+  const status = document.getElementById('del-status').value;
+  const remind = document.getElementById('del-remind').value;
+  if (!offer) { document.getElementById('del-offer').focus(); return; }
   const data = {
     project: currentProject,
-    partner: document.getElementById('del-partner').value.trim()||null,
-    brand: document.getElementById('del-brand').value.trim()||null,
-    geo: document.getElementById('del-geo').value.trim().toUpperCase()||null,
-    traffic_source: document.getElementById('del-source').value.trim()||null,
-    rate: document.getElementById('del-rate').value.trim()||null,
-    link: document.getElementById('del-link').value.trim()||null,
-    status: document.getElementById('del-status').value,
-    remind_at: document.getElementById('del-remind').value||null,
-    notes: document.getElementById('del-notes').value.trim()||null,
-    created_by: document.getElementById('del-by').value.trim()||null,
+    notes: offer,        // store the free-form offer text in notes
+    partner: partner||null,
+    created_by: by||null,
+    status,
+    remind_at: remind||null,
   };
   const { error } = await sb.from('deliveries').insert(data);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -3393,33 +3384,27 @@ function showToast(msg,type='success') {
 
 <!-- ADD DELIVERY MODAL -->
 <div class="modal-overlay hidden" id="addDeliveryOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" style="max-width:480px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-link"></i>Добавить выдачу</span>
       <button class="icon-btn" onclick="document.getElementById('addDeliveryOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Оффер</label>
+        <input class="form-input" id="del-offer" placeholder="например: RoyalFlush | SpinGranny | IT | FB | $190">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group">
-          <label class="form-label">Партнёр</label>
+          <label class="form-label">Выдал</label>
+          <input class="form-input" id="del-by" placeholder="Имя менеджера...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Партнёр (кто берёт)</label>
           <input class="form-input" id="del-partner" placeholder="Название партнёра...">
         </div>
-        <div class="form-group">
-          <label class="form-label">Бренд</label>
-          <input class="form-input" id="del-brand" placeholder="SpinGranny...">
-        </div>
-        <div class="form-group">
-          <label class="form-label">GEO</label>
-          <input class="form-input" id="del-geo" placeholder="DE, IT, PL...">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Источник трафика</label>
-          <input class="form-input" id="del-source" placeholder="FB, UAC...">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Ставка</label>
-          <input class="form-input" id="del-rate" placeholder="$120...">
-        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label class="form-label">Статус</label>
           <select class="form-select" id="del-status">
@@ -3429,24 +3414,10 @@ function showToast(msg,type='success') {
             <option value="problem">⚠️ Проблема</option>
           </select>
         </div>
-      </div>
-      <div class="form-group" style="margin-top:4px">
-        <label class="form-label">Ссылка</label>
-        <input class="form-input" id="del-link" placeholder="https://...">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
         <div class="form-group">
-          <label class="form-label">Напомнить <span style="color:var(--text3)">(только для «Выдан»)</span></label>
+          <label class="form-label">Напомнить <span style="color:var(--text3)">(для «Выдан»)</span></label>
           <input class="form-input" type="datetime-local" id="del-remind">
         </div>
-        <div class="form-group">
-          <label class="form-label">Кто выдал</label>
-          <input class="form-input" id="del-by" placeholder="Имя менеджера...">
-        </div>
-      </div>
-      <div class="form-group" style="margin-top:4px">
-        <label class="form-label">Заметки</label>
-        <textarea class="form-input" id="del-notes" rows="2" placeholder="Доп. информация..."></textarea>
       </div>
     </div>
     <div class="modal-footer">
