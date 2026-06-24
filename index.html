@@ -295,6 +295,7 @@ tr:hover .row-actions{opacity:1}
 .del-table td{padding:9px 10px;border-bottom:0.5px solid var(--border);font-size:12px;color:var(--text2);vertical-align:middle}
 .del-table tr:hover td{background:var(--bg3)}
 .del-status{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:500;white-space:nowrap}
+.del-status.taken{background:rgba(99,102,241,0.1);color:#818cf8;border:0.5px solid rgba(99,102,241,0.2)}
 .del-status.pending{background:rgba(245,158,11,0.1);color:#f59e0b;border:0.5px solid rgba(245,158,11,0.2)}
 .del-status.launched{background:rgba(16,185,129,0.1);color:#10b981;border:0.5px solid rgba(16,185,129,0.2)}
 .del-status.problem{background:rgba(239,68,68,0.1);color:#ef4444;border:0.5px solid rgba(239,68,68,0.2)}
@@ -2577,7 +2578,7 @@ async function loadDeliveries() {
 
 function setDeliveryFilter(f) {
   deliveryFilter = f;
-  ['all','pending','launched','problem'].forEach(x => {
+  ['all','taken','pending','launched','problem'].forEach(x => {
     document.getElementById('df-'+x)?.classList.toggle('active', x === f);
   });
   renderDeliveries();
@@ -2617,9 +2618,9 @@ function renderDeliveries() {
     </tr></thead>
     <tbody>
       ${rows.map(d => {
-        const statusMap = {pending:'pending',launched:'launched',problem:'problem'};
-        const statusLabel = {pending:'Выдан',launched:'Запущен',problem:'Проблема'};
-        const cls = statusMap[d.status] || 'pending';
+        const statusMap = {taken:'taken',pending:'pending',launched:'launched',problem:'problem'};
+        const statusLabel = {taken:'Взят',pending:'Выдан',launched:'Запущен',problem:'Проблема'};
+        const cls = statusMap[d.status] || 'taken';
         const remindDate = d.remind_at ? new Date(d.remind_at) : null;
         const isOverdue = remindDate && remindDate < now && d.status === 'pending';
         const remindStr = remindDate ? remindDate.toLocaleString('ru', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
@@ -2649,13 +2650,20 @@ function renderDeliveries() {
   </table>`;
 }
 
+function toggleDelRemind(statusVal, prefix) {
+  const wrap = document.getElementById(prefix + 'del-remind-wrap');
+  if (!wrap) return;
+  wrap.style.display = statusVal === 'pending' ? '' : 'none';
+}
+
 function openAddDeliveryModal() {
   ['partner','brand','geo','source','rate','link','notes','by'].forEach(f => {
     const el = document.getElementById('del-'+f);
     if (el) el.value = '';
   });
-  document.getElementById('del-status').value = 'pending';
+  document.getElementById('del-status').value = 'taken';
   document.getElementById('del-remind').value = '';
+  toggleDelRemind('taken', 'del-');
   document.getElementById('addDeliveryOverlay').classList.remove('hidden');
 }
 
@@ -2690,10 +2698,11 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-source').value = d.traffic_source||'';
   document.getElementById('edit-del-rate').value = d.rate||'';
   document.getElementById('edit-del-link').value = d.link||'';
-  document.getElementById('edit-del-status').value = d.status||'pending';
+  document.getElementById('edit-del-status').value = d.status||'taken';
   document.getElementById('edit-del-remind').value = d.remind_at ? toLocalDatetimeInput(d.remind_at) : '';
   document.getElementById('edit-del-by').value = d.created_by||'';
   document.getElementById('edit-del-notes').value = d.notes||'';
+  toggleDelRemind(d.status||'taken', 'edit-');
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
 }
 
@@ -3286,6 +3295,7 @@ function showToast(msg,type='success') {
   <!-- Status filter -->
   <div style="display:flex;align-items:center;gap:6px;padding:10px 24px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0">
     <button class="sb-filter-btn active" id="df-all" onclick="setDeliveryFilter('all')">Все</button>
+    <button class="sb-filter-btn" id="df-taken" onclick="setDeliveryFilter('taken')">🔵 Взят</button>
     <button class="sb-filter-btn" id="df-pending" onclick="setDeliveryFilter('pending')">⏳ Выдан</button>
     <button class="sb-filter-btn" id="df-launched" onclick="setDeliveryFilter('launched')">✅ Запущен</button>
     <button class="sb-filter-btn" id="df-problem" onclick="setDeliveryFilter('problem')">⚠️ Проблема</button>
@@ -3420,7 +3430,8 @@ function showToast(msg,type='success') {
         </div>
         <div class="form-group">
           <label class="form-label">Статус</label>
-          <select class="form-select" id="del-status">
+          <select class="form-select" id="del-status" onchange="toggleDelRemind(this.value,'del-')">
+            <option value="taken">🔵 Взят</option>
             <option value="pending">⏳ Выдан</option>
             <option value="launched">✅ Запущен</option>
             <option value="problem">⚠️ Проблема</option>
@@ -3432,7 +3443,7 @@ function showToast(msg,type='success') {
         <input class="form-input" id="del-link" placeholder="https://...">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
-        <div class="form-group">
+        <div class="form-group" id="del-remind-wrap">
           <label class="form-label">Напомнить <span style="color:var(--text3)">(дата и время)</span></label>
           <input class="form-input" type="datetime-local" id="del-remind">
         </div>
@@ -3470,7 +3481,8 @@ function showToast(msg,type='success') {
         <div class="form-group"><label class="form-label">Ставка</label><input class="form-input" id="edit-del-rate"></div>
         <div class="form-group">
           <label class="form-label">Статус</label>
-          <select class="form-select" id="edit-del-status">
+          <select class="form-select" id="edit-del-status" onchange="toggleDelRemind(this.value,'edit-')">
+            <option value="taken">🔵 Взят</option>
             <option value="pending">⏳ Выдан</option>
             <option value="launched">✅ Запущен</option>
             <option value="problem">⚠️ Проблема</option>
@@ -3479,7 +3491,7 @@ function showToast(msg,type='success') {
       </div>
       <div class="form-group" style="margin-top:4px"><label class="form-label">Ссылка</label><input class="form-input" id="edit-del-link"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
-        <div class="form-group"><label class="form-label">Напомнить</label><input class="form-input" type="datetime-local" id="edit-del-remind"></div>
+        <div class="form-group" id="edit-del-remind-wrap"><label class="form-label">Напомнить</label><input class="form-input" type="datetime-local" id="edit-del-remind"></div>
         <div class="form-group"><label class="form-label">Кто выдал</label><input class="form-input" id="edit-del-by"></div>
       </div>
       <div class="form-group" style="margin-top:4px"><label class="form-label">Заметки</label><textarea class="form-input" id="edit-del-notes" rows="2"></textarea></div>
