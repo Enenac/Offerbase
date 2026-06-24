@@ -1140,6 +1140,7 @@ async function buildDynamicFilters() {
     sb.from('offers').select('partner').eq('project', currentProject).not('partner','is',null).limit(100000),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
+  window._allGeos = geos; // cache for filterGeoList
   const platforms = [...new Set((platRes.data||[]).map(o=>o.platform).filter(v => v && v !== '-' && v !== '—'))].sort();
   const partners = [...new Set((partRes.data||[]).map(o=>o.partner).filter(Boolean))].sort();
 
@@ -1182,10 +1183,8 @@ function renderDynamicList(listId, items, filterKey) {
 }
 
 function filterGeoList() {
-  const q = document.getElementById('geo-search').value.toLowerCase();
-  const proj = allOffers.filter(o => o.project === currentProject);
-  const geos = [...new Set(proj.map(o=>o.geo).filter(Boolean))].sort()
-    .filter(g => g.toLowerCase().includes(q));
+  const q = document.getElementById('geo-search').value.toUpperCase().trim();
+  const geos = (window._allGeos || []).filter(g => !q || g.toUpperCase().includes(q));
   renderDynamicList('geo-list', geos, 'geo');
 }
 
