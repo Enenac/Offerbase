@@ -944,8 +944,7 @@ function buildSupabaseQuery(countOnly = false) {
 
   // Sorting
   if (sortField === 'rate_eur' || sortField === 'rate_usd') {
-    // Sort by rate string server-side is not ideal, fallback to received_at
-    q = q.order('received_at', { ascending: sortDir === -1, nullsFirst: false });
+    q = q.order('rate_usd_num', { ascending: sortDir === 1, nullsFirst: false });
   } else if (sortField) {
     q = q.order(sortField, { ascending: sortDir === 1, nullsFirst: false });
   } else {
@@ -1299,12 +1298,11 @@ function getFiltered() {
       return true;
     });
   }
-  // Client-side rate sort
+  // Client-side rate sort (for rate filter edge cases)
   if (sortField === 'rate_eur' || sortField === 'rate_usd') {
     rows = rows.slice().sort((a, b) => {
-      const ca = convertRate(a.rate), cb = convertRate(b.rate);
-      const va = sortField === 'rate_eur' ? (ca.eur ?? 0) : (ca.usd ?? 0);
-      const vb = sortField === 'rate_eur' ? (cb.eur ?? 0) : (cb.usd ?? 0);
+      const va = a.rate_usd_num ?? parseRateToUsd(a.rate) ?? 0;
+      const vb = b.rate_usd_num ?? parseRateToUsd(b.rate) ?? 0;
       return (va - vb) * sortDir;
     });
   }
@@ -1536,7 +1534,7 @@ async function saveOffer() {
       btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить'; return;
     }
     const bulkDate = document.getElementById('bulk-date').value || null;
-    const toInsert = parsedOffers.map(o => ({...o, received_at: bulkDate}));
+    const toInsert = parsedOffers.map(o => ({...o, received_at: bulkDate, rate_usd_num: parseRateToUsd(o.rate)}));
     const { error } = await sb.from('offers').insert(toInsert);
     btn.disabled=false; btn.innerHTML=`<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
     if (error) { showToast('Ошибка: '+error.message,'error'); return; }
@@ -1560,6 +1558,7 @@ async function saveOffer() {
     status: document.getElementById('f-status').value||'active',
     received_at: document.getElementById('f-date').value||null,
     notes: document.getElementById('f-notes').value.trim()||null,
+    rate_usd_num: parseRateToUsd(document.getElementById('f-rate').value.trim()||null),
   };
 
   if (!payload.brand && !payload.geo) {
