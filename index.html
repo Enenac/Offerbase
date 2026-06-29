@@ -297,10 +297,11 @@ tr:hover .row-actions{opacity:1}
 .del-table td{padding:9px 10px;border-bottom:0.5px solid var(--border);font-size:12px;color:var(--text2);vertical-align:middle}
 .del-table tr:hover td{background:var(--bg3)}
 .del-status{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:500;white-space:nowrap}
-.del-status.taken{background:rgba(129,140,248,0.1);color:#818cf8;border:0.5px solid rgba(129,140,248,0.2)}
-.del-status.pending{background:rgba(245,158,11,0.1);color:#f59e0b;border:0.5px solid rgba(245,158,11,0.2)}
+.del-status.waiting_link{background:rgba(129,140,248,0.1);color:#818cf8;border:0.5px solid rgba(129,140,248,0.2)}
+.del-status.waiting_launch{background:rgba(245,158,11,0.1);color:#f59e0b;border:0.5px solid rgba(245,158,11,0.2)}
 .del-status.launched{background:rgba(16,185,129,0.1);color:#10b981;border:0.5px solid rgba(16,185,129,0.2)}
 .del-status.problem{background:rgba(239,68,68,0.1);color:#ef4444;border:0.5px solid rgba(239,68,68,0.2)}
+.del-status.stopped{background:rgba(107,114,128,0.1);color:#6b7280;border:0.5px solid rgba(107,114,128,0.2)}
 .del-link{color:var(--accent);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;display:inline-block}
 .del-link:hover{text-decoration:underline}
 .del-remind{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);white-space:nowrap}
@@ -2579,7 +2580,7 @@ async function loadDeliveries() {
 
 function setDeliveryFilter(f) {
   deliveryFilter = f;
-  ['all','taken','pending','launched','problem'].forEach(x => {
+  ['all','waiting_link','waiting_launch','launched','problem','stopped'].forEach(x => {
     document.getElementById('df-'+x)?.classList.toggle('active', x === f);
   });
   renderDeliveries();
@@ -2615,11 +2616,11 @@ function renderDeliveries() {
     </tr></thead>
     <tbody>
       ${rows.map(d => {
-        const statusMap = {taken:'taken',pending:'pending',launched:'launched',problem:'problem'};
-        const statusLabel = {taken:'Взят',pending:'Выдан',launched:'Запущен',problem:'Проблема'};
-        const cls = statusMap[d.status] || 'taken';
+        const statusMap = {waiting_link:'waiting_link',waiting_launch:'waiting_launch',launched:'launched',problem:'problem',stopped:'stopped'};
+        const statusLabel = {waiting_link:'Ожидаем ссылку',waiting_launch:'Ожидаем запуска',launched:'Запущен',problem:'Проблема',stopped:'На стопе'};
+        const cls = statusMap[d.status] || 'waiting_link';
         const remindDate = d.remind_at ? new Date(d.remind_at) : null;
-        const isOverdue = remindDate && remindDate < now && d.status === 'pending';
+        const isOverdue = remindDate && remindDate < now && d.status === 'waiting_launch';
         const remindStr = remindDate ? remindDate.toLocaleString('ru', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
         const createdStr = d.created_at ? new Date(d.created_at).toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}) : '—';
         return `<tr>
@@ -2646,7 +2647,7 @@ function openAddDeliveryModal() {
     const el = document.getElementById('del-'+f);
     if (el) el.value = '';
   });
-  document.getElementById('del-status').value = 'taken';
+  document.getElementById('del-status').value = 'waiting_link';
   document.getElementById('addDeliveryOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('del-offer').focus(), 50);
 }
@@ -2683,7 +2684,7 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-source').value = d.traffic_source||'';
   document.getElementById('edit-del-rate').value = d.rate||'';
   document.getElementById('edit-del-link').value = d.link||'';
-  document.getElementById('edit-del-status').value = d.status||'pending';
+  document.getElementById('edit-del-status').value = d.status||'waiting_link';
   document.getElementById('edit-del-remind').value = d.remind_at ? toLocalDatetimeInput(d.remind_at) : '';
   document.getElementById('edit-del-by').value = d.created_by||'';
   document.getElementById('edit-del-notes').value = d.notes||'';
@@ -3279,10 +3280,11 @@ function showToast(msg,type='success') {
   <!-- Status filter -->
   <div style="display:flex;align-items:center;gap:6px;padding:10px 24px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0">
     <button class="sb-filter-btn active" id="df-all" onclick="setDeliveryFilter('all')">Все</button>
-    <button class="sb-filter-btn" id="df-taken" onclick="setDeliveryFilter('taken')">📋 Взят</button>
-    <button class="sb-filter-btn" id="df-pending" onclick="setDeliveryFilter('pending')">⏳ Выдан</button>
+    <button class="sb-filter-btn" id="df-waiting_link" onclick="setDeliveryFilter('waiting_link')">🔗 Ожидаем ссылку</button>
+    <button class="sb-filter-btn" id="df-waiting_launch" onclick="setDeliveryFilter('waiting_launch')">⏳ Ожидаем запуска</button>
     <button class="sb-filter-btn" id="df-launched" onclick="setDeliveryFilter('launched')">✅ Запущен</button>
     <button class="sb-filter-btn" id="df-problem" onclick="setDeliveryFilter('problem')">⚠️ Проблема</button>
+    <button class="sb-filter-btn" id="df-stopped" onclick="setDeliveryFilter('stopped')">🛑 На стопе</button>
   </div>
   <!-- Table -->
   <div style="flex:1;overflow-y:auto;padding:16px 24px">
@@ -3409,14 +3411,15 @@ function showToast(msg,type='success') {
         <div class="form-group">
           <label class="form-label">Статус</label>
           <select class="form-select" id="del-status">
-            <option value="taken">📋 Взят</option>
-            <option value="pending">⏳ Выдан</option>
+            <option value="waiting_link">🔗 Ожидаем ссылку</option>
+            <option value="waiting_launch">⏳ Ожидаем запуска</option>
             <option value="launched">✅ Запущен</option>
             <option value="problem">⚠️ Проблема</option>
+            <option value="stopped">🛑 На стопе</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Напомнить <span style="color:var(--text3)">(для «Выдан»)</span></label>
+          <label class="form-label">Напомнить <span style="color:var(--text3)">(для «Ожидаем запуска»)</span></label>
           <input class="form-input" type="datetime-local" id="del-remind">
         </div>
       </div>
@@ -3446,10 +3449,11 @@ function showToast(msg,type='success') {
         <div class="form-group">
           <label class="form-label">Статус</label>
           <select class="form-select" id="edit-del-status">
-            <option value="taken">📋 Взят</option>
-            <option value="pending">⏳ Выдан</option>
+            <option value="waiting_link">🔗 Ожидаем ссылку</option>
+            <option value="waiting_launch">⏳ Ожидаем запуска</option>
             <option value="launched">✅ Запущен</option>
             <option value="problem">⚠️ Проблема</option>
+            <option value="stopped">🛑 На стопе</option>
           </select>
         </div>
       </div>
