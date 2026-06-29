@@ -944,7 +944,7 @@ function buildSupabaseQuery(countOnly = false) {
 
   // Sorting
   if (sortField === 'rate_eur' || sortField === 'rate_usd') {
-    q = q.order('rate_usd_num', { ascending: sortDir === 1, nullsFirst: false });
+    q = q.order('rate_usd_num', { ascending: sortDir === 1, nullsFirst: sortDir === 1 });
   } else if (sortField) {
     q = q.order(sortField, { ascending: sortDir === 1, nullsFirst: false });
   } else {
