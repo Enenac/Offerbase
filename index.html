@@ -2248,11 +2248,12 @@ const EXPORT_FIELDS = [
   { key: 'capa',           label: 'Капа',    prefix: 'Cap ' },
   { key: 'kpi',            label: 'KPI' },
   { key: 'platform',       label: 'Платформа' },
+  { key: 'partner',        label: 'Партнёр' },
   { key: 'notes',          label: 'Заметки' },
 ];
 // Persisted per-field visibility
 let exportFieldsEnabled = JSON.parse(localStorage.getItem('exportFields') || 'null')
-  || Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, f.key !== 'notes']));
+  || Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, f.key !== 'notes' && f.key !== 'partner']));
 
 let _exportRows = [];
 
