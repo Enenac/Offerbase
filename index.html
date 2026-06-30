@@ -1078,20 +1078,18 @@ async function resolvePlatformConflict(brand, platform, idx) {
   if (items[idx]) items[idx].style.opacity = '0.3';
 
   if (platform) {
-    // Update all offers with this brand to the chosen platform
-    const brandLower = brand.toLowerCase();
-    const toUpdate = allOffers.filter(o => (o.brand || '').toLowerCase().trim() === brandLower);
-    const ids = toUpdate.map(o => o.id);
-    const BATCH = 500;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const chunk = ids.slice(i, i + BATCH);
-      const { error } = await sb.from('offers').update({ platform }).in('id', chunk);
-      if (!error) chunk.forEach(id => {
-        const o = allOffers.find(x => x.id === id);
-        if (o) o.platform = platform;
-      });
+    // Update ALL offers with this brand server-side (case-insensitive), not just loaded page
+    const { error } = await sb.from('offers')
+      .update({ platform })
+      .ilike('brand', brand);
+    if (!error) {
+      // Update local cache for currently loaded offers too
+      const brandLower = brand.toLowerCase();
+      allOffers.forEach(o => { if ((o.brand || '').toLowerCase().trim() === brandLower) o.platform = platform; });
+      showToast(`Платформа «${platform}» установлена для всех офферов «${brand}»`, 'success');
+    } else {
+      showToast('Ошибка: ' + error.message, 'error');
     }
-    showToast(`Платформа «${platform}» установлена для всех офферов «${brand}»`, 'success');
   }
 
   window._platformConflictsResolved = (window._platformConflictsResolved || 0) + 1;
