@@ -2676,32 +2676,22 @@ function openEditDelivery(id) {
   const d = allDeliveries.find(x => x.id === id);
   if (!d) return;
   document.getElementById('edit-del-id').value = d.id;
+  document.getElementById('edit-del-notes').value = d.notes||'';
+  document.getElementById('edit-del-by').value = d.created_by||'';
   document.getElementById('edit-del-partner').value = d.partner||'';
-  document.getElementById('edit-del-brand').value = d.brand||'';
-  document.getElementById('edit-del-geo').value = d.geo||'';
-  document.getElementById('edit-del-source').value = d.traffic_source||'';
-  document.getElementById('edit-del-rate').value = d.rate||'';
-  document.getElementById('edit-del-link').value = d.link||'';
   document.getElementById('edit-del-status').value = d.status||'waiting_link';
   document.getElementById('edit-del-remind').value = d.remind_at ? toLocalDatetimeInput(d.remind_at) : '';
-  document.getElementById('edit-del-by').value = d.created_by||'';
-  document.getElementById('edit-del-notes').value = d.notes||'';
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
 }
 
 async function updateDelivery() {
   const id = document.getElementById('edit-del-id').value;
   const data = {
-    partner: document.getElementById('edit-del-partner').value.trim()||null,
-    brand: document.getElementById('edit-del-brand').value.trim()||null,
-    geo: document.getElementById('edit-del-geo').value.trim().toUpperCase()||null,
-    traffic_source: document.getElementById('edit-del-source').value.trim()||null,
-    rate: document.getElementById('edit-del-rate').value.trim()||null,
-    link: document.getElementById('edit-del-link').value.trim()||null,
-    status: document.getElementById('edit-del-status').value,
-    remind_at: document.getElementById('edit-del-remind').value||null,
     notes: document.getElementById('edit-del-notes').value.trim()||null,
     created_by: document.getElementById('edit-del-by').value.trim()||null,
+    partner: document.getElementById('edit-del-partner').value.trim()||null,
+    status: document.getElementById('edit-del-status').value,
+    remind_at: document.getElementById('edit-del-remind').value||null,
   };
   const { error } = await sb.from('deliveries').update(data).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -3431,19 +3421,22 @@ function showToast(msg,type='success') {
 
 <!-- EDIT DELIVERY MODAL -->
 <div class="modal-overlay hidden" id="editDeliveryOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" style="max-width:480px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-edit"></i>Редактировать выдачу</span>
       <button class="icon-btn" onclick="document.getElementById('editDeliveryOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="edit-del-id">
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Оффер</label>
+        <input class="form-input" id="edit-del-notes" placeholder="например: RoyalFlush | SpinGranny | IT | FB | $190">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group"><label class="form-label">Источник оффера</label><input class="form-input" id="edit-del-by" placeholder="Кто нам дал..."></div>
+        <div class="form-group"><label class="form-label">Выдаём партнёру</label><input class="form-input" id="edit-del-partner" placeholder="Кому отдаём..."></div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-group"><label class="form-label">Партнёр</label><input class="form-input" id="edit-del-partner"></div>
-        <div class="form-group"><label class="form-label">Бренд</label><input class="form-input" id="edit-del-brand"></div>
-        <div class="form-group"><label class="form-label">GEO</label><input class="form-input" id="edit-del-geo"></div>
-        <div class="form-group"><label class="form-label">Источник</label><input class="form-input" id="edit-del-source"></div>
-        <div class="form-group"><label class="form-label">Ставка</label><input class="form-input" id="edit-del-rate"></div>
         <div class="form-group">
           <label class="form-label">Статус</label>
           <select class="form-select" id="edit-del-status">
@@ -3454,13 +3447,8 @@ function showToast(msg,type='success') {
             <option value="stopped">🛑 На стопе</option>
           </select>
         </div>
-      </div>
-      <div class="form-group" style="margin-top:4px"><label class="form-label">Ссылка</label><input class="form-input" id="edit-del-link"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
         <div class="form-group"><label class="form-label">Напомнить</label><input class="form-input" type="datetime-local" id="edit-del-remind"></div>
-        <div class="form-group"><label class="form-label">Кто выдал</label><input class="form-input" id="edit-del-by"></div>
       </div>
-      <div class="form-group" style="margin-top:4px"><label class="form-label">Заметки</label><textarea class="form-input" id="edit-del-notes" rows="2"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="document.getElementById('editDeliveryOverlay').classList.add('hidden')">Отмена</button>
