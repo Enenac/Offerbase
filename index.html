@@ -2900,7 +2900,7 @@ function openAddPartnerModal() {
 async function loadPartners() {
   const [partnersRes, countsRes] = await Promise.all([
     sb.from('partners').select('*').eq('project', currentProject).order('name'),
-    sb.from('offers').select('partner, status, brand').eq('project', currentProject).limit(100000)
+    sb.from('offers').select('id, partner, status, brand, geo, rate, traffic_source, game_type').eq('project', currentProject).limit(100000)
   ]);
   if (partnersRes.error) { showToast('Ошибка загрузки партнёров: ' + partnersRes.error.message, 'error'); return; }
   allPartners = partnersRes.data || [];
