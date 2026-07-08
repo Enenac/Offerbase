@@ -1217,10 +1217,18 @@ function toggleFilterMenu(key) {
     if (key === 'geo') {
       document.getElementById('geo-search').value = '';
       filterGeoList();
-      document.getElementById('geo-search').focus();
+      setTimeout(() => document.getElementById('geo-search').focus(), 50);
+    }
+    if (key === 'partner') {
+      const inp = document.getElementById('partner-search');
+      if (inp) { inp.value = ''; filterPartnerList(); setTimeout(() => inp.focus(), 50); }
+      else buildDynamicFilters();
+    }
+    if (key === 'exclude-partner') {
+      const inp = document.getElementById('exclude-partner-search');
+      if (inp) { inp.value = ''; filterExcludePartnerList(); setTimeout(() => inp.focus(), 50); }
     }
     if (key === 'platform') buildDynamicFilters();
-    if (key === 'partner') buildDynamicFilters();
   }
 }
 
