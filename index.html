@@ -548,6 +548,7 @@ tr:hover .row-actions{opacity:1}
     <div class="filter-dropdown">
       <div class="chip" id="chip-partner" onclick="toggleFilterMenu('partner')"><i class="ti ti-users"></i>Партнёр</div>
       <div class="filter-menu hidden" id="menu-partner">
+        <div class="filter-search"><input type="text" id="partner-search" placeholder="Поиск партнёра..." oninput="filterPartnerList()"></div>
         <div class="filter-menu-list" id="partner-list"></div>
       </div>
     </div>
@@ -557,6 +558,7 @@ tr:hover .row-actions{opacity:1}
       <div class="chip" id="chip-exclude_partner" onclick="toggleFilterMenu('exclude-partner')" style="border-color:rgba(239,68,68,0.3)"><i class="ti ti-user-off"></i>Исключить</div>
       <div class="filter-menu hidden" id="menu-exclude-partner">
         <div style="padding:6px 10px 4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em">Исключить партнёра</div>
+        <div class="filter-search"><input type="text" id="exclude-partner-search" placeholder="Поиск партнёра..." oninput="filterExcludePartnerList()"></div>
         <div class="filter-menu-list" id="exclude-partner-list"></div>
       </div>
     </div>
@@ -1144,6 +1146,7 @@ async function buildDynamicFilters() {
   window._allGeos = geos; // cache for filterGeoList
   const platforms = [...new Set((platRes.data||[]).map(o=>o.platform).filter(v => v && v !== '-' && v !== '—'))].sort();
   const partners = [...new Set((partRes.data||[]).map(o=>o.partner).filter(Boolean))].sort();
+  window._allPartners = partners;
 
   renderDynamicList('geo-list', geos, 'geo');
   renderDynamicList('platform-list', platforms, 'platform');
@@ -1187,6 +1190,21 @@ function filterGeoList() {
   const q = document.getElementById('geo-search').value.toUpperCase().trim();
   const geos = (window._allGeos || []).filter(g => !q || g.toUpperCase().includes(q));
   renderDynamicList('geo-list', geos, 'geo');
+}
+
+function filterPartnerList() {
+  const q = (document.getElementById('partner-search')?.value || '').toLowerCase().trim();
+  const partners = (window._allPartners || []).filter(p => !q || p.toLowerCase().includes(q));
+  renderDynamicList('partner-list', partners, 'partner');
+}
+
+function filterExcludePartnerList() {
+  const q = (document.getElementById('exclude-partner-search')?.value || '').toLowerCase().trim();
+  const partners = (window._allPartners || []).filter(p => !q || p.toLowerCase().includes(q));
+  const el = document.getElementById('exclude-partner-list');
+  if (el) el.innerHTML = partners.map(p =>
+    `<div class="filter-option" style="color:var(--text2)" onclick="setFilter('exclude_partner','${esc(p)}')">${esc(p)}</div>`
+  ).join('');
 }
 
 // ── FILTERS ───────────────────────────────────────────
