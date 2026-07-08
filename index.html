@@ -1681,14 +1681,16 @@ function updateReqProjectTabs() {
 
 async function loadRequests() {
   reqProject = currentProject; // always sync with global project
-  const [r1, r2, r3] = await Promise.all([
+  const [r1, r2, r3, r4] = await Promise.all([
     sb.from('requests').select('*').eq('project', reqProject).order('created_at', { ascending: false }),
     sb.from('request_items').select('*'),
-    sb.from('request_dispatches').select('*')
+    sb.from('request_dispatches').select('*'),
+    sb.from('partners').select('*').eq('project', reqProject).order('name')
   ]);
   allRequests = r1.data || [];
   allRequestItems = r2.data || [];
   allDispatches = r3.data || [];
+  allPartners = r4.data || [];
   // count active requests across ALL projects for the tab badge
   const { data: allReqCount } = await sb.from('requests').select('status').in('status', ['new','sent']);
   const countEl = document.getElementById('count-requests');
@@ -1847,16 +1849,9 @@ function renderKbCard(req) {
   <div class="kb-card" data-req-id="${req.id}" data-status="${req.status}">
     <div class="kb-card-title">${req.title || 'Без названия'}</div>
     <div class="kb-card-meta">
-      ${total ? `<span class="kb-tag">${total} оффер(ов)</span>` : ''}
       ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
-      ${req.notes ? `<span class="kb-tag" style="color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${req.notes}</span>` : ''}
     </div>
-    ${partners.length ? `<div style="margin-bottom:4px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${p}</span>`).join('')}</div>` : ''}
-    ${total > 0 ? `
-    <div class="kb-progress">
-      <div class="kb-progress-bar"><div class="kb-progress-fill" style="width:${pct}%;background:${progressColor}"></div></div>
-      <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0">${found}/${total}</span>
-    </div>` : ''}
+    ${isAdmin && partners.length ? `<div style="margin-bottom:4px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${p}</span>`).join('')}</div>` : ''}
     <div style="display:flex;justify-content:flex-end;margin-top:6px">
       <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onclick="event.stopPropagation()" onchange="updateReqStatus('${req.id}', this.value)">
         ${['new','sent','proposed','rejected','not_found','closed'].map(s =>
@@ -1872,115 +1867,78 @@ function renderKbCard(req) {
 async function openReqDetail(reqId) {
   const req = allRequests.find(r => r.id === reqId);
   if (!req) return;
-  const items = allRequestItems.filter(i => i.request_id === reqId);
   const dispatches = allDispatches.filter(d => d.request_id === reqId);
-  const knownPartners = [...new Set(allOffers.map(o => o.partner).filter(Boolean))].sort();
+  const networkPartners = allPartners
+    .filter(p => (p.partner_type || '').toLowerCase() === 'network')
+    .map(p => p.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'ru'));
 
-  document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i><span id="reqTitleDisplay" style="cursor:pointer;border-bottom:1px dashed var(--border2)" title="Нажмите чтобы изменить" onclick="editReqTitle('${req.id}','${(req.title||'').replace(/'/g,"\\'")}')"> ${req.title || 'Без названия'}</span>`;
+  const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const dateStr = req.received_at ? new Date(req.received_at).toLocaleDateString('ru-RU') : '—';
 
-  // For each item, collect which dispatch partners include it
-  const itemDispatchMap = {};
-  dispatches.forEach(d => {
-    if (d.request_item_ids && d.request_item_ids.length) {
-      d.request_item_ids.forEach(iid => {
-        if (!itemDispatchMap[iid]) itemDispatchMap[iid] = [];
-        itemDispatchMap[iid].push(d.partner);
-      });
-    }
-  });
+  document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i><span id="reqTitleDisplay" style="cursor:pointer;border-bottom:1px dashed var(--border2)" title="Нажмите чтобы изменить" onclick="editReqTitle('${req.id}','${(req.title || '').replace(/'/g, "\\'")}')"> ${req.title || 'Без названия'}</span>`;
 
-  const foundStatusLabel = { pending: '—', found: '✓ Найден', not_found: '✗ Нет' };
-  const foundStatusStyle = {
-    pending: 'color:var(--text3)',
-    found: 'color:#10b981;font-weight:500',
-    not_found: 'color:#ef4444'
-  };
+  const dispatchSection = isAdmin ? `
+    <div style="border-top:0.5px solid var(--border);padding-top:16px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправить партнёру (Network)</div>
+      <input type="text" class="form-input" id="dispatchSearch-${reqId}" placeholder="Поиск партнёра..." style="font-size:12px;margin-bottom:8px" oninput="filterDispatchPartners('${reqId}')">
+      <div id="dispatchPartnerList-${reqId}" style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;border:0.5px solid var(--border);border-radius:7px;padding:6px;background:var(--bg3)">
+        ${networkPartners.length ? networkPartners.map(p => `
+          <label class="dispatch-opt" data-name="${esc(p).toLowerCase()}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text1)">
+            <input type="checkbox" class="dispatch-cb-${reqId}" value="${esc(p)}" style="accent-color:var(--accent);flex-shrink:0">
+            <span>${esc(p)}</span>
+          </label>`).join('')
+          : `<div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Network-партнёров нет в базе</div>`}
+      </div>
+      <button class="btn btn-primary" style="font-size:11px;width:100%;margin-top:8px" onclick="sendDispatchMulti('${reqId}')"><i class="ti ti-send"></i>Отправить выбранным</button>
+      ${dispatches.length ? `
+      <div style="margin-top:16px">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправлено партнёрам</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${dispatches.map(d => `
+            <div style="padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div>
+                <span style="font-size:12px;color:var(--text1);font-weight:500">${esc(d.partner)}</span>
+                <div style="font-size:10px;color:var(--text3);margin-top:2px">${d.sent_at ? new Date(d.sent_at).toLocaleDateString('ru-RU') : ''}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onchange="updateDispatchStatus('${d.id}', this.value, '${reqId}')">
+                  <option value="sent" ${d.status === 'sent' ? 'selected' : ''}>Отправлен</option>
+                  <option value="searching" ${d.status === 'searching' ? 'selected' : ''}>В поиске</option>
+                  <option value="found" ${d.status === 'found' ? 'selected' : ''}>Найден</option>
+                  <option value="no" ${d.status === 'no' ? 'selected' : ''}>Не найден</option>
+                </select>
+                <button class="icon-btn" onclick="deleteDispatch('${d.id}','${reqId}')" style="color:var(--red);font-size:12px"><i class="ti ti-x"></i></button>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>` : '';
 
   document.getElementById('reqDetailBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:3fr 2fr;gap:20px">
-
-      <!-- LEFT: items list -->
-      <div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">
-          Офферы в запросе (${items.length})
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="font-size:11px;color:var(--text3)">Дата получения: <span style="color:var(--text1)">${dateStr}</span></div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--text3)">Статус:</span>
+          <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onchange="updateReqStatus('${reqId}', this.value)">
+            ${['new', 'sent', 'proposed', 'rejected', 'not_found', 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
+          </select>
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px" id="items-list-${reqId}">
-          ${items.map((item, idx) => {
-            const partners = itemDispatchMap[item.id] || [];
-            const fs = item.found_status || 'pending';
-            return `
-            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:6px;border:0.5px solid var(--border);font-size:12px" id="item-row-${item.id}">
-              <input type="checkbox" class="item-cb" value="${item.id}" style="accent-color:var(--accent);flex-shrink:0">
-              <span style="flex:1;color:var(--text1);font-family:'IBM Plex Mono',monospace;font-size:11px">${item.raw_text || (item.brand || '—')}</span>
-              ${partners.length ? `<div style="position:relative;display:inline-block">
-                <span class="dispatch-tag partner-hover-trigger" data-item-id="${item.id}" style="cursor:default">
-                  ${partners.length} партн.
-                </span>
-              </div>` : ''}
-              <select style="font-size:10px;padding:3px 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:5px;color:var(--text2);cursor:pointer;outline:none"
-                onchange="updateItemFoundStatus('${item.id}', this.value, '${reqId}')">
-                <option value="pending" ${fs==='pending'?'selected':''}>—</option>
-                <option value="found" ${fs==='found'?'selected':''}>✓ Найден</option>
-                <option value="not_found" ${fs==='not_found'?'selected':''}>✗ Нет</option>
-              </select>
-            </div>`;
-          }).join('')}
-        </div>
-        <button class="btn btn-ghost" onclick="addItemToRequest('${reqId}')" style="font-size:11px;margin-top:8px;padding:5px 10px"><i class="ti ti-plus"></i>Добавить оффер</button>
       </div>
 
-      <!-- RIGHT: dispatch -->
       <div>
-        <!-- Send to partner -->
-        <div style="margin-bottom:16px">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправить партнёру</div>
-          <input class="form-input" list="partners-list-${reqId}" id="dispatchPartner-${reqId}" placeholder="Партнёр..." style="font-size:12px;margin-bottom:6px">
-          <datalist id="partners-list-${reqId}">
-            ${knownPartners.map(p => `<option value="${p}">`).join('')}
-          </datalist>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Отметьте офферы слева (пусто = весь запрос)</div>
-          <button class="btn btn-primary" style="font-size:11px;width:100%" onclick="sendDispatch('${reqId}')">
-            <i class="ti ti-send"></i>Отправить
-          </button>
-        </div>
-
-        <!-- Existing dispatches -->
-        ${dispatches.length ? `
-        <div>
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправлено партнёрам</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            ${dispatches.map(d => {
-              const dispItems = d.request_item_ids?.length
-                ? allRequestItems.filter(i => d.request_item_ids.includes(i.id))
-                : [];
-              const tooltipLines = dispItems.map(i => (i.raw_text || i.brand || '?').replace(/"/g,'&quot;')).join('&#10;');
-              return `
-              <div style="padding:8px 12px;background:var(--bg3);border-radius:7px;border:0.5px solid var(--border)">
-                <div style="display:flex;align-items:center;justify-content:space-between">
-                  <div>
-                    <span style="font-size:12px;color:var(--text1);font-weight:500">${d.partner}</span>
-                    <div style="font-size:10px;color:var(--text3);margin-top:2px">
-                      ${d.sent_at ? new Date(d.sent_at).toLocaleDateString('ru-RU') : ''}
-                      ${d.request_item_ids?.length
-                        ? `· <span style="cursor:help;border-bottom:1px dashed var(--text3)" title="${tooltipLines}">${d.request_item_ids.length} оффер(ов)</span>`
-                        : '· весь запрос'}
-                    </div>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:6px">
-                    <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onchange="updateDispatchStatus('${d.id}', this.value, '${reqId}')">
-                      <option value="sent" ${d.status==='sent'?'selected':''}>Отправлен</option>
-                      <option value="searching" ${d.status==='searching'?'selected':''}>В поиске</option>
-                      <option value="found" ${d.status==='found'?'selected':''}>Найден</option>
-                      <option value="no" ${d.status==='no'?'selected':''}>Не найден</option>
-                    </select>
-                    <button class="icon-btn" onclick="deleteDispatch('${d.id}','${reqId}')" style="color:var(--red);font-size:12px"><i class="ti ti-x"></i></button>
-                  </div>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>` : ''}
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Запрос (как пришёл)</div>
+        <textarea class="form-input" style="width:100%;min-height:120px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" onchange="saveReqField('${reqId}','raw_text',this.value)">${esc(req.raw_text)}</textarea>
       </div>
+
+      <div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Мой формат</div>
+        <textarea class="form-input" style="width:100%;min-height:150px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" placeholder="Преобразуй запрос в удобный формат..." onchange="saveReqField('${reqId}','notes',this.value)">${esc(req.notes)}</textarea>
+      </div>
+
+      ${dispatchSection}
     </div>`;
 
   document.getElementById('reqDetailOverlay').classList.remove('hidden');
@@ -2097,6 +2055,40 @@ async function deleteDispatch(dispId, reqId) {
   openReqDetail(reqId);
 }
 
+async function saveReqField(reqId, field, value) {
+  const patch = {}; patch[field] = value;
+  const { error } = await sb.from('requests').update(patch).eq('id', reqId);
+  if (error) { showToast('Ошибка сохранения: ' + error.message, 'error'); return; }
+  const req = allRequests.find(r => r.id === reqId);
+  if (req) req[field] = value;
+}
+
+function filterDispatchPartners(reqId) {
+  const input = document.getElementById('dispatchSearch-' + reqId);
+  const q = (input ? input.value : '').toLowerCase();
+  document.querySelectorAll('#dispatchPartnerList-' + reqId + ' .dispatch-opt').forEach(el => {
+    el.style.display = el.dataset.name.includes(q) ? 'flex' : 'none';
+  });
+}
+
+async function sendDispatchMulti(reqId) {
+  const checked = [...document.getElementsByClassName('dispatch-cb-' + reqId)]
+    .filter(cb => cb.checked).map(cb => cb.value);
+  if (!checked.length) { showToast('Выберите хотя бы одного партнёра', 'error'); return; }
+  const existing = new Set(allDispatches.filter(d => d.request_id === reqId).map(d => (d.partner || '').toLowerCase()));
+  const rows = checked
+    .filter(p => !existing.has(p.toLowerCase()))
+    .map(p => ({ request_id: reqId, partner: p, request_item_ids: null, status: 'sent', sent_at: new Date().toISOString() }));
+  if (!rows.length) { showToast('Выбранные партнёры уже добавлены', 'error'); return; }
+  const { error } = await sb.from('request_dispatches').insert(rows);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  const req = allRequests.find(r => r.id === reqId);
+  if (req && req.status === 'new') await sb.from('requests').update({ status: 'sent' }).eq('id', reqId);
+  showToast(`Отправлено: ${rows.length}`, 'success');
+  await loadRequests();
+  openReqDetail(reqId);
+}
+
 async function updateReqStatus(reqId, status) {
   await sb.from('requests').update({ status }).eq('id', reqId);
   await loadRequests();
@@ -2109,51 +2101,23 @@ async function deleteRequest(reqId) {
 }
 
 // ── NEW REQUEST ───────────────────────────────────────
-let reqItemRowCount = 0;
-
 function openNewRequestModal() {
-  reqItemRowCount = 0;
   document.getElementById('reqTitle').value = '';
   document.getElementById('reqDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('reqNotes').value = '';
-  document.getElementById('reqItemsRows').innerHTML = '';
-  addReqItemRow();
+  document.getElementById('reqRaw').value = '';
   document.getElementById('newReqOverlay').classList.remove('hidden');
-}
-
-function addReqItemRow() {
-  const id = ++reqItemRowCount;
-  const row = document.createElement('div');
-  row.id = `req-row-${id}`;
-  row.style.cssText = 'display:flex;align-items:center;gap:6px';
-  row.innerHTML = `
-    <input class="form-input req-item-text" data-id="${id}" type="text"
-      placeholder="Например: Gamblerina | ES | Crash | 130 EUR | ASO"
-      style="flex:1;font-size:12px;font-family:'IBM Plex Mono',monospace"
-      onkeydown="if(event.key==='Enter'){event.preventDefault();addReqItemRow()}">
-    <button class="icon-btn" onclick="document.getElementById('req-row-${id}').remove()" style="color:var(--text3);flex-shrink:0"><i class="ti ti-x"></i></button>`;
-  document.getElementById('reqItemsRows').appendChild(row);
-  row.querySelector('input').focus();
 }
 
 async function saveNewRequest() {
   const title = document.getElementById('reqTitle').value.trim();
   const received_at = document.getElementById('reqDate').value || null;
-  const notes = document.getElementById('reqNotes').value.trim() || null;
-  if (!title) { showToast('Укажите заголовок', 'error'); return; }
+  const raw_text = document.getElementById('reqRaw').value;
+  if (!title) { showToast('Укажите партнёра', 'error'); return; }
 
-  const lines = [...document.querySelectorAll('.req-item-text')]
-    .map(el => el.value.trim()).filter(v => v);
+  const { error } = await sb.from('requests')
+    .insert({ title, received_at, raw_text: raw_text || null, status: 'new', project: reqProject });
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
 
-  const { data: reqData, error: reqErr } = await sb.from('requests')
-    .insert({ title, received_at, notes, status: 'new', project: reqProject }).select().single();
-  if (reqErr) { showToast('Ошибка: ' + reqErr.message, 'error'); return; }
-
-  if (lines.length) {
-    const itemsToInsert = lines.map(text => ({ request_id: reqData.id, raw_text: text, found_status: 'pending' }));
-    const { error: itemErr } = await sb.from('request_items').insert(itemsToInsert);
-    if (itemErr) { showToast('Ошибка сохранения офферов: ' + itemErr.message, 'error'); return; }
-  }
   document.getElementById('newReqOverlay').classList.add('hidden');
   showToast('Запрос сохранён', 'success');
   loadRequests();
@@ -3240,26 +3204,19 @@ function showToast(msg,type='success') {
       <button class="icon-btn" onclick="document.getElementById('newReqOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
-      <div class="form-grid" style="margin-bottom:14px">
+      <div class="form-grid">
         <div class="form-group">
-          <label class="form-label">Заголовок запроса</label>
-          <input class="form-input" type="text" id="reqTitle" placeholder="Например: Rich Traff — ES Crash">
+          <label class="form-label">Партнёр</label>
+          <input class="form-input" type="text" id="reqTitle" placeholder="От кого пришёл запрос">
         </div>
         <div class="form-group">
           <label class="form-label">Дата получения</label>
           <input class="form-input" type="date" id="reqDate">
         </div>
         <div class="form-group full">
-          <label class="form-label">Заметки / контекст</label>
-          <input class="form-input" type="text" id="reqNotes" placeholder="От кого получен, контекст...">
+          <label class="form-label">Запрос</label>
+          <textarea class="form-input" id="reqRaw" rows="9" placeholder="Вставьте запрос как есть — формат сохранится" style="resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;min-height:170px"></textarea>
         </div>
-      </div>
-      <div style="border-top:0.5px solid var(--border);padding-top:14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">ОФФЕРЫ — каждая строка это один оффер</span>
-          <button class="btn btn-ghost" onclick="addReqItemRow()" style="font-size:11px;padding:4px 10px"><i class="ti ti-plus"></i>Добавить строку</button>
-        </div>
-        <div id="reqItemsRows" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
     </div>
     <div class="modal-footer">
