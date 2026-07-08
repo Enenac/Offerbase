@@ -432,7 +432,7 @@ tr:hover .row-actions{opacity:1}
       <div class="leftnav-item" id="lnav-partners" onclick="switchPage('partners')" title="База партнёров">
         <i class="ti ti-users"></i><span>Партнёры</span>
       </div>
-      <div class="leftnav-item" id="lnav-requests" onclick="switchPage('requests')" title="Запросы" style="display:none">
+      <div class="leftnav-item" id="lnav-requests" onclick="switchPage('requests')" title="Запросы">
         <i class="ti ti-inbox"></i><span>Запросы</span>
       </div>
     </div>
@@ -1127,7 +1127,6 @@ function switchProject(p) {
   } else if (currentPage === 'deliveries') {
     loadDeliveries();
   } else if (currentPage === 'requests') {
-    if (!isAdmin) return;
     reqProject = p;
     updateReqProjectTabs();
     loadRequests();
@@ -1628,21 +1627,25 @@ function doLogin() {
   if (pw === ADMIN_PASSWORD) {
     isAdmin = true;
     closeLoginModal();
-    document.getElementById('lnav-requests').style.display = 'flex';
+    const ac = document.getElementById('reqAdminControls');
+    if (ac) ac.style.display = 'flex';
     document.getElementById('lnav-login').querySelector('i').className = 'ti ti-lock-open';
     document.getElementById('lnav-login').style.color = 'var(--accent)';
     showToast('Добро пожаловать', 'success');
-    loadRequests();
+    if (currentPage === 'requests') loadRequests();
   } else {
     document.getElementById('loginError').style.display = 'block';
   }
 }
 function doLogout() {
   isAdmin = false;
-  document.getElementById('lnav-requests').style.display = 'none';
+  const ac = document.getElementById('reqAdminControls');
+  if (ac) ac.style.display = 'none';
+  const sr = document.getElementById('showRejected'); if (sr) sr.checked = false;
+  const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
   document.getElementById('lnav-login').querySelector('i').className = 'ti ti-lock';
   document.getElementById('lnav-login').style.color = '';
-  if (currentPage === 'requests') switchPage('offers');
+  if (currentPage === 'requests') renderRequests();
 }
 
 // ── SWITCH PROJECT (global) ───────────────────────────
@@ -1691,7 +1694,7 @@ async function loadRequests() {
 }
 
 const REQ_STATUS_LABELS = {
-  new: 'Новый', sent: 'Отправлен', proposed: 'Предложен', rejected: 'Отклонён', closed: 'Закрыт'
+  new: 'Новый', sent: 'Отправлен', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт'
 };
 
 const KB_COLUMNS = [
@@ -1706,16 +1709,19 @@ const KB_COUNT_STYLES = {
   'cnt-sent': 'background:#2a1f0a;color:#f59e0b;border:0.5px solid #5a3f0a',
   'cnt-prop': 'background:#0a2a1a;color:#10b981;border:0.5px solid #0a5a2a',
   'cnt-rej':  'background:#2a0a0a;color:#ef4444;border:0.5px solid #5a1a1a',
+  'cnt-nf':   'background:#0a2030;color:#0ea5e9;border:0.5px solid #0a4a6a',
   'cnt-cls':  'background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)',
 };
 
 function renderRequests() {
   const board = document.getElementById('kanbanBoard');
   const showRejected = document.getElementById('showRejected')?.checked;
+  const showNotFound = document.getElementById('showNotFound')?.checked;
 
-  const cols = showRejected
-    ? [...KB_COLUMNS.slice(0,3), { key:'rejected', label:'Отклонён', dot:'#ef4444', countCls:'cnt-rej' }, KB_COLUMNS[3]]
-    : KB_COLUMNS;
+  const cols = [...KB_COLUMNS.slice(0, 3)]; // Новый, Отправлен, Предложен
+  if (showRejected) cols.push({ key: 'rejected',  label: 'Отклонён',  dot: '#ef4444', countCls: 'cnt-rej' });
+  if (showNotFound) cols.push({ key: 'not_found', label: 'Не найдено', dot: '#0ea5e9', countCls: 'cnt-nf' });
+  cols.push(KB_COLUMNS[3]); // Закрыт
 
   board.style.gridTemplateColumns = `repeat(${cols.length}, minmax(0, 1fr))`;
 
@@ -1769,7 +1775,7 @@ function renderKbCard(req) {
     </div>` : ''}
     <div style="display:flex;justify-content:flex-end;margin-top:6px">
       <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onclick="event.stopPropagation()" onchange="updateReqStatus('${req.id}', this.value)">
-        ${['new','sent','proposed','rejected','closed'].map(s =>
+        ${['new','sent','proposed','rejected','not_found','closed'].map(s =>
           `<option value="${s}" ${req.status===s?'selected':''}>${REQ_STATUS_LABELS[s]}</option>`
         ).join('')}
       </select>
@@ -2879,7 +2885,6 @@ function switchPage(page) {
     document.getElementById('partnersPage').style.display = 'flex';
     loadPartners();
   } else if (page === 'requests') {
-    if (!isAdmin) return;
     if (reqSec) reqSec.style.display = 'flex';
     currentProject = currentProject === 'requests' ? 'smerch' : currentProject;
     reqProject = currentProject;
@@ -3223,13 +3228,17 @@ function showToast(msg,type='success') {
 <div id="requestsSection" style="display:none;flex-direction:column;flex:1;overflow:hidden">
   <!-- Kanban toolbar -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)">
-    <div style="display:flex;align-items:center;gap:12px">
+    <div id="reqAdminControls" style="display:none;align-items:center;gap:16px">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
         <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
         <span>Показать отклонённые</span>
       </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+        <input type="checkbox" id="showNotFound" onchange="renderRequests()" style="accent-color:var(--accent)">
+        <span>Показать не найдено</span>
+      </label>
     </div>
-    <button class="btn btn-primary" onclick="openNewRequestModal()"><i class="ti ti-plus"></i>Новый запрос</button>
+    <button class="btn btn-primary" onclick="openNewRequestModal()" style="margin-left:auto"><i class="ti ti-plus"></i>Новый запрос</button>
   </div>
   <!-- Kanban board -->
   <div style="flex:1;overflow-x:auto;overflow-y:hidden;padding:16px 24px">
