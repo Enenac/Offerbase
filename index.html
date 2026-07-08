@@ -449,13 +449,6 @@ tr:hover .row-actions{opacity:1}
   <div class="main-content">
   <div class="topbar">
     <span class="logo">OfferBase</span>
-    <div class="topbar-right">
-      <div class="search-box" id="topbarSearch">
-        <i class="ti ti-search"></i>
-        <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
-      </div>
-      <button class="btn btn-primary" id="topbarAddBtn" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
-    </div>
   </div>
 
   <div class="projects-nav">
@@ -468,6 +461,16 @@ tr:hover .row-actions{opacity:1}
   </div>
 
 <div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+  <div class="topbar">
+    <span class="logo"><i class="ti ti-table"></i>База офферов</span>
+    <div class="topbar-right">
+      <div class="search-box" id="topbarSearch">
+        <i class="ti ti-search"></i>
+        <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
+      </div>
+      <button class="btn btn-primary" id="topbarAddBtn" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
+    </div>
+  </div>
   <div class="filters-bar" id="filtersBar">
     <span class="filter-label">Фильтры</span>
 
@@ -2895,8 +2898,6 @@ function switchPage(page) {
     document.getElementById('deliveriesPage').style.display = 'flex';
     loadDeliveries();
   }
-  document.getElementById('topbarAddBtn').style.display = page === 'offers' ? '' : 'none';
-  document.getElementById('topbarSearch').style.display = page === 'offers' ? '' : 'none';
   document.getElementById('count-smerch').style.display = page === 'offers' ? '' : 'none';
   document.getElementById('count-phantom').style.display = page === 'offers' ? '' : 'none';
 }
@@ -3224,19 +3225,21 @@ function showToast(msg,type='success') {
 
 <!-- ── REQUESTS SECTION ─────────────────────────────── -->
 <div id="requestsSection" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-  <!-- Kanban toolbar -->
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg2)">
-    <div id="reqAdminControls" style="display:none;align-items:center;gap:16px">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
-        <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
-        <span>Показать отклонённые</span>
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
-        <input type="checkbox" id="showNotFound" onchange="renderRequests()" style="accent-color:var(--accent)">
-        <span>Показать не найдено</span>
-      </label>
+  <div class="topbar">
+    <span class="logo"><i class="ti ti-inbox"></i>Запросы</span>
+    <div class="topbar-right">
+      <div id="reqAdminControls" style="display:none;align-items:center;gap:16px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+          <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
+          <span>Показать отклонённые</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+          <input type="checkbox" id="showNotFound" onchange="renderRequests()" style="accent-color:var(--accent)">
+          <span>Показать не найдено</span>
+        </label>
+      </div>
+      <button class="btn btn-primary" onclick="openNewRequestModal()"><i class="ti ti-plus"></i>Новый запрос</button>
     </div>
-    <button class="btn btn-primary" onclick="openNewRequestModal()" style="margin-left:auto"><i class="ti ti-plus"></i>Новый запрос</button>
   </div>
   <!-- Kanban board -->
   <div style="flex:1;overflow-x:auto;overflow-y:hidden;padding:16px 24px">
