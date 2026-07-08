@@ -2330,7 +2330,6 @@ function deduplicateOffers(rows) {
       (o.brand||'').toLowerCase(),
       (o.traffic_source||'').toLowerCase(),
       (o.game_type||'').toLowerCase(),
-      (o.partner||'').toLowerCase(),
     ].join('|');
     const existing = map.get(key);
     if (!existing || parseRateToUsd(o.rate) > parseRateToUsd(existing.rate)) {
