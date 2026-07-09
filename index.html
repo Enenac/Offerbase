@@ -438,6 +438,9 @@ tr:hover .row-actions{opacity:1}
       <div class="leftnav-item" id="lnav-requests" onclick="switchPage('requests')" title="Запросы">
         <i class="ti ti-inbox"></i><span>Запросы</span>
       </div>
+      <div class="leftnav-item" id="lnav-tasks" onclick="switchPage('tasks')" title="Таски" style="display:none">
+        <i class="ti ti-checklist"></i><span>Таски</span>
+      </div>
     </div>
     <div class="leftnav-bottom">
       <div class="leftnav-item" id="lnav-settings" onclick="switchPage('settings')" title="Настройки">
@@ -1629,6 +1632,8 @@ function doLogin() {
     closeLoginModal();
     const ac = document.getElementById('reqAdminControls');
     if (ac) ac.style.display = 'flex';
+    const lt = document.getElementById('lnav-tasks');
+    if (lt) lt.style.display = '';
     updateAccessUI();
     showToast('Добро пожаловать', 'success');
     if (currentPage === 'requests') loadRequests();
@@ -1642,8 +1647,11 @@ function doLogout() {
   if (ac) ac.style.display = 'none';
   const sr = document.getElementById('showRejected'); if (sr) sr.checked = false;
   const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
+  const lt = document.getElementById('lnav-tasks');
+  if (lt) lt.style.display = 'none';
   updateAccessUI();
-  if (currentPage === 'requests') renderRequests();
+  if (currentPage === 'tasks') switchPage('offers');
+  else if (currentPage === 'requests') renderRequests();
 }
 
 function updateAccessUI() {
@@ -1661,11 +1669,68 @@ function updateAccessUI() {
   }
 }
 
+// ── TASKS ─────────────────────────────────────────────
+async function loadTasks() {
+  const { data, error } = await sb.from('tasks').select('*').order('created_at', { ascending: true });
+  if (error) { showToast('Ошибка загрузки задач: ' + error.message, 'error'); return; }
+  allTasks = data || [];
+  renderTasks();
+}
+
+function renderTasks() {
+  const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  ['important', 'other'].forEach(cat => {
+    const list = document.getElementById('tasksList-' + cat);
+    if (!list) return;
+    const items = allTasks.filter(t => t.category === cat)
+      .sort((a, b) => (a.done - b.done) || (new Date(a.created_at) - new Date(b.created_at)));
+    const openCount = items.filter(t => !t.done).length;
+    const cntEl = document.getElementById(cat === 'important' ? 'tasksImportantCount' : 'tasksOtherCount');
+    if (cntEl) cntEl.textContent = items.length ? `${openCount} активных · ${items.length} всего` : '';
+    if (!items.length) {
+      list.innerHTML = `<div style="color:var(--text3);font-size:12px;padding:8px 2px">Пока пусто</div>`;
+      return;
+    }
+    list.innerHTML = items.map(t => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;background:var(--bg);border:0.5px solid var(--border2)">
+        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:15px;height:15px">
+        <span style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word">${esc(t.title)}</span>
+        <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
+      </div>`).join('');
+  });
+}
+
+async function addTask(category) {
+  const input = document.getElementById('taskInput-' + category);
+  const title = (input.value || '').trim();
+  if (!title) return;
+  const { error } = await sb.from('tasks').insert({ category, title, done: false });
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  input.value = '';
+  loadTasks();
+}
+
+async function toggleTask(id, done) {
+  const { error } = await sb.from('tasks').update({ done }).eq('id', id);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  const t = allTasks.find(x => x.id === id);
+  if (t) t.done = done;
+  renderTasks();
+}
+
+async function deleteTask(id) {
+  const { error } = await sb.from('tasks').delete().eq('id', id);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  allTasks = allTasks.filter(t => t.id !== id);
+  renderTasks();
+}
+
 // ── SWITCH PROJECT (global) ───────────────────────────
 // ── REQUESTS DATA ─────────────────────────────────────
 let allRequests = [];
 let allRequestItems = [];
 let allDispatches = [];
+let allTasks = [];
 let reqFilter = 'all';
 let reqProject = 'smerch'; // current project for requests tab
 
@@ -2923,8 +2988,9 @@ let partnerSearchQuery = '';
 let currentPage = 'offers'; // 'offers' | 'partners'
 
 function switchPage(page) {
+  if (page === 'tasks' && !isAdmin) return;
   currentPage = page;
-  ['offers','partners','requests','settings','deliveries'].forEach(x => {
+  ['offers','partners','requests','settings','deliveries','tasks'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
     if (el) el.classList.toggle('active', x === page);
   });
@@ -2934,6 +3000,8 @@ function switchPage(page) {
   document.getElementById('partnersPage').style.display = 'none';
   document.getElementById('settingsPage').style.display = 'none';
   document.getElementById('deliveriesPage').style.display = 'none';
+  const tasksSec = document.getElementById('tasksPage');
+  if (tasksSec) tasksSec.style.display = 'none';
   if (page === 'offers') {
     document.getElementById('offersView').style.display = 'flex';
     currentPage_offers = 0;
@@ -2955,6 +3023,9 @@ function switchPage(page) {
   } else if (page === 'deliveries') {
     document.getElementById('deliveriesPage').style.display = 'flex';
     loadDeliveries();
+  } else if (page === 'tasks') {
+    if (tasksSec) tasksSec.style.display = 'flex';
+    loadTasks();
   }
   document.getElementById('count-smerch').style.display = page === 'offers' ? '' : 'none';
   document.getElementById('count-phantom').style.display = page === 'offers' ? '' : 'none';
@@ -3350,11 +3421,53 @@ function showToast(msg,type='success') {
         </div>
       </div>
 
-      <!-- Access / admin (subtle) -->
-      <div style="display:flex;justify-content:center;padding:2px 0 10px">
-        <button id="settingsLoginBtn" onclick="openLoginModal()" title="Доступ" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;opacity:0.35;display:flex;align-items:center;gap:5px;padding:4px 8px;transition:opacity 0.15s" onmouseover="this.style.opacity=0.75" onmouseout="this.style.opacity=0.35">
-          <i class="ti ti-lock" id="settingsLockIcon" style="font-size:12px"></i><span id="settingsAccessSub">Доступ</span>
-        </button>
+      <!-- Access / admin (hidden hotspot, bottom-right) -->
+      <button id="settingsLoginBtn" onclick="openLoginModal()" title="Доступ"
+        style="position:fixed;bottom:12px;right:18px;z-index:60;background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;opacity:0;display:flex;align-items:center;gap:5px;padding:6px 8px;transition:opacity 0.2s"
+        onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=0">
+        <i class="ti ti-lock" id="settingsLockIcon" style="font-size:12px"></i><span id="settingsAccessSub">Доступ</span>
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── TASKS PAGE ─────────────────────────────── -->
+<div id="tasksPage" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+  <div class="topbar">
+    <span class="logo"><i class="ti ti-checklist"></i>Таски</span>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:24px">
+    <div style="max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:20px">
+
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px">
+          <i class="ti ti-flag-filled" style="color:var(--accent)"></i>
+          <span style="font-size:14px;font-weight:500;color:var(--text1);font-family:'IBM Plex Mono',monospace">Важные</span>
+          <span id="tasksImportantCount" style="font-size:11px;color:var(--text3);margin-left:auto"></span>
+        </div>
+        <div style="padding:12px 18px">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input class="form-input" id="taskInput-important" type="text" placeholder="Новая важная задача..." style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')addTask('important')">
+            <button class="btn btn-primary" onclick="addTask('important')" style="font-size:12px"><i class="ti ti-plus"></i></button>
+          </div>
+          <div id="tasksList-important" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+      </div>
+
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px">
+          <i class="ti ti-list" style="color:var(--text2)"></i>
+          <span style="font-size:14px;font-weight:500;color:var(--text1);font-family:'IBM Plex Mono',monospace">Другие</span>
+          <span id="tasksOtherCount" style="font-size:11px;color:var(--text3);margin-left:auto"></span>
+        </div>
+        <div style="padding:12px 18px">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input class="form-input" id="taskInput-other" type="text" placeholder="Новая задача..." style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')addTask('other')">
+            <button class="btn btn-primary" onclick="addTask('other')" style="font-size:12px"><i class="ti ti-plus"></i></button>
+          </div>
+          <div id="tasksList-other" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
       </div>
 
     </div>
