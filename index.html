@@ -1649,18 +1649,15 @@ function doLogout() {
 function updateAccessUI() {
   const icon = document.getElementById('settingsLockIcon');
   const sub = document.getElementById('settingsAccessSub');
-  const btn = document.getElementById('settingsLoginBtn');
-  if (!icon || !btn) return;
+  if (!icon || !sub) return;
   if (isAdmin) {
     icon.className = 'ti ti-lock-open';
     icon.style.color = 'var(--accent)';
-    if (sub) sub.textContent = 'Вы вошли как администратор';
-    btn.innerHTML = '<i class="ti ti-logout"></i>Выйти';
+    sub.textContent = 'Выйти';
   } else {
     icon.className = 'ti ti-lock';
     icon.style.color = '';
-    if (sub) sub.textContent = 'Вход для расширенных функций';
-    btn.innerHTML = '<i class="ti ti-login"></i>Войти';
+    sub.textContent = 'Доступ';
   }
 }
 
@@ -3353,15 +3350,11 @@ function showToast(msg,type='success') {
         </div>
       </div>
 
-      <!-- Access / admin -->
-      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
-        <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-          <div>
-            <div style="font-size:14px;font-weight:500;color:var(--text1);font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:8px"><i class="ti ti-lock" id="settingsLockIcon"></i>Доступ</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px" id="settingsAccessSub">Вход для расширенных функций</div>
-          </div>
-          <button class="btn btn-primary" id="settingsLoginBtn" onclick="openLoginModal()"><i class="ti ti-login"></i>Войти</button>
-        </div>
+      <!-- Access / admin (subtle) -->
+      <div style="display:flex;justify-content:center;padding:2px 0 10px">
+        <button id="settingsLoginBtn" onclick="openLoginModal()" title="Доступ" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;opacity:0.35;display:flex;align-items:center;gap:5px;padding:4px 8px;transition:opacity 0.15s" onmouseover="this.style.opacity=0.75" onmouseout="this.style.opacity=0.35">
+          <i class="ti ti-lock" id="settingsLockIcon" style="font-size:12px"></i><span id="settingsAccessSub">Доступ</span>
+        </button>
       </div>
 
     </div>
