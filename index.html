@@ -1774,12 +1774,12 @@ async function loadRequests() {
 }
 
 const REQ_STATUS_LABELS = {
-  new: 'Новый', sent: 'Отправлен', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт'
+  new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт'
 };
 
 const KB_COLUMNS = [
   { key: 'new',      label: 'Новый',      dot: '#818cf8', countCls: 'cnt-new' },
-  { key: 'sent',     label: 'Отправлен',  dot: '#f59e0b', countCls: 'cnt-sent' },
+  { key: 'sent',     label: 'В работе',  dot: '#f59e0b', countCls: 'cnt-sent' },
   { key: 'proposed', label: 'Предложен',  dot: '#10b981', countCls: 'cnt-prop' },
   { key: 'closed',   label: 'Закрыт',     dot: '#6b7280', countCls: 'cnt-cls' },
 ];
