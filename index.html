@@ -1916,32 +1916,23 @@ async function onKbPointerUp() {
 }
 
 function renderKbCard(req) {
-  const items = allRequestItems.filter(i => i.request_id === req.id);
   const dispatches = allDispatches.filter(d => d.request_id === req.id);
   const partners = [...new Set(dispatches.map(d => d.partner))].sort();
-  const found = items.filter(i => i.found_status === 'found').length;
-  const total = items.length;
-  const pct = total > 0 ? Math.round((found / total) * 100) : 0;
   const dateStr = req.received_at
     ? new Date(req.received_at).toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'})
     : '';
-
-  const progressColor = req.status === 'rejected' ? '#ef4444' : '#10b981';
+  const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   return `
   <div class="kb-card" data-req-id="${req.id}" data-status="${req.status}">
-    <div class="kb-card-title">${req.title || 'Без названия'}</div>
+    <div class="kb-card-title">${esc(req.title) || 'Без названия'}</div>
     <div class="kb-card-meta">
       ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
     </div>
-    ${isAdmin && partners.length ? `<div style="margin-bottom:4px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${p}</span>`).join('')}</div>` : ''}
-    <div style="display:flex;justify-content:flex-end;margin-top:6px">
-      <select class="form-select" style="font-size:10px;padding:3px 6px;width:auto" onclick="event.stopPropagation()" onchange="updateReqStatus('${req.id}', this.value)">
-        ${['new','sent','proposed','rejected','not_found','closed'].map(s =>
-          `<option value="${s}" ${req.status===s?'selected':''}>${REQ_STATUS_LABELS[s]}</option>`
-        ).join('')}
-      </select>
-      <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red);margin-left:4px"><i class="ti ti-trash"></i></button>
+    ${req.notes ? `<div style="margin-top:8px;padding:8px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:12px;line-height:1.45;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace">${esc(req.notes)}</div>` : ''}
+    ${isAdmin && partners.length ? `<div style="margin-top:8px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${esc(p)}</span>`).join('')}</div>` : ''}
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red)"><i class="ti ti-trash"></i></button>
     </div>
   </div>`;
 }
