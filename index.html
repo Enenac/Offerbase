@@ -235,6 +235,7 @@ tr:hover .row-actions{opacity:1}
 .kb-card.dnd-source{opacity:0.35}
 .kb-card-clone{position:fixed;z-index:9999;box-sizing:border-box;pointer-events:none;margin:0;transform-origin:center;box-shadow:0 14px 30px rgba(0,0,0,0.5);transition:transform 0.12s ease;cursor:grabbing}
 .kb-col.dnd-over{border-color:var(--accent);background:var(--accent-bg)}
+.kb-notes{margin-top:8px;padding:8px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:12px;line-height:1.45;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;height:84px;overflow:hidden;box-sizing:border-box;-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent);mask-image:linear-gradient(to bottom,#000 70%,transparent)}
 .kb-card-title{font-size:12px;font-weight:500;color:var(--text1);margin-bottom:5px;line-height:1.35}
 .kb-card-meta{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
 .kb-tag{padding:1px 6px;border-radius:7px;font-size:10px;background:var(--bg3);border:0.5px solid var(--border);color:var(--text3);font-family:'IBM Plex Mono',monospace}
@@ -1929,7 +1930,7 @@ function renderKbCard(req) {
     <div class="kb-card-meta">
       ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
     </div>
-    ${req.notes ? `<div style="margin-top:8px;padding:8px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:12px;line-height:1.45;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace">${esc(req.notes)}</div>` : ''}
+    <div class="kb-notes">${req.notes ? esc(req.notes) : '<span style="opacity:0.35">—</span>'}</div>
     ${isAdmin && partners.length ? `<div style="margin-top:8px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${esc(p)}</span>`).join('')}</div>` : ''}
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
       <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red)"><i class="ti ti-trash"></i></button>
