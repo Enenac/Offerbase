@@ -1389,6 +1389,14 @@ function flag(geo) {
   return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" width="16" height="12" alt="${geo}" style="border-radius:2px;vertical-align:middle;margin-right:2px;flex-shrink:0" onerror="this.style.display='none'">`;
 }
 
+function flagEmoji(geo) {
+  if (!geo) return '';
+  let code = geo.trim().toUpperCase();
+  if (code === 'UK') code = 'GB';
+  if (!/^[A-Z]{2}$/.test(code)) return '';
+  return String.fromCodePoint(0x1F1E6 + code.charCodeAt(0) - 65, 0x1F1E6 + code.charCodeAt(1) - 65);
+}
+
 function sourceBadge(s) {
   if (!s) return '<span class="td-empty">—</span>';
   const m={FB:'badge-fb',SEO:'badge-seo',PPC:'badge-ppc',Push:'badge-push',Social:'badge-social',Native:'badge-native','Sms/Email':'badge-email','In-App':'badge-native',ASO:'badge-seo',UAC:'badge-ppc',Influence:'badge-social','Tik-Tok':'badge-social'};
@@ -2477,7 +2485,13 @@ function refreshExportText() {
     for (const f of EXPORT_FIELDS) {
       if (!exportFieldsEnabled[f.key]) continue;
       const v = val(o[f.key]);
-      if (v) parts.push((f.prefix || '') + v);
+      if (!v) continue;
+      if (f.key === 'geo') {
+        const fe = flagEmoji(v);
+        parts.push((fe ? fe + ' ' : '') + (f.prefix || '') + v);
+      } else {
+        parts.push((f.prefix || '') + v);
+      }
     }
     return parts.join(' • ');
   }).filter(Boolean);
