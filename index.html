@@ -591,7 +591,7 @@ tr:hover .row-actions{opacity:1}
     <!-- Rate filter -->
     <div class="filter-dropdown">
       <div class="chip" id="chip-rate" onclick="toggleFilterMenu('rate')"><i class="ti ti-currency-dollar"></i>Ставка</div>
-      <div class="filter-menu hidden" id="menu-rate" style="min-width:210px">
+      <div class="filter-menu hidden" id="menu-rate" style="right:0;left:auto;min-width:210px">
         <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Валюта</div>
           <select id="rateCurrency" class="form-select" style="font-size:11px" onchange="applyRateFilter()">
