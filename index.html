@@ -1917,8 +1917,6 @@ async function onKbPointerUp() {
 }
 
 function renderKbCard(req) {
-  const dispatches = allDispatches.filter(d => d.request_id === req.id);
-  const partners = [...new Set(dispatches.map(d => d.partner))].sort();
   const dateStr = req.received_at
     ? new Date(req.received_at).toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'})
     : '';
@@ -1931,7 +1929,6 @@ function renderKbCard(req) {
       ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
     </div>
     <div class="kb-notes">${req.notes ? esc(req.notes) : '<span style="opacity:0.35">—</span>'}</div>
-    ${isAdmin && partners.length ? `<div style="margin-top:8px">${partners.map(p => `<span class="kb-partner"><i class="ti ti-send" style="font-size:9px"></i>${esc(p)}</span>`).join('')}</div>` : ''}
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
       <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red)"><i class="ti ti-trash"></i></button>
     </div>
@@ -1954,21 +1951,8 @@ async function openReqDetail(reqId) {
 
   document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i><span id="reqTitleDisplay" style="cursor:pointer;border-bottom:1px dashed var(--border2)" title="Нажмите чтобы изменить" onclick="editReqTitle('${req.id}','${(req.title || '').replace(/'/g, "\\'")}')"> ${req.title || 'Без названия'}</span>`;
 
-  const dispatchSection = isAdmin ? `
-    <div style="border-top:0.5px solid var(--border);padding-top:16px">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправить партнёру (Network)</div>
-      <input type="text" class="form-input" id="dispatchSearch-${reqId}" placeholder="Поиск партнёра..." style="font-size:12px;margin-bottom:8px" oninput="filterDispatchPartners('${reqId}')">
-      <div id="dispatchPartnerList-${reqId}" style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;border:0.5px solid var(--border);border-radius:7px;padding:6px;background:var(--bg3)">
-        ${networkPartners.length ? networkPartners.map(p => `
-          <label class="dispatch-opt" data-name="${esc(p).toLowerCase()}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text1)">
-            <input type="checkbox" class="dispatch-cb-${reqId}" value="${esc(p)}" style="accent-color:var(--accent);flex-shrink:0">
-            <span>${esc(p)}</span>
-          </label>`).join('')
-          : `<div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Network-партнёров нет в базе</div>`}
-      </div>
-      <button class="btn btn-primary" style="font-size:11px;width:100%;margin-top:8px" onclick="sendDispatchMulti('${reqId}')"><i class="ti ti-send"></i>Отправить выбранным</button>
-      ${dispatches.length ? `
-      <div style="margin-top:16px">
+  const sentBlock = dispatches.length ? `
+      <div style="margin-bottom:16px">
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправлено партнёрам</div>
         <div style="display:flex;flex-direction:column;gap:6px">
           ${dispatches.map(d => `
@@ -1988,7 +1972,22 @@ async function openReqDetail(reqId) {
               </div>
             </div>`).join('')}
         </div>
-      </div>` : ''}
+      </div>` : '';
+
+  const dispatchSection = isAdmin ? `
+    <div style="border-top:0.5px solid var(--border);padding-top:16px">
+      ${sentBlock}
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Отправить партнёру (Network)</div>
+      <input type="text" class="form-input" id="dispatchSearch-${reqId}" placeholder="Поиск партнёра..." style="font-size:12px;margin-bottom:8px" oninput="filterDispatchPartners('${reqId}')">
+      <div id="dispatchPartnerList-${reqId}" style="max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;border:0.5px solid var(--border);border-radius:7px;padding:6px;background:var(--bg3)">
+        ${networkPartners.length ? networkPartners.map(p => `
+          <label class="dispatch-opt" data-name="${esc(p).toLowerCase()}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text1)">
+            <input type="checkbox" class="dispatch-cb-${reqId}" value="${esc(p)}" style="accent-color:var(--accent);flex-shrink:0">
+            <span>${esc(p)}</span>
+          </label>`).join('')
+          : `<div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Network-партнёров нет в базе</div>`}
+      </div>
+      <button class="btn btn-primary" style="font-size:11px;width:100%;margin-top:8px" onclick="sendDispatchMulti('${reqId}')"><i class="ti ti-send"></i>Отправить выбранным</button>
     </div>` : '';
 
   document.getElementById('reqDetailBody').innerHTML = `
@@ -2004,12 +2003,12 @@ async function openReqDetail(reqId) {
       </div>
 
       <div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Запрос (как пришёл)</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Запрос</div>
         <textarea class="form-input" style="width:100%;min-height:120px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" onchange="saveReqField('${reqId}','raw_text',this.value)">${esc(req.raw_text)}</textarea>
       </div>
 
       <div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Мой формат</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Новый формат</div>
         <textarea class="form-input" style="width:100%;min-height:150px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" placeholder="Преобразуй запрос в удобный формат..." onchange="saveReqField('${reqId}','notes',this.value)">${esc(req.notes)}</textarea>
       </div>
 
