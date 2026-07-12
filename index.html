@@ -1152,6 +1152,8 @@ function switchProject(p) {
     reqProject = p;
     updateReqProjectTabs();
     loadRequests();
+  } else if (currentPage === 'settings') {
+    loadStats();
   }
 }
 
