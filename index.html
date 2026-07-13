@@ -2902,12 +2902,14 @@ let allRegionGeos = []; // [{region_id, geo}]
 let expandedRegionId = null;
 
 async function loadRegions() {
-  const [r1, r2] = await Promise.all([
+  const [r1, r2, r3] = await Promise.all([
     sb.from('regions').select('*').order('name'),
-    sb.from('region_geos').select('*')
+    sb.from('region_geos').select('*'),
+    sb.from('offers').select('geo').not('geo', 'is', null).limit(100000)
   ]);
   allRegions = r1.data || [];
   allRegionGeos = r2.data || [];
+  window._allRegionGeoOptions = [...new Set((r3.data || []).map(o => o.geo).filter(Boolean))].sort();
   renderRegionsList();
 }
 
@@ -2921,8 +2923,8 @@ function renderRegionsList() {
   el.innerHTML = allRegions.map(r => {
     const geos = allRegionGeos.filter(g => g.region_id === r.id).map(g => g.geo);
     const isExpanded = expandedRegionId === r.id;
-    // Only show GEOs that exist in current allOffers AND not assigned to ANY region
-    const availableGeos = [...new Set(allOffers.map(o => o.geo).filter(Boolean))].sort();
+    // Full GEO list from DB (not just the currently paginated offers), minus ones already assigned
+    const availableGeos = window._allRegionGeoOptions || [];
     const assignedGeos = new Set(allRegionGeos.map(g => g.geo));
     const unassigned = availableGeos.filter(g => !assignedGeos.has(g));
 
