@@ -1410,6 +1410,14 @@ function flag(geo) {
   return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" width="16" height="12" alt="${geo}" style="border-radius:2px;vertical-align:middle;margin-right:2px;flex-shrink:0" onerror="this.style.display='none'">`;
 }
 
+function flagEmojiToImg(text) {
+  // Windows fonts can't render flag emoji, so swap regional-indicator pairs for flagcdn images.
+  return (text || '').replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, m => {
+    const code = [...m].map(c => String.fromCharCode(c.codePointAt(0) - 0x1F1E6 + 65)).join('').toLowerCase();
+    return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" width="16" height="12" alt="" style="border-radius:2px;vertical-align:-1px" onerror="this.style.display='none'">`;
+  });
+}
+
 function flagEmoji(geo) {
   if (!geo) return '';
   let code = geo.trim().toUpperCase();
@@ -1948,7 +1956,7 @@ function renderKbCard(req) {
     <div class="kb-card-meta">
       ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
     </div>
-    <div class="kb-notes">${req.notes ? esc(req.notes) : '<span style="opacity:0.35">—</span>'}</div>
+    <div class="kb-notes">${req.notes ? flagEmojiToImg(esc(req.notes)) : '<span style="opacity:0.35">—</span>'}</div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
       <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red)"><i class="ti ti-trash"></i></button>
     </div>
@@ -2802,7 +2810,7 @@ function renderDeliveries() {
         const remindStr = remindDate ? remindDate.toLocaleString('ru', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
         const createdStr = d.created_at ? new Date(d.created_at).toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}) : '—';
         return `<tr>
-          <td style="font-weight:500;color:var(--text1);max-width:320px">${esc(d.notes||d.brand||'—')}</td>
+          <td style="font-weight:500;color:var(--text1);max-width:320px">${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
