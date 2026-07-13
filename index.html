@@ -1680,6 +1680,7 @@ function doLogin() {
     const lt = document.getElementById('lnav-tasks');
     if (lt) lt.style.display = '';
     updateAccessUI();
+    updateRequestsBadge();
     showToast('Добро пожаловать', 'success');
     if (currentPage === 'requests') loadRequests();
   } else {
@@ -1695,6 +1696,7 @@ function doLogout() {
   const lt = document.getElementById('lnav-tasks');
   if (lt) lt.style.display = 'none';
   updateAccessUI();
+  updateRequestsBadge();
   if (currentPage === 'tasks') switchPage('offers');
   else if (currentPage === 'requests') renderRequests();
 }
@@ -1802,6 +1804,7 @@ function updateReqProjectTabs() {
 async function updateRequestsBadge() {
   const el = document.getElementById('reqNewBadge');
   if (!el) return;
+  if (!isAdmin) { el.style.display = 'none'; return; }
   const { count } = await sb.from('requests')
     .select('*', { count: 'exact', head: true })
     .eq('project', currentProject)
