@@ -839,11 +839,24 @@ let sortDir = -1;
 let searchQuery = '';
 let parsedOffers = [];
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   if (window.innerWidth <= 600) {
     document.getElementById('mobileApp').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
   }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) {
+    await onSignedIn(session.user);
+  } else {
+    document.getElementById('authGate').style.display = 'flex';
+    setTimeout(() => document.getElementById('loginUser')?.focus(), 100);
+  }
+});
+
+let _appInited = false;
+function initApp() {
+  if (_appInited) return;
+  _appInited = true;
   loadOffers();
   loadPartners();
   loadRegions();
@@ -862,7 +875,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('f-date').value = today;
   document.getElementById('bulk-date').value = today;
-});
+}
 
 async function fetchRates() {
   const saved = localStorage.getItem('eurUsdRate');
@@ -1657,62 +1670,67 @@ async function deleteOffer(id) {
 }
 
 // ── AUTH ──────────────────────────────────────────────
-const ADMIN_PASSWORD = 'smerch2024admin';
+const LOGIN_DOMAIN = '@smerch.local';
 let isAdmin = false;
+let currentUser = null;
 
-function openLoginModal() {
-  if (isAdmin) { doLogout(); return; }
-  document.getElementById('loginOverlay').classList.remove('hidden');
-  document.getElementById('loginPassword').value = '';
-  document.getElementById('loginError').style.display = 'none';
-  setTimeout(() => document.getElementById('loginPassword').focus(), 100);
-}
-function closeLoginModal() {
-  document.getElementById('loginOverlay').classList.add('hidden');
-}
-function doLogin() {
+async function doLogin() {
+  const rawUser = (document.getElementById('loginUser').value || '').trim().toLowerCase();
   const pw = document.getElementById('loginPassword').value;
-  if (pw === ADMIN_PASSWORD) {
-    isAdmin = true;
-    closeLoginModal();
-    const ac = document.getElementById('reqAdminControls');
-    if (ac) ac.style.display = 'flex';
-    const lt = document.getElementById('lnav-tasks');
-    if (lt) lt.style.display = '';
-    updateAccessUI();
-    updateRequestsBadge();
-    showToast('Добро пожаловать', 'success');
-    if (currentPage === 'requests') loadRequests();
-  } else {
-    document.getElementById('loginError').style.display = 'block';
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errEl.style.display = 'none';
+  if (!rawUser || !pw) {
+    errEl.textContent = 'Введите логин и пароль';
+    errEl.style.display = 'block';
+    return;
   }
+  const email = rawUser.includes('@') ? rawUser : rawUser + LOGIN_DOMAIN;
+  btn.disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+  btn.disabled = false;
+  if (error) {
+    errEl.textContent = 'Неверный логин или пароль';
+    errEl.style.display = 'block';
+    return;
+  }
+  document.getElementById('loginPassword').value = '';
+  await onSignedIn(data.user);
 }
-function doLogout() {
-  isAdmin = false;
+
+async function onSignedIn(user) {
+  currentUser = user;
+  const { data: profile } = await sb.from('profiles').select('is_admin, name').eq('id', user.id).maybeSingle();
+  isAdmin = !!(profile && profile.is_admin);
+  document.getElementById('authGate').style.display = 'none';
+  applyAdminUI();
+  initApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+// Show/hide admin-only pieces of the UI
+function applyAdminUI() {
   const ac = document.getElementById('reqAdminControls');
-  if (ac) ac.style.display = 'none';
-  const sr = document.getElementById('showRejected'); if (sr) sr.checked = false;
-  const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
+  if (ac) ac.style.display = isAdmin ? 'flex' : 'none';
   const lt = document.getElementById('lnav-tasks');
-  if (lt) lt.style.display = 'none';
+  if (lt) lt.style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) {
+    const sr = document.getElementById('showRejected'); if (sr) sr.checked = false;
+    const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
+  }
   updateAccessUI();
   updateRequestsBadge();
-  if (currentPage === 'tasks') switchPage('offers');
-  else if (currentPage === 'requests') renderRequests();
 }
 
 function updateAccessUI() {
-  const icon = document.getElementById('settingsLockIcon');
   const sub = document.getElementById('settingsAccessSub');
-  if (!icon || !sub) return;
-  if (isAdmin) {
-    icon.className = 'ti ti-lock-open';
-    icon.style.color = 'var(--accent)';
-    sub.textContent = 'Выйти';
-  } else {
-    icon.className = 'ti ti-lock';
-    icon.style.color = '';
-    sub.textContent = 'Доступ';
+  if (sub && currentUser) {
+    const name = (currentUser.email || '').split('@')[0];
+    sub.textContent = 'Выйти (' + name + ')';
   }
 }
 
@@ -3315,22 +3333,23 @@ function showToast(msg,type='success') {
 }
 </script>
 <!-- ── LOGIN MODAL ──────────────────────────────────── -->
-<div class="modal-overlay hidden" id="loginOverlay">
-  <div class="modal" style="max-width:360px">
-    <div class="modal-header">
-      <span class="modal-title"><i class="ti ti-lock"></i>Вход</span>
-      <button class="icon-btn" onclick="closeLoginModal()"><i class="ti ti-x"></i></button>
+<div id="authGate" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px">
+  <div style="width:100%;max-width:360px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;color:var(--accent)">OfferBase</span>
     </div>
-    <div class="modal-body" style="padding:24px">
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Логин</label>
+        <input class="form-input" type="text" id="loginUser" autocomplete="username" placeholder="имя" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+      </div>
       <div class="form-group">
         <label class="form-label">Пароль</label>
-        <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <input class="form-input" type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
-      <div style="color:var(--red);font-size:11px;margin-top:8px;display:none" id="loginError">Неверный пароль</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeLoginModal()">Отмена</button>
-      <button class="btn btn-primary" onclick="doLogin()"><i class="ti ti-login"></i>Войти</button>
+      <div style="color:var(--red);font-size:11px;margin-top:10px;display:none" id="loginError"></div>
+      <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%;margin-top:18px;justify-content:center"><i class="ti ti-login"></i>Войти</button>
     </div>
   </div>
 </div>
@@ -3479,11 +3498,11 @@ function showToast(msg,type='success') {
         </div>
       </div>
 
-      <!-- Access / admin (hidden hotspot, bottom-right) -->
-      <button id="settingsLoginBtn" onclick="openLoginModal()" title="Доступ"
-        style="position:fixed;bottom:12px;right:18px;z-index:60;background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;opacity:0;display:flex;align-items:center;gap:5px;padding:6px 8px;transition:opacity 0.2s"
-        onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=0">
-        <i class="ti ti-lock" id="settingsLockIcon" style="font-size:12px"></i><span id="settingsAccessSub">Доступ</span>
+      <!-- Logout (bottom-right, subtle) -->
+      <button id="settingsLoginBtn" onclick="doLogout()" title="Выйти"
+        style="position:fixed;bottom:12px;right:18px;z-index:60;background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;opacity:0.35;display:flex;align-items:center;gap:5px;padding:6px 8px;transition:opacity 0.2s"
+        onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=0.35">
+        <i class="ti ti-logout" style="font-size:12px"></i><span id="settingsAccessSub">Выйти</span>
       </button>
 
     </div>
