@@ -125,6 +125,7 @@ td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
 .badge-direct{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
 .badge-network{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
 .badge-kpi{background:#1e1008;color:#fb923c;border:0.5px solid #341a0c}
+.badge-softkpi{background:#1a1608;color:#eab308;border:0.5px solid #33290c}
 .badge-nokpi{background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)}
 
 .status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
@@ -549,6 +550,7 @@ tr:hover .row-actions{opacity:1}
       <div class="filter-menu hidden" id="menu-kpi">
         <div class="filter-menu-list">
           <div class="filter-option" onclick="setFilter('kpi','KPI')">KPI</div>
+          <div class="filter-option" onclick="setFilter('kpi','Soft KPI')">Soft KPI</div>
           <div class="filter-option" onclick="setFilter('kpi','No KPI')">No KPI</div>
         </div>
       </div>
@@ -753,6 +755,7 @@ tr:hover .row-actions{opacity:1}
             <select class="form-select" id="f-kpi">
               <option value="">— выбрать —</option>
               <option value="No KPI">No KPI</option>
+              <option value="Soft KPI">Soft KPI</option>
               <option value="KPI">KPI</option>
             </select>
           </div>
@@ -1434,7 +1437,9 @@ function sourceBadge(s) {
 
 function kpiBadge(k) {
   if (!k) return '<span class="td-empty">—</span>';
-  return k==='KPI' ? `<span class="badge badge-kpi">KPI</span>` : `<span class="badge badge-nokpi">No KPI</span>`;
+  if (k === 'KPI') return `<span class="badge badge-kpi">KPI</span>`;
+  if (k === 'Soft KPI') return `<span class="badge badge-softkpi">Soft KPI</span>`;
+  return `<span class="badge badge-nokpi">No KPI</span>`;
 }
 
 function statusBadge(s) {
