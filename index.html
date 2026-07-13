@@ -25,7 +25,8 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM P
 .leftnav-logo{width:60px;height:52px;display:flex;align-items:center;justify-content:center;border-bottom:0.5px solid var(--border);color:var(--accent);font-size:20px;flex-shrink:0}
 .leftnav-items{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;flex:1}
 .leftnav-bottom{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-top:0.5px solid var(--border)}
-.leftnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:48px;padding:8px 4px;border-radius:8px;cursor:pointer;transition:all 0.15s;color:var(--text3);font-size:9px;font-family:'IBM Plex Mono',monospace;text-align:center;border:0.5px solid transparent}
+.leftnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:48px;padding:8px 4px;border-radius:8px;cursor:pointer;transition:all 0.15s;color:var(--text3);font-size:9px;font-family:'IBM Plex Mono',monospace;text-align:center;border:0.5px solid transparent;position:relative}
+.nav-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;display:none;align-items:center;justify-content:center;background:#ef4444;color:#fff;font-size:9px;font-weight:600;font-family:'IBM Plex Mono',monospace;border-radius:8px;line-height:1;border:1.5px solid var(--bg2)}
 .leftnav-item i{font-size:18px}
 .leftnav-item:hover{color:var(--text2);background:var(--bg3)}
 .leftnav-item.active{color:var(--accent);background:var(--accent-bg);border-color:var(--accent-border)}
@@ -456,7 +457,7 @@ tr:hover .row-actions{opacity:1}
         <i class="ti ti-users"></i><span>Партнёры</span>
       </div>
       <div class="leftnav-item" id="lnav-requests" onclick="switchPage('requests')" title="Запросы">
-        <i class="ti ti-inbox"></i><span>Запросы</span>
+        <i class="ti ti-inbox"></i><span>Запросы</span><span class="nav-badge" id="reqNewBadge"></span>
       </div>
       <div class="leftnav-item" id="lnav-tasks" onclick="switchPage('tasks')" title="Таски" style="display:none">
         <i class="ti ti-checklist"></i><span>Таски</span>
@@ -846,6 +847,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadOffers();
   loadPartners();
   loadRegions();
+  updateRequestsBadge();
   initInfiniteScroll();
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
@@ -1144,6 +1146,7 @@ function switchProject(p) {
   document.getElementById('clearFilters').classList.toggle('hidden', !filters.status && !dateFilter);
   ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x)?.classList.toggle('active', x===p));
   currentPage_offers = 0;
+  updateRequestsBadge();
   if (currentPage === 'offers') {
     buildDynamicFilters();
     fetchOffers();
@@ -1796,6 +1799,18 @@ function updateReqProjectTabs() {
   });
 }
 
+async function updateRequestsBadge() {
+  const el = document.getElementById('reqNewBadge');
+  if (!el) return;
+  const { count } = await sb.from('requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('project', currentProject)
+    .eq('status', 'new');
+  const n = count || 0;
+  el.textContent = n > 99 ? '99+' : n;
+  el.style.display = n > 0 ? 'flex' : 'none';
+}
+
 async function loadRequests() {
   reqProject = currentProject; // always sync with global project
   const [r1, r2, r3, r4] = await Promise.all([
@@ -1808,10 +1823,7 @@ async function loadRequests() {
   allRequestItems = r2.data || [];
   allDispatches = r3.data || [];
   allPartners = r4.data || [];
-  // count active requests across ALL projects for the tab badge
-  const { data: allReqCount } = await sb.from('requests').select('status').in('status', ['new','sent']);
-  const countEl = document.getElementById('count-requests');
-  if (countEl) countEl.textContent = (allReqCount || []).length;
+  updateRequestsBadge();
   renderRequests();
 }
 
@@ -1981,6 +1993,9 @@ async function openReqDetail(reqId) {
 
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const dateStr = req.received_at ? new Date(req.received_at).toLocaleDateString('ru-RU') : '—';
+  const timeStr = (isAdmin && req.created_at)
+    ? new Date(req.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    : '';
 
   document.getElementById('reqDetailTitle').innerHTML = `<i class="ti ti-inbox"></i><span id="reqTitleDisplay" style="cursor:pointer;border-bottom:1px dashed var(--border2)" title="Нажмите чтобы изменить" onclick="editReqTitle('${req.id}','${(req.title || '').replace(/'/g, "\\'")}')"> ${req.title || 'Без названия'}</span>`;
 
@@ -2026,7 +2041,7 @@ async function openReqDetail(reqId) {
   document.getElementById('reqDetailBody').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:16px">
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <div style="font-size:11px;color:var(--text3)">Дата получения: <span style="color:var(--text1)">${dateStr}</span></div>
+        <div style="font-size:11px;color:var(--text3)">Дата получения: <span style="color:var(--text1)">${dateStr}</span>${timeStr ? ` <span style="color:var(--text2)">· ${timeStr}</span>` : ''}</div>
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text3)">Статус:</span>
           <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onchange="updateReqStatus('${reqId}', this.value)">
