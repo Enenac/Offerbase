@@ -2838,6 +2838,14 @@ function toLocalDatetimeInput(utcStr) {
   return new Date(d.getTime() - offset).toISOString().slice(0, 16);
 }
 
+// datetime-local gives naive wall time ("2026-07-14T14:00").
+// Parse it as LOCAL time and store real UTC, otherwise it's saved as if it were UTC.
+function fromLocalDatetimeInput(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d) ? null : d.toISOString();
+}
+
 // ── DELIVERIES ────────────────────────────────────────
 let allDeliveries = [];
 let deliveryFilter = 'all';
@@ -2937,7 +2945,7 @@ async function saveDelivery() {
     partner: partner||null,
     created_by: by||null,
     status,
-    remind_at: remind||null,
+    remind_at: fromLocalDatetimeInput(remind),
   };
   const { error } = await sb.from('deliveries').insert(data);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -2965,7 +2973,7 @@ async function updateDelivery() {
     created_by: document.getElementById('edit-del-by').value.trim()||null,
     partner: document.getElementById('edit-del-partner').value.trim()||null,
     status: document.getElementById('edit-del-status').value,
-    remind_at: document.getElementById('edit-del-remind').value||null,
+    remind_at: fromLocalDatetimeInput(document.getElementById('edit-del-remind').value),
   };
   const { error } = await sb.from('deliveries').update(data).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
