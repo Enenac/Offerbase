@@ -1030,15 +1030,16 @@ async function loadStats() {
 }
 
 async function autoExpireOffers() {
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString().split('T')[0];
-  // Expire non-Direct offers older than 7 days (include null partner_type)
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 6);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  // Active window is the last 7 days incl. today (e.g. on the 14th: 8th..14th).
+  // Anything received before the cutoff becomes outdated. Direct partners never expire.
   const { error } = await sb.from('offers')
     .update({ status: 'outdated' })
     .in('status', ['active', 'stop', 'capped'])
     .or('partner_type.neq.Direct,partner_type.is.null')
-    .lt('received_at', weekAgoStr);
+    .lt('received_at', cutoffStr);
   if (error) console.error('autoExpire error:', error);
   else console.log('autoExpire: done');
 }
