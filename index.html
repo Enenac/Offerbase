@@ -2540,18 +2540,46 @@ function refreshExportText() {
   const dedup = document.getElementById('dedupToggle').checked;
   let rows = dedup ? deduplicateOffers(_exportRows) : _exportRows;
   const val = v => (v && v.trim() !== '-') ? v.trim() : null;
+  const isPhantom = currentProject === 'phantom';
+
+  const fieldPart = (f, o) => {
+    const v = val(o[f.key]);
+    if (!v) return '';
+    if (f.key === 'geo') {
+      const fe = flagEmoji(v);
+      return (fe ? fe + ' ' : '') + (f.prefix || '') + v;
+    }
+    return (f.prefix || '') + v;
+  };
+  const fieldByKey = k => EXPORT_FIELDS.find(f => f.key === k);
+  const on = k => exportFieldsEnabled[k];
+
   const lines = rows.map(o => {
     const parts = [];
-    for (const f of EXPORT_FIELDS) {
-      if (!exportFieldsEnabled[f.key]) continue;
-      const v = val(o[f.key]);
-      if (!v) continue;
-      if (f.key === 'geo') {
-        const fe = flagEmoji(v);
-        parts.push((fe ? fe + ' ' : '') + (f.prefix || '') + v);
-      } else {
-        parts.push((f.prefix || '') + v);
+
+    if (isPhantom) {
+      // Phantom: Бренд / GEO / "FB Slots" / остальное — разделитель "/"
+      if (on('brand')) { const p = fieldPart(fieldByKey('brand'), o); if (p) parts.push(p); }
+      if (on('geo'))   { const p = fieldPart(fieldByKey('geo'), o);   if (p) parts.push(p); }
+      // источник и тип игры — без разделителя между собой
+      const src  = on('traffic_source') ? fieldPart(fieldByKey('traffic_source'), o) : '';
+      const game = on('game_type')      ? fieldPart(fieldByKey('game_type'), o)      : '';
+      const combo = [src, game].filter(Boolean).join(' ');
+      if (combo) parts.push(combo);
+      for (const f of EXPORT_FIELDS) {
+        if (['brand','geo','traffic_source','game_type'].includes(f.key)) continue;
+        if (!on(f.key)) continue;
+        const p = fieldPart(f, o);
+        if (p) parts.push(p);
       }
+      return parts.join(' / ');
+    }
+
+    // Smerch: как было — GEO • Бренд • Источник • Тип игры • ...
+    for (const f of EXPORT_FIELDS) {
+      if (!on(f.key)) continue;
+      const p = fieldPart(f, o);
+      if (p) parts.push(p);
     }
     return parts.join(' • ');
   }).filter(Boolean);
