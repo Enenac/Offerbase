@@ -753,12 +753,12 @@ tr:hover .row-actions{opacity:1}
           <div class="form-group"><label class="form-label">Мин. депозит</label><input class="form-input" id="f-mindep" placeholder="$20 или 10 EUR"></div>
           <div class="form-group"><label class="form-label">Капа</label><input class="form-input" id="f-capa" placeholder="50/day или 15 FTD"></div>
           <div class="form-group"><label class="form-label">KPI</label>
-            <select class="form-select" id="f-kpi">
-              <option value="">— выбрать —</option>
-              <option value="No KPI">No KPI</option>
-              <option value="Soft KPI">Soft KPI</option>
-              <option value="KPI">KPI</option>
-            </select>
+            <input class="form-input" id="f-kpi" type="text" list="kpi-suggestions" placeholder="No KPI / мин деп + активность...">
+            <datalist id="kpi-suggestions">
+              <option value="No KPI"></option>
+              <option value="Soft KPI"></option>
+              <option value="KPI"></option>
+            </datalist>
           </div>
           <div class="form-group"><label class="form-label">Платформа</label><input class="form-input" id="f-platform" placeholder="Soft2Bet, Extendy..."></div>
           <div class="form-group"><label class="form-label">Партнёр</label><input class="form-input" id="f-partner" placeholder="DEUS, Jack Lead..." oninput="onPartnerNameChange(this.value)"></div>
@@ -962,7 +962,14 @@ function buildSupabaseQuery(countOnly = false) {
   if (filters.status)   q = q.eq('status', filters.status);
   if (filters.source)   q = q.ilike('traffic_source', filters.source);
   if (filters.game)     q = q.ilike('game_type', filters.game);
-  if (filters.kpi)      q = q.eq('kpi', filters.kpi);
+  if (filters.kpi) {
+    if (filters.kpi === 'KPI') {
+      // "KPI" means any non-empty value that isn't No KPI / Soft KPI (incl. custom text)
+      q = q.not('kpi', 'is', null).not('kpi', 'ilike', 'No KPI').not('kpi', 'ilike', 'Soft KPI');
+    } else {
+      q = q.ilike('kpi', filters.kpi);
+    }
+  }
   if (filters.platform) q = q.eq('platform', filters.platform);
   if (filters.partner)  q = q.eq('partner', filters.partner);
   if (filters.exclude_partner) q = q.neq('partner', filters.exclude_partner);
@@ -1453,9 +1460,13 @@ function sourceBadge(s) {
 
 function kpiBadge(k) {
   if (!k) return '<span class="td-empty">—</span>';
-  if (k === 'KPI') return `<span class="badge badge-kpi">KPI</span>`;
-  if (k === 'Soft KPI') return `<span class="badge badge-softkpi">Soft KPI</span>`;
-  return `<span class="badge badge-nokpi">No KPI</span>`;
+  const v = String(k).trim();
+  const low = v.toLowerCase();
+  if (low === 'no kpi') return `<span class="badge badge-nokpi">No KPI</span>`;
+  if (low === 'soft kpi') return `<span class="badge badge-softkpi">Soft KPI</span>`;
+  // Any other value (incl. custom text like "мин деп + активность") shows as KPI
+  const esc = v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return `<span class="badge badge-kpi" title="${esc}">KPI</span>`;
 }
 
 function statusBadge(s) {
