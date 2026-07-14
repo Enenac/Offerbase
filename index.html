@@ -405,6 +405,27 @@ tr:hover .row-actions{opacity:1}
 </head>
 <body>
 <!-- ── MOBILE UI (вне #app) ── -->
+<div id="authGate" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px">
+  <div style="width:100%;max-width:360px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;color:var(--accent)">OfferBase</span>
+    </div>
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:24px">
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Логин</label>
+        <input class="form-input" type="text" id="loginUser" autocomplete="username" placeholder="имя" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Пароль</label>
+        <input class="form-input" type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div style="color:var(--red);font-size:11px;margin-top:10px;display:none" id="loginError"></div>
+      <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%;margin-top:18px;justify-content:center"><i class="ti ti-login"></i>Войти</button>
+    </div>
+  </div>
+</div>
+
 <div id="mobileApp" style="display:none;flex-direction:column;height:100dvh;overflow:hidden;position:fixed;inset:0;z-index:10;background:var(--bg)">
   <div class="m-topbar">
     <span class="m-logo">OfferBase</span>
@@ -3386,26 +3407,6 @@ function showToast(msg,type='success') {
 }
 </script>
 <!-- ── LOGIN MODAL ──────────────────────────────────── -->
-<div id="authGate" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px">
-  <div style="width:100%;max-width:360px">
-    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;color:var(--accent)">OfferBase</span>
-    </div>
-    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:24px">
-      <div class="form-group" style="margin-bottom:14px">
-        <label class="form-label">Логин</label>
-        <input class="form-input" type="text" id="loginUser" autocomplete="username" placeholder="имя" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Пароль</label>
-        <input class="form-input" type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
-      </div>
-      <div style="color:var(--red);font-size:11px;margin-top:10px;display:none" id="loginError"></div>
-      <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" style="width:100%;margin-top:18px;justify-content:center"><i class="ti ti-login"></i>Войти</button>
-    </div>
-  </div>
-</div>
 
 <!-- ── NEW REQUEST MODAL ────────────────────────────── -->
 <div class="modal-overlay hidden" id="newReqOverlay">
