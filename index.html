@@ -2702,12 +2702,14 @@ function clearMobileFilter(key) {
 function updateMobileChips() {
   const keys = ['geo','source','gametype','status','partner'];
   const labels = { geo:'GEO', source:'Источник', gametype:'Тип игры', status:'Статус', partner:'Партнёр' };
+  const valLabels = { active:'Активен', stop:'На стопе', capped:'Закончился кап', outdated:'Актуализировать' };
   keys.forEach(k => {
     const el = document.getElementById('mchip-' + k);
     if (!el) return;
     if (mobileFilters[k]) {
+      const shown = (k === 'status' ? (valLabels[mobileFilters[k]] || mobileFilters[k]) : mobileFilters[k]);
       el.classList.add('active');
-      el.innerHTML = `<i class="ti ti-x" style="font-size:9px" onclick="event.stopPropagation();clearMobileFilter('${k}')"></i>${mobileFilters[k]}`;
+      el.innerHTML = `<i class="ti ti-x" style="font-size:9px" onclick="event.stopPropagation();clearMobileFilter('${k}')"></i>${shown}`;
     } else {
       el.classList.remove('active');
       const icons = { geo:'ti-world', source:'ti-arrow-up-right', gametype:'ti-device-gamepad', status:'ti-circle-dot', partner:'ti-users' };
@@ -2739,6 +2741,7 @@ function mSwitchProject(p) {
 function renderMobile() {
   const el = document.getElementById('mOffersList');
   if (!el) return;
+  updateMobileChips();
 
   const rv = document.getElementById('mRateVal');
   if (rv) rv.textContent = eurUsd ? eurUsd.toFixed(3) : '—';
