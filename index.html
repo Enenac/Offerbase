@@ -3217,7 +3217,103 @@ async function loadPartners() {
   allPartners = partnersRes.data || [];
   // Store offer data for partner grid
   window._partnerOffers = countsRes.data || [];
+  detectOrphanPartners();
   renderPartnersGrid();
+}
+
+// Partners that appear in offers but are missing from the partners table
+let orphanPartners = [];
+
+function detectOrphanPartners() {
+  const known = new Set(allPartners.map(p => (p.name || '').trim().toLowerCase()).filter(Boolean));
+  const seen = new Map();
+  (window._partnerOffers || []).forEach(o => {
+    const raw = (o.partner || '').trim();
+    if (!raw) return;
+    const key = raw.toLowerCase();
+    if (known.has(key)) return;
+    if (!seen.has(key)) seen.set(key, { name: raw, count: 0 });
+    seen.get(key).count++;
+  });
+  orphanPartners = [...seen.values()].sort((a, b) => b.count - a.count);
+
+  const banner = document.getElementById('partnerSyncBanner');
+  const text = document.getElementById('partnerSyncText');
+  if (!banner) return;
+  if (orphanPartners.length) {
+    banner.style.display = 'flex';
+    const n = orphanPartners.length;
+    text.textContent = `В офферах найдено ${n} партнёр(ов) без карточки в базе — у их офферов не проставлен тип`;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function openPartnerSyncModal() {
+  const list = document.getElementById('partnerSyncList');
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  list.innerHTML = orphanPartners.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border:0.5px solid var(--border);border-radius:7px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--text1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:1px">${p.count} оффер(ов)</div>
+      </div>
+      <select class="form-select sync-type" data-name="${esc(p.name)}" style="width:auto;font-size:11px;padding:4px 8px">
+        <option value="network">Network</option>
+        <option value="direct">Direct</option>
+      </select>
+      <button class="icon-btn sync-skip" data-idx="${i}" onclick="this.closest('div[style]').remove()" title="Пропустить" style="color:var(--text3)"><i class="ti ti-x"></i></button>
+    </div>`).join('');
+  document.getElementById('partnerSyncOverlay').classList.remove('hidden');
+}
+
+function setAllSyncTypes(type) {
+  document.querySelectorAll('#partnerSyncList .sync-type').forEach(s => { s.value = type; });
+}
+
+async function runPartnerSync() {
+  const rows = [...document.querySelectorAll('#partnerSyncList .sync-type')].map(s => ({
+    name: s.dataset.name,
+    partner_type: s.value,
+  }));
+  if (!rows.length) { showToast('Нечего добавлять', 'error'); return; }
+
+  const btn = document.getElementById('partnerSyncBtn');
+  btn.disabled = true;
+
+  const { error } = await sb.from('partners').insert(
+    rows.map(r => ({ name: r.name, partner_type: r.partner_type, project: currentProject }))
+  );
+  if (error) { btn.disabled = false; showToast('Ошибка: ' + error.message, 'error'); return; }
+
+  // Stamp partner_type onto their offers
+  for (const r of rows) {
+    const label = r.partner_type === 'direct' ? 'Direct' : 'Network';
+    await sb.from('offers').update({ partner_type: label })
+      .eq('project', currentProject).ilike('partner', r.name);
+  }
+
+  btn.disabled = false;
+  document.getElementById('partnerSyncOverlay').classList.add('hidden');
+  showToast(`Добавлено партнёров: ${rows.length}`, 'success');
+  await loadPartners();
+  if (currentPage === 'offers') fetchOffers();
+}
+
+// Re-apply partner_type from the partners table onto all offers of this project
+async function resyncPartnerTypes() {
+  if (!confirm('Перепроставить тип партнёра во всех офферах согласно базе партнёров?')) return;
+  showToast('Обновляю типы...', 'success');
+  let n = 0;
+  for (const p of allPartners) {
+    const label = p.partner_type === 'direct' ? 'Direct' : 'Network';
+    const { error } = await sb.from('offers').update({ partner_type: label })
+      .eq('project', currentProject).ilike('partner', p.name);
+    if (!error) n++;
+  }
+  showToast(`Типы обновлены (${n} партнёров)`, 'success');
+  await loadPartners();
+  if (currentPage === 'offers') fetchOffers();
 }
 
 function renderPartnersGrid() {
@@ -3470,8 +3566,14 @@ function showToast(msg,type='success') {
     <button class="sb-filter-btn" id="pf-direct" onclick="setSbFilter('direct')"><i class="ti ti-user-check" style="font-size:11px;vertical-align:-1px"></i> Direct</button>
     <button class="sb-filter-btn" id="pf-network" onclick="setSbFilter('network')"><i class="ti ti-network" style="font-size:11px;vertical-align:-1px"></i> Network</button>
     <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="resyncPartnerTypes()" title="Перепроставить тип партнёра во всех офферах по базе партнёров"><i class="ti ti-refresh"></i>Обновить типы</button>
       <button class="btn btn-primary" onclick="openAddPartnerModal()"><i class="ti ti-plus"></i>Добавить партнёра</button>
     </div>
+  </div>
+  <div id="partnerSyncBanner" style="display:none;align-items:center;gap:12px;padding:10px 24px;background:#1e1608;border-bottom:0.5px solid #33290c;flex-shrink:0">
+    <i class="ti ti-alert-triangle" style="color:#eab308;font-size:15px"></i>
+    <span style="font-size:12px;color:var(--text1)" id="partnerSyncText"></span>
+    <button class="btn btn-primary" style="margin-left:auto;font-size:11px;padding:5px 12px" onclick="openPartnerSyncModal()"><i class="ti ti-plug-connected"></i>Синхронизировать</button>
   </div>
   <!-- Partners grid -->
   <div style="flex:1;overflow-y:auto;padding:20px 24px">
@@ -3667,6 +3769,31 @@ function showToast(msg,type='success') {
 </div>
 
 <!-- ADD PARTNER MODAL -->
+<div class="modal-overlay hidden" id="partnerSyncOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-plug-connected"></i>Синхронизация партнёров</span>
+      <button class="icon-btn" onclick="document.getElementById('partnerSyncOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">
+        Эти партнёры есть в офферах, но отсутствуют в базе — поэтому у их офферов не проставлен тип.
+        Укажите тип и добавьте их.
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:11px;color:var(--text3)">Проставить всем:</span>
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="setAllSyncTypes('network')">Network</button>
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="setAllSyncTypes('direct')">Direct</button>
+      </div>
+      <div id="partnerSyncList" style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('partnerSyncOverlay').classList.add('hidden')">Отмена</button>
+      <button class="btn btn-primary" id="partnerSyncBtn" onclick="runPartnerSync()"><i class="ti ti-check"></i>Добавить всех</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="addPartnerOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
   <div class="modal" style="max-width:380px">
     <div class="modal-header">
