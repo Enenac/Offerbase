@@ -1435,7 +1435,8 @@ function buildRowHtml(o) {
 
 function flag(geo) {
   if (!geo) return '';
-  const code = geo.trim().toLowerCase();
+  let code = geo.trim().toLowerCase();
+  if (code === 'uk') code = 'gb';
   return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" width="16" height="12" alt="${geo}" style="border-radius:2px;vertical-align:middle;margin-right:2px;flex-shrink:0" onerror="this.style.display='none'">`;
 }
 
