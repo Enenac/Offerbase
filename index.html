@@ -964,8 +964,11 @@ function buildSupabaseQuery(countOnly = false) {
   if (filters.game)     q = q.ilike('game_type', filters.game);
   if (filters.kpi) {
     if (filters.kpi === 'KPI') {
-      // "KPI" means any non-empty value that isn't No KPI / Soft KPI (incl. custom text)
-      q = q.not('kpi', 'is', null).not('kpi', 'ilike', 'No KPI').not('kpi', 'ilike', 'Soft KPI');
+      // "KPI" means any real value that isn't No KPI / Soft KPI / dash (incl. custom text)
+      q = q.not('kpi', 'is', null)
+           .not('kpi', 'ilike', 'No KPI')
+           .not('kpi', 'ilike', 'Soft KPI')
+           .not('kpi', 'in', '("-","–","—","--","")');
     } else {
       q = q.ilike('kpi', filters.kpi);
     }
@@ -1461,6 +1464,7 @@ function sourceBadge(s) {
 function kpiBadge(k) {
   if (!k) return '<span class="td-empty">—</span>';
   const v = String(k).trim();
+  if (!v || ['-','–','—','--'].includes(v)) return '<span class="td-empty">—</span>';
   const low = v.toLowerCase();
   if (low === 'no kpi') return `<span class="badge badge-nokpi">No KPI</span>`;
   if (low === 'soft kpi') return `<span class="badge badge-softkpi">Soft KPI</span>`;
@@ -1647,7 +1651,7 @@ async function saveOffer() {
     game_type: document.getElementById('f-game').value||null,
     min_deposit: document.getElementById('f-mindep').value.trim()||null,
     capa: document.getElementById('f-capa').value.trim()||null,
-    kpi: document.getElementById('f-kpi').value||null,
+    kpi: (() => { const v = (document.getElementById('f-kpi').value || '').trim(); return (!v || ['-','–','—','--'].includes(v)) ? null : v; })(),
     platform: document.getElementById('f-platform').value.trim()||null,
     partner: document.getElementById('f-partner').value.trim()||null,
     partner_type: document.getElementById('f-ptype').value||null,
