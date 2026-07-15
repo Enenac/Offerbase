@@ -2908,11 +2908,34 @@ function renderDeliveries() {
   }
 
   const now = new Date();
-  el.innerHTML = `<table class="del-table">
+  const curSym = c => c === 'USD' ? '$' : '€';
+  // margin = source amount − partner amount, only when both amounts exist and currencies match
+  const marginOf = d => {
+    if (d.amount_src == null || d.amount_out == null) return null;
+    if ((d.amount_src_cur || 'EUR') !== (d.amount_out_cur || 'EUR')) return null;
+    return { value: d.amount_src - d.amount_out, cur: d.amount_src_cur || 'EUR' };
+  };
+
+  // totals per currency across the filtered rows
+  const totals = {};
+  rows.forEach(d => { const m = marginOf(d); if (m) totals[m.cur] = (totals[m.cur] || 0) + m.value; });
+  const totalsStr = Object.keys(totals).length
+    ? Object.entries(totals).map(([c, v]) => `${curSym(c)}${(+v.toFixed(2))}`).join(' · ')
+    : '—';
+
+  el.innerHTML = `
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 12px">
+    <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace">Σ Маржа:</span>
+    <span style="font-size:14px;font-weight:600;color:#10b981;font-family:'IBM Plex Mono',monospace">${totalsStr}</span>
+  </div>
+  <table class="del-table">
     <thead><tr>
       <th>Оффер</th>
       <th>Источник</th>
       <th>Выдаём</th>
+      <th>Получаем</th>
+      <th>Отдаём</th>
+      <th>Маржа</th>
       <th>Статус</th>
       <th>Напоминание</th>
       <th>Дата</th>
@@ -2927,10 +2950,19 @@ function renderDeliveries() {
         const isOverdue = remindDate && remindDate < now && d.status === 'waiting_launch';
         const remindStr = remindDate ? remindDate.toLocaleString('ru', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
         const createdStr = d.created_at ? new Date(d.created_at).toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}) : '—';
+        const srcStr = d.amount_src != null ? `${curSym(d.amount_src_cur||'EUR')}${(+d.amount_src)}` : '<span class="td-empty">—</span>';
+        const outStr = d.amount_out != null ? `${curSym(d.amount_out_cur||'EUR')}${(+d.amount_out)}` : '<span class="td-empty">—</span>';
+        const m = marginOf(d);
+        const mStr = m
+          ? `<span style="font-weight:600;color:${m.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace">${curSym(m.cur)}${(+m.value.toFixed(2))}</span>`
+          : '<span class="td-empty">—</span>';
         return `<tr>
           <td style="font-weight:500;color:var(--text1);max-width:320px">${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
+          <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${srcStr}</td>
+          <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${outStr}</td>
+          <td style="font-size:12px">${mStr}</td>
           <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
           <td><span class="del-remind ${isOverdue?'overdue':''}">${isOverdue?'⚠️ ':''} ${remindStr}</span></td>
           <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px">${createdStr}</td>
@@ -2970,6 +3002,10 @@ async function saveDelivery() {
     created_by: by||null,
     status,
     remind_at: fromLocalDatetimeInput(remind),
+    amount_src: parseFloat(document.getElementById('del-src-amt').value) || null,
+    amount_src_cur: document.getElementById('del-src-cur').value,
+    amount_out: parseFloat(document.getElementById('del-out-amt').value) || null,
+    amount_out_cur: document.getElementById('del-out-cur').value,
   };
   const { error } = await sb.from('deliveries').insert(data);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -2987,6 +3023,10 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-partner').value = d.partner||'';
   document.getElementById('edit-del-status').value = d.status||'waiting_link';
   document.getElementById('edit-del-remind').value = d.remind_at ? toLocalDatetimeInput(d.remind_at) : '';
+  document.getElementById('edit-del-src-amt').value = d.amount_src ?? '';
+  document.getElementById('edit-del-src-cur').value = d.amount_src_cur || 'EUR';
+  document.getElementById('edit-del-out-amt').value = d.amount_out ?? '';
+  document.getElementById('edit-del-out-cur').value = d.amount_out_cur || 'EUR';
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
 }
 
@@ -2998,6 +3038,10 @@ async function updateDelivery() {
     partner: document.getElementById('edit-del-partner').value.trim()||null,
     status: document.getElementById('edit-del-status').value,
     remind_at: fromLocalDatetimeInput(document.getElementById('edit-del-remind').value),
+    amount_src: parseFloat(document.getElementById('edit-del-src-amt').value) || null,
+    amount_src_cur: document.getElementById('edit-del-src-cur').value,
+    amount_out: parseFloat(document.getElementById('edit-del-out-amt').value) || null,
+    amount_out_cur: document.getElementById('edit-del-out-cur').value,
   };
   const { error } = await sb.from('deliveries').update(data).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -3877,6 +3921,22 @@ function showToast(msg,type='success') {
           <input class="form-input" id="del-partner" placeholder="Кому отдаём...">
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Сумма от источника</label>
+          <div style="display:flex;gap:6px">
+            <input class="form-input" type="number" step="any" id="del-src-amt" placeholder="220" style="flex:1">
+            <select class="form-select" id="del-src-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Сумма партнёру</label>
+          <div style="display:flex;gap:6px">
+            <input class="form-input" type="number" step="any" id="del-out-amt" placeholder="210" style="flex:1">
+            <select class="form-select" id="del-out-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
+          </div>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label class="form-label">Статус</label>
@@ -3917,6 +3977,22 @@ function showToast(msg,type='success') {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group"><label class="form-label">Источник оффера</label><input class="form-input" id="edit-del-by" placeholder="Кто нам дал..."></div>
         <div class="form-group"><label class="form-label">Выдаём партнёру</label><input class="form-input" id="edit-del-partner" placeholder="Кому отдаём..."></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Сумма от источника</label>
+          <div style="display:flex;gap:6px">
+            <input class="form-input" type="number" step="any" id="edit-del-src-amt" placeholder="220" style="flex:1">
+            <select class="form-select" id="edit-del-src-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Сумма партнёру</label>
+          <div style="display:flex;gap:6px">
+            <input class="form-input" type="number" step="any" id="edit-del-out-amt" placeholder="210" style="flex:1">
+            <select class="form-select" id="edit-del-out-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
+          </div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
