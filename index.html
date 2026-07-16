@@ -1096,7 +1096,7 @@ async function syncPlatforms() {
   (data || []).forEach(o => {
     const key = (o.brand || '').toLowerCase().trim();
     const plat = (o.platform || '').trim();
-    if (plat && plat !== '-' && plat !== '—') return; // already has platform
+    if (plat) return; // has a value (incl. explicit "-") — don't overwrite
     const known = brandPlatforms[key];
     if (!known || known.size !== 1) return;
     const p = [...known][0];
