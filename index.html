@@ -2772,7 +2772,7 @@ function renderMobile() {
   const dotClass = { active:'active', stop:'stop', capped:'capped', outdated:'outdated', pause:'stop', old:'outdated' };
 
   el.innerHTML = rows.map(o => {
-    const flagCode = (o.geo||'').toLowerCase().slice(0,2);
+    const flagCode = (() => { let c = (o.geo||'').toLowerCase().slice(0,2); return c === 'uk' ? 'gb' : c; })();
     const dc = dotClass[o.status] || 'outdated';
     const isEur = (o.rate||'').includes('€') || (o.rate||'').toLowerCase().includes('eur');
     let usdVal = '';
@@ -3398,7 +3398,7 @@ function renderPartnersGrid() {
             <span></span><span>Бренд / GEO</span><span style="text-align:right">Ставка</span>
           </div>
           ${topOffers.map(o => {
-            const flagCode = (o.geo||'').toLowerCase().slice(0,2);
+            const flagCode = (() => { let c = (o.geo||'').toLowerCase().slice(0,2); return c === 'uk' ? 'gb' : c; })();
             const dotCls = `dot-${o.status||'outdated'}`;
             return `<div class="sb-offer-row">
               <img src="https://flagcdn.com/w20/${flagCode}.png" style="width:14px;height:10px;border-radius:1px;object-fit:cover" onerror="this.style.display='none'">
