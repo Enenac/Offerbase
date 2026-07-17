@@ -1859,7 +1859,7 @@ async function addTask() {
   if (!project) { showToast('Выберите проект', 'error'); return; }
   const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
   const { error } = await sb.from('tasks').insert({
-    title, project, priority, task_category, done: false, sort_order: maxOrder + 1000
+    title, project, priority, task_category, category: 'other', done: false, sort_order: maxOrder + 1000
   });
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   document.getElementById('taskTitle').value = '';
