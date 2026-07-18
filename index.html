@@ -3468,6 +3468,8 @@ let statsScope = 'current'; // 'current' | 'both'
 let _statsDeliveries = [];
 let _statsRequests = [];
 let _statsDispatches = [];
+let _statsOffers = [];
+let _statsPartners = [];
 
 function setStatsPeriod(p) {
   statsPeriod = p;
@@ -3517,6 +3519,29 @@ async function loadStatsPage() {
   _statsDeliveries = dRes.data || [];
   _statsRequests = rRes.data || [];
   _statsDispatches = dispRes.data || [];
+
+  // offers can exceed the 1000-row cap — page through them
+  _statsOffers = [];
+  const PAGE = 1000;
+  for (let i = 0; i < 20; i++) {
+    let oq = sb.from('offers')
+      .select('id,project,geo,brand,status,traffic_source,game_type,partner,partner_type,platform,received_at,rate_usd_num,created_at');
+    if (statsScope === 'current') oq = oq.eq('project', currentProject);
+    const { data: chunk, error: oErr } = await oq
+      .order('received_at', { ascending: false, nullsFirst: false })
+      .range(i * PAGE, i * PAGE + PAGE - 1);
+    if (oErr || !chunk || !chunk.length) break;
+    _statsOffers = _statsOffers.concat(chunk);
+    if (chunk.length < PAGE) break;
+  }
+
+  let pq = sb.from('partners').select('*');
+  if (statsScope === 'current') pq = pq.eq('project', currentProject);
+  const { data: pData } = await pq;
+  _statsPartners = pData || [];
+
+  if (!allRegions.length) await loadRegions();
+
   renderStatsPage();
 }
 
@@ -3789,6 +3814,157 @@ function renderStatsPage() {
         <span class="st-bar-val">${Math.round(x.rate * 100)}% · ${x.found}/${x.answered}</span>
       </div>`).join('') : `<div class="st-empty">Нет отправок за период</div>`;
 
+  // ── 7. OFFERS & PARTNERS ANALYTICS
+  const offAll = _statsOffers;
+  const offActive = offAll.filter(o => o.status === 'active');
+  const offOutdated = offAll.filter(o => o.status === 'outdated');
+
+  const DAY7 = Date.now() - 7 * DAY;
+  const freshCount = offAll.filter(o => o.received_at && new Date(o.received_at).getTime() >= DAY7).length;
+
+  const offerCards = `
+    <div class="st-grid">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-database"></i>Офферов всего</div>
+        <div class="st-kpi">${offAll.length}</div>
+        <div class="st-kpi-sub">${offOutdated.length} устаревших</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-flame"></i>Активных</div>
+        <div class="st-kpi" style="color:#10b981">${offActive.length}</div>
+        <div class="st-kpi-sub">${pct(offActive.length, offAll.length)}% базы</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-sparkles"></i>Пришло за 7 дней</div>
+        <div class="st-kpi">${freshCount}</div>
+        <div class="st-kpi-sub">свежесть базы</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-world"></i>GEO с активными</div>
+        <div class="st-kpi">${new Set(offActive.map(o => o.geo).filter(Boolean)).size}</div>
+        <div class="st-kpi-sub">${new Set(offActive.map(o => o.partner).filter(Boolean)).size} партнёров с активными</div>
+      </div>
+    </div>`;
+
+  // offers received per week (last 12 weeks)
+  const weekKey = d => {
+    const dt = new Date(d);
+    const day = (dt.getDay() + 6) % 7; // monday-based
+    dt.setDate(dt.getDate() - day);
+    dt.setHours(0, 0, 0, 0);
+    return dt.getTime();
+  };
+  const byWeek = {};
+  offAll.forEach(o => {
+    if (!o.received_at) return;
+    const k = weekKey(o.received_at);
+    byWeek[k] = (byWeek[k] || 0) + 1;
+  });
+  const weekKeys = Object.keys(byWeek).map(Number).sort((a, b) => a - b).slice(-12);
+  const maxWeek = Math.max(1, ...weekKeys.map(k => byWeek[k]));
+  const weekRows = weekKeys.length ? weekKeys.map(k => {
+    const label = new Date(k).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    const n = byWeek[k];
+    return `
+      <div class="st-bar-row">
+        <span class="st-bar-label">нед. ${label}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${Math.round((n / maxWeek) * 100)}%"></span></span>
+        <span class="st-bar-val">${n}</span>
+      </div>`;
+  }).join('') : `<div class="st-empty">Нет данных</div>`;
+
+  // generic top-N counter over active offers
+  const topBy = (field, n = 8, src = offActive) => {
+    const acc = {};
+    src.forEach(o => {
+      const k = (o[field] || '').trim();
+      if (!k) return;
+      acc[k] = (acc[k] || 0) + 1;
+    });
+    return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, n);
+  };
+  const countRows = list => {
+    if (!list.length) return `<div class="st-empty">Нет данных</div>`;
+    const max = Math.max(1, ...list.map(x => x[1]));
+    return list.map(([name, n]) => `
+      <div class="st-bar-row">
+        <span class="st-bar-label" title="${esc(name)}">${esc(name)}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${Math.round((n / max) * 100)}%"></span></span>
+        <span class="st-bar-val">${n}</span>
+      </div>`).join('');
+  };
+
+  // avg rate by GEO (USD), only GEOs with enough data
+  const rateAcc = {};
+  offActive.forEach(o => {
+    if (o.rate_usd_num == null || !o.geo) return;
+    if (!rateAcc[o.geo]) rateAcc[o.geo] = { sum: 0, n: 0 };
+    rateAcc[o.geo].sum += Number(o.rate_usd_num);
+    rateAcc[o.geo].n++;
+  });
+  const rateList = Object.entries(rateAcc)
+    .filter(([, v]) => v.n >= 2)
+    .map(([geo, v]) => ({ geo, avg: v.sum / v.n, n: v.n }))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 10);
+  const maxRate = Math.max(1, ...rateList.map(x => x.avg));
+  const rateRows = rateList.length ? rateList.map(x => `
+      <div class="st-bar-row">
+        <span class="st-bar-label">${flag(x.geo)} ${esc(x.geo)}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${Math.round((x.avg / maxRate) * 100)}%"></span></span>
+        <span class="st-bar-val">$${x.avg.toFixed(0)} · ${x.n}</span>
+      </div>`).join('') : `<div class="st-empty">Мало данных по ставкам</div>`;
+
+  // coverage gaps: region GEOs with no active offers
+  const activeGeos = new Set(offActive.map(o => (o.geo || '').toUpperCase()).filter(Boolean));
+  const gaps = [];
+  allRegions.forEach(r => {
+    const geos = allRegionGeos.filter(g => g.region_id === r.id).map(g => (g.geo || '').toUpperCase());
+    const missing = geos.filter(g => g && !activeGeos.has(g));
+    if (missing.length) gaps.push({ region: r.name, missing, total: geos.length });
+  });
+  const gapRows = gaps.length ? gaps.map(g => `
+      <div class="st-mrow">
+        <span style="width:130px;flex-shrink:0;color:var(--text1)">${esc(g.region)}</span>
+        <span style="flex:1;min-width:0;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.missing.map(x => `${flag(x)} ${esc(x)}`).join(' · ')}</span>
+        <span style="flex-shrink:0;font-family:'IBM Plex Mono',monospace;color:var(--red);font-size:11px">${g.missing.length}/${g.total}</span>
+      </div>`).join('') : `<div class="st-empty">Все GEO регионов покрыты</div>`;
+
+  // sleeping partners: in base but no active offers / nothing new for 30+ days
+  const lastByPartner = {};
+  offAll.forEach(o => {
+    if (!o.partner || !o.received_at) return;
+    const t = new Date(o.received_at).getTime();
+    const k = o.partner.trim();
+    if (!lastByPartner[k] || t > lastByPartner[k]) lastByPartner[k] = t;
+  });
+  const activeByPartner = {};
+  offActive.forEach(o => {
+    if (!o.partner) return;
+    const k = o.partner.trim();
+    activeByPartner[k] = (activeByPartner[k] || 0) + 1;
+  });
+  const sleeping = _statsPartners
+    .map(p => {
+      const name = (p.name || '').trim();
+      const last = lastByPartner[name];
+      const days = last ? Math.floor((Date.now() - last) / DAY) : null;
+      return { name, type: p.partner_type, active: activeByPartner[name] || 0, days };
+    })
+    .filter(p => p.active === 0 || (p.days != null && p.days >= 30))
+    .sort((a, b) => (b.days ?? 99999) - (a.days ?? 99999))
+    .slice(0, 15);
+  const sleepRows = sleeping.length ? sleeping.map(p => `
+      <div class="st-mrow">
+        <span style="width:150px;flex-shrink:0;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name) || '—'}</span>
+        <span style="flex:1;color:var(--text3);font-size:11px">${p.type || '—'}</span>
+        <span style="flex-shrink:0;color:var(--text3);font-size:11px">${p.active} активных</span>
+        <span style="flex-shrink:0;width:96px;text-align:right;font-family:'IBM Plex Mono',monospace;color:${(p.days ?? 999) >= 60 ? 'var(--red)' : 'var(--text2)'};font-size:11px">${p.days != null ? p.days + ' дн.' : 'нет офферов'}</span>
+      </div>`).join('') : `<div class="st-empty">Все партнёры активны</div>`;
+
+  const nDirect = _statsPartners.filter(p => (p.partner_type || '').toLowerCase() === 'direct').length;
+  const nNetwork = _statsPartners.filter(p => (p.partner_type || '').toLowerCase() === 'network').length;
+
   el.innerHTML = `
     <div class="st-card-title" style="margin:0">Выдачи и деньги</div>
     ${noDeliveries ? `<div class="st-empty">За выбранный период выдач нет</div>` : ''}
@@ -3838,6 +4014,52 @@ function renderStatsPage() {
     <div class="st-card">
       <div class="st-card-title"><i class="ti ti-send"></i>Отклик партнёров на отправки · доля «нашли» среди ответивших</div>
       ${dispRows}
+    </div>
+
+    <div class="st-card-title" style="margin:14px 0 0">База офферов и партнёры</div>
+    ${offerCards}
+
+    <div class="st-card">
+      <div class="st-card-title"><i class="ti ti-calendar-stats"></i>Поступление офферов по неделям</div>
+      ${weekRows}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-world"></i>Топ GEO по активным офферам</div>
+        ${countRows(topBy('geo'))}
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-users"></i>Топ партнёров по активным офферам</div>
+        ${countRows(topBy('partner'))}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-share"></i>Источники трафика</div>
+        ${countRows(topBy('traffic_source', 6))}
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-device-gamepad"></i>Типы игр</div>
+        ${countRows(topBy('game_type', 6))}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-currency-dollar"></i>Средняя ставка по GEO · USD</div>
+        ${rateRows}
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-map-pin-off"></i>Дыры в покрытии регионов</div>
+        ${gapRows}
+      </div>
+    </div>
+
+    <div class="st-card">
+      <div class="st-card-title"><i class="ti ti-zzz"></i>Спящие партнёры · ${nDirect} Direct / ${nNetwork} Network в базе</div>
+      ${sleepRows}
     </div>`;
 }
 
