@@ -531,6 +531,11 @@ tr:hover .row-actions{opacity:1}
         <i class="ti ti-search"></i>
         <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
       </div>
+      <button class="btn btn-ghost" id="searchScopeBtn" onclick="toggleSearchScope()"
+        style="font-size:11px;padding:6px 11px;display:flex;align-items:center;gap:6px;white-space:nowrap"
+        title="Область поиска: текущий проект или оба">
+        <i class="ti ti-layers-subtract"></i><span id="searchScopeLabel">Этот проект</span>
+      </button>
       <button class="btn btn-primary" id="topbarAddBtn" onclick="openAddModal()"><i class="ti ti-plus"></i>Добавить офферы</button>
     </div>
   </div>
@@ -876,6 +881,22 @@ let filters = {};
 let sortField = 'received_at';
 let sortDir = -1;
 let searchQuery = '';
+// false = search only currentProject, true = search across smerch + phantom
+let searchAllProjects = false;
+
+function toggleSearchScope() {
+  searchAllProjects = !searchAllProjects;
+  const btn = document.getElementById('searchScopeBtn');
+  const label = document.getElementById('searchScopeLabel');
+  if (label) label.textContent = searchAllProjects ? 'Оба проекта' : 'Этот проект';
+  if (btn) {
+    btn.style.background = searchAllProjects ? 'var(--accent-bg)' : '';
+    btn.style.borderColor = searchAllProjects ? 'var(--accent)' : '';
+    btn.style.color = searchAllProjects ? 'var(--text1)' : '';
+  }
+  currentPage_offers = 0;
+  fetchOffers();
+}
 let parsedOffers = [];
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -993,8 +1014,9 @@ function buildSupabaseQuery(countOnly = false) {
     ? sb.from('offers').select('*', { count: 'exact', head: true })
     : sb.from('offers').select('*');
 
-  // Project filter
-  q = q.eq('project', currentProject);
+  // Project filter — skipped when searching across both projects
+  if (!searchAllProjects) q = q.eq('project', currentProject);
+  else q = q.in('project', ['smerch', 'phantom']);
 
   // Filters
   if (filters.geo)      q = q.eq('geo', filters.geo);
@@ -1453,7 +1475,7 @@ function buildRowHtml(o) {
     <tr data-id="${o.id}">
       <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
       <td style="width:70px;min-width:70px"><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
-      <td><span class="td-brand">${esc(o.brand)||'—'}</span></td>
+      <td><span class="td-brand">${esc(o.brand)||'—'}</span>${searchAllProjects?`<span class="badge" style="font-size:9px;padding:1px 5px;margin-left:6px;opacity:0.75">${o.project==='phantom'?'👻':'🌪'}</span>`:''}</td>
       <td><span class="td-rate" style="${isEur?'':'opacity:0.55'}">${fmtEur(conv.eur)}</span></td>
       <td><span class="td-rate" style="${isUsd?'':'opacity:0.55'}">${fmtUsd(conv.usd)}</span></td>
       <td>${sourceBadge(o.traffic_source)}</td>
