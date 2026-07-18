@@ -3466,6 +3466,8 @@ let currentPage = 'offers'; // 'offers' | 'partners'
 let statsPeriod = 'all';   // 'month' | 'prev' | '90' | 'all'
 let statsScope = 'current'; // 'current' | 'both'
 let _statsDeliveries = [];
+let _statsRequests = [];
+let _statsDispatches = [];
 
 function setStatsPeriod(p) {
   statsPeriod = p;
@@ -3503,9 +3505,18 @@ async function loadStatsPage() {
   if (el) el.innerHTML = `<div class="st-empty">Загрузка…</div>`;
   let q = sb.from('deliveries').select('*');
   if (statsScope === 'current') q = q.eq('project', currentProject);
-  const { data, error } = await q.order('created_at', { ascending: false });
-  if (error) { if (el) el.innerHTML = `<div class="st-empty">Ошибка: ${error.message}</div>`; return; }
-  _statsDeliveries = data || [];
+  let rq = sb.from('requests').select('*');
+  if (statsScope === 'current') rq = rq.eq('project', currentProject);
+
+  const [dRes, rRes, dispRes] = await Promise.all([
+    q.order('created_at', { ascending: false }),
+    rq.order('created_at', { ascending: false }),
+    sb.from('request_dispatches').select('*')
+  ]);
+  if (dRes.error) { if (el) el.innerHTML = `<div class="st-empty">Ошибка: ${dRes.error.message}</div>`; return; }
+  _statsDeliveries = dRes.data || [];
+  _statsRequests = rRes.data || [];
+  _statsDispatches = dispRes.data || [];
   renderStatsPage();
 }
 
@@ -3538,10 +3549,7 @@ function renderStatsPage() {
   };
   const rows = _statsDeliveries.filter(inPeriod);
 
-  if (!rows.length) {
-    el.innerHTML = `<div class="st-empty">За выбранный период выдач нет</div>`;
-    return;
-  }
+  const noDeliveries = !rows.length;
 
   // ── 1. Money totals
   const totals = { EUR: 0, USD: 0 };
@@ -3676,7 +3684,114 @@ function renderStatsPage() {
       <span style="flex-shrink:0;width:70px;text-align:right;font-family:'IBM Plex Mono',monospace;color:${d.days >= 21 ? 'var(--red)' : 'var(--text2)'}">${d.days} дн.</span>
     </div>`).join('') : `<div class="st-empty">Зависших нет</div>`;
 
+  // ── 6. REQUESTS ANALYTICS
+  const reqRows = _statsRequests.filter(r => {
+    const t = new Date(r.created_at || 0);
+    if (from && t < from) return false;
+    if (to && t >= to) return false;
+    return true;
+  });
+
+  const RSL = { new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт' };
+  const reqStatusCounts = {};
+  reqRows.forEach(r => { reqStatusCounts[r.status] = (reqStatusCounts[r.status] || 0) + 1; });
+
+  const nReq = reqRows.length;
+  const nProposed = (reqStatusCounts.proposed || 0) + (reqStatusCounts.closed || 0);
+  const nClosed = reqStatusCounts.closed || 0;
+  const nNotFound = reqStatusCounts.not_found || 0;
+  const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
+
+  // time from request creation to first dispatch
+  const dispByReq = {};
+  _statsDispatches.forEach(d => {
+    if (!d.request_id || !d.sent_at) return;
+    const t = new Date(d.sent_at).getTime();
+    if (!dispByReq[d.request_id] || t < dispByReq[d.request_id]) dispByReq[d.request_id] = t;
+  });
+  const HOUR = 3600000;
+  const lags = reqRows
+    .filter(r => dispByReq[r.id] && r.created_at)
+    .map(r => (dispByReq[r.id] - new Date(r.created_at).getTime()) / HOUR)
+    .filter(v => v >= 0);
+  const avgLag = lags.length ? lags.reduce((a, b) => a + b, 0) / lags.length : null;
+  const fmtLag = h => h == null ? '—' : (h < 24 ? `${Math.round(h)} ч` : `${(h / 24).toFixed(1)} дн`);
+
+  const reqCards = `
+    <div class="st-grid">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-inbox"></i>Запросов за период</div>
+        <div class="st-kpi">${nReq}</div>
+        <div class="st-kpi-sub">${reqStatusCounts.new || 0} ещё в статусе «Новый»</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-target-arrow"></i>Дошли до «Предложен»</div>
+        <div class="st-kpi">${pct(nProposed, nReq)}%</div>
+        <div class="st-kpi-sub">${nProposed} из ${nReq} · закрыто ${nClosed}</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-search-off"></i>Не найдено</div>
+        <div class="st-kpi" style="color:${nNotFound ? 'var(--red)' : 'var(--text1)'}">${pct(nNotFound, nReq)}%</div>
+        <div class="st-kpi-sub">${nNotFound} запросов — чего не хватает в базе</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-clock"></i>До первой отправки</div>
+        <div class="st-kpi">${fmtLag(avgLag)}</div>
+        <div class="st-kpi-sub">в среднем · по ${lags.length} запросам</div>
+      </div>
+    </div>`;
+
+  const reqFunnel = Object.keys(RSL).map(k => {
+    const n = reqStatusCounts[k] || 0;
+    const p = pct(n, nReq);
+    return `
+      <div class="st-bar-row">
+        <span class="st-bar-label">${RSL[k]}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${p}%"></span></span>
+        <span class="st-bar-val">${n} · ${p}%</span>
+      </div>`;
+  }).join('');
+
+  const reqByPartner = {};
+  reqRows.forEach(r => {
+    const k = (r.title || '—').trim() || '—';
+    reqByPartner[k] = (reqByPartner[k] || 0) + 1;
+  });
+  const topReqPartners = Object.entries(reqByPartner).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxReqP = Math.max(1, ...topReqPartners.map(x => x[1]));
+  const reqPartnerRows = topReqPartners.length ? topReqPartners.map(([name, n]) => `
+      <div class="st-bar-row">
+        <span class="st-bar-label" title="${esc(name)}">${esc(name)}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${Math.round((n / maxReqP) * 100)}%"></span></span>
+        <span class="st-bar-val">${n}</span>
+      </div>`).join('') : `<div class="st-empty">Нет данных</div>`;
+
+  // dispatch response rating: who actually finds offers
+  const reqIdsInPeriod = new Set(reqRows.map(r => r.id));
+  const dispAgg = {};
+  _statsDispatches.forEach(d => {
+    if (!reqIdsInPeriod.has(d.request_id)) return;
+    const k = (d.partner || '—').trim() || '—';
+    if (!dispAgg[k]) dispAgg[k] = { total: 0, found: 0, no: 0, pending: 0 };
+    dispAgg[k].total++;
+    if (d.status === 'found') dispAgg[k].found++;
+    else if (d.status === 'no') dispAgg[k].no++;
+    else dispAgg[k].pending++;
+  });
+  const dispList = Object.entries(dispAgg)
+    .map(([name, v]) => ({ name, ...v, answered: v.found + v.no, rate: (v.found + v.no) ? v.found / (v.found + v.no) : 0 }))
+    .sort((a, b) => (b.rate - a.rate) || (b.found - a.found))
+    .slice(0, 10);
+  const dispRows = dispList.length ? dispList.map(x => `
+      <div class="st-bar-row">
+        <span class="st-bar-label" title="${esc(x.name)}">${esc(x.name)}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${Math.round(x.rate * 100)}%;background:${x.rate >= 0.5 ? '#10b981' : 'var(--accent)'}"></span></span>
+        <span class="st-bar-val">${Math.round(x.rate * 100)}% · ${x.found}/${x.answered}</span>
+      </div>`).join('') : `<div class="st-empty">Нет отправок за период</div>`;
+
   el.innerHTML = `
+    <div class="st-card-title" style="margin:0">Выдачи и деньги</div>
+    ${noDeliveries ? `<div class="st-empty">За выбранный период выдач нет</div>` : ''}
     ${moneyCards}
 
     <div class="st-card">
@@ -3704,6 +3819,25 @@ function renderStatsPage() {
         <div class="st-card-title"><i class="ti ti-clock-exclamation"></i>Зависли дольше 7 дней</div>
         ${stuckRows}
       </div>
+    </div>
+
+    <div class="st-card-title" style="margin:14px 0 0">Запросы</div>
+    ${reqCards}
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-filter"></i>Статусы запросов</div>
+        ${reqFunnel}
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-users"></i>Топ партнёров по числу запросов</div>
+        ${reqPartnerRows}
+      </div>
+    </div>
+
+    <div class="st-card">
+      <div class="st-card-title"><i class="ti ti-send"></i>Отклик партнёров на отправки · доля «нашли» среди ответивших</div>
+      ${dispRows}
     </div>`;
 }
 
