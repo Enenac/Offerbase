@@ -423,7 +423,15 @@ tr:hover .row-actions{opacity:1}
 </head>
 <body>
 <!-- ── MOBILE UI (вне #app) ── -->
-<div id="authGate" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px">
+<!-- Boot splash: covers everything until the session check resolves (prevents auth flash) -->
+<div id="bootSplash" style="position:fixed;inset:0;z-index:300;background:var(--bg);display:flex;align-items:center;justify-content:center">
+  <div style="display:flex;align-items:center;gap:10px;opacity:0.5">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:500;color:var(--accent)">OfferBase</span>
+  </div>
+</div>
+
+<div id="authGate" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px">
   <div style="width:100%;max-width:360px">
     <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px">
       <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
@@ -904,12 +912,27 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('mobileApp').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
   }
-  const { data: { session } } = await sb.auth.getSession();
-  if (session && session.user) {
-    await onSignedIn(session.user);
-  } else {
+  const hideSplash = () => {
+    const s = document.getElementById('bootSplash');
+    if (!s) return;
+    s.style.transition = 'opacity 0.15s';
+    s.style.opacity = '0';
+    setTimeout(() => s.remove(), 160);
+  };
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user) {
+      await onSignedIn(session.user);
+    } else {
+      document.getElementById('authGate').style.display = 'flex';
+      setTimeout(() => document.getElementById('loginUser')?.focus(), 100);
+    }
+  } catch (e) {
+    // if the session check fails, fall back to the login screen
     document.getElementById('authGate').style.display = 'flex';
-    setTimeout(() => document.getElementById('loginUser')?.focus(), 100);
+  } finally {
+    hideSplash();
   }
 });
 
