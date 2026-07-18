@@ -277,6 +277,9 @@ tr:hover .row-actions{opacity:1}
 .st-empty{font-size:12px;color:var(--text3);text-align:center;padding:18px;font-family:'IBM Plex Mono',monospace}
 .st-mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border2);font-size:12px}
 .st-mrow:last-child{border-bottom:none}
+.row-stale{opacity:0.42}
+.row-stale .td-rate{text-decoration:line-through}
+.ver-badge{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border-radius:5px;border:0.5px solid;font-family:'IBM Plex Mono',monospace;white-space:nowrap;vertical-align:middle;cursor:help}
 .kb-notes{margin-top:8px;padding:8px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:12px;line-height:1.45;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;height:84px;overflow:hidden;box-sizing:border-box;-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent);mask-image:linear-gradient(to bottom,#000 70%,transparent)}
 .task-pf.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 .task-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:var(--bg);border:0.5px solid var(--border2);transition:border-color 0.12s,opacity 0.12s}
@@ -676,6 +679,7 @@ tr:hover .row-actions{opacity:1}
       </div>
     </div>
 
+    <span class="chip" id="chip-actual" onclick="toggleHideSuperseded()" title="Скрыть строки с устаревшей ставкой (перебитые более свежими)"><i class="ti ti-versions" style="font-size:11px"></i>Только актуальные</span>
     <span class="chip-clear hidden" id="clearFilters" onclick="clearAllFilters()"><i class="ti ti-x" style="font-size:10px"></i>Сбросить</span>
 
     <!-- Rate filter -->
@@ -896,6 +900,68 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let allOffers = [];
+
+// ── Offer versions: same partner+geo+brand+source+game_type sent again with a new rate.
+// The newest row is the live one; older ones are superseded (their rate is stale).
+let _offerVersions = {};      // key -> [{id, rate, rate_usd_num, received_at}] newest first
+let _offerVersionsKey = '';   // cache key (scope) the index was built for
+let _offerVersionsStale = true;
+let hideSuperseded = false;
+
+function offerVerKey(o) {
+  const n = v => (v || '').toString().trim().toLowerCase();
+  return [n(o.partner), n(o.geo), n(o.brand), n(o.traffic_source), n(o.game_type)].join('|');
+}
+
+async function buildOfferVersionIndex() {
+  const scopeKey = searchAllProjects ? 'both' : currentProject;
+  if (!_offerVersionsStale && _offerVersionsKey === scopeKey) return;
+
+  const acc = {};
+  const PAGE = 1000;
+  for (let i = 0; i < 20; i++) {
+    let q = sb.from('offers').select('id,project,partner,geo,brand,traffic_source,game_type,rate,rate_usd_num,received_at,created_at,status');
+    if (!searchAllProjects) q = q.eq('project', currentProject);
+    const { data: chunk, error } = await q
+      .order('received_at', { ascending: false, nullsFirst: false })
+      .range(i * PAGE, i * PAGE + PAGE - 1);
+    if (error || !chunk || !chunk.length) break;
+    chunk.forEach(o => {
+      if (!o.partner || !o.brand || !o.geo) return; // need a full key to compare
+      const k = offerVerKey(o);
+      (acc[k] = acc[k] || []).push(o);
+    });
+    if (chunk.length < PAGE) break;
+  }
+  // newest first within each group
+  Object.values(acc).forEach(list => list.sort((a, b) => {
+    const ta = new Date(a.received_at || a.created_at || 0).getTime();
+    const tb = new Date(b.received_at || b.created_at || 0).getTime();
+    return tb - ta || String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  }));
+
+  _offerVersions = acc;
+  _offerVersionsKey = scopeKey;
+  _offerVersionsStale = false;
+}
+
+// returns null when this offer has no other versions
+function offerVersionInfo(o) {
+  if (!o.partner || !o.brand || !o.geo) return null;
+  const list = _offerVersions[offerVerKey(o)];
+  if (!list || list.length < 2) return null;
+  const idx = list.findIndex(x => x.id === o.id);
+  if (idx === -1) return null;
+  const latest = list[0];
+  const isLatest = idx === 0;
+  // for the live row compare against the previous version; for an old row, against the live one
+  const other = isLatest ? list[1] : latest;
+  const cur = o.rate_usd_num == null ? null : Number(o.rate_usd_num);
+  const oth = other.rate_usd_num == null ? null : Number(other.rate_usd_num);
+  let dir = 0;
+  if (cur != null && oth != null && cur !== oth) dir = cur > oth ? 1 : -1;
+  return { isLatest, total: list.length, other, latest, dir };
+}
 let eurUsd = null; // EUR→USD rate
 let usdEur = null; // USD→EUR rate
 let currentProject = 'smerch';
@@ -1044,6 +1110,7 @@ async function fetchOffers() {
   const container = document.querySelector('.table-container');
   if (container) container.scrollTop = 0;
   await updateCounts();
+  await buildOfferVersionIndex();
   buildDynamicFilters();
   renderTable();
 }
@@ -1466,6 +1533,12 @@ function getFiltered() {
   // With server-side pagination, allOffers is already filtered/sorted
   // Only apply client-side rate filter (can't be done server-side easily)
   let rows = allOffers;
+  if (hideSuperseded) {
+    rows = rows.filter(o => {
+      const v = offerVersionInfo(o);
+      return !v || v.isLatest;
+    });
+  }
   if (rateFilter.min != null || rateFilter.max != null) {
     rows = rows.filter(o => {
       const conv = convertRate(o.rate);
@@ -1506,17 +1579,38 @@ function renderTable() {
   if (typeof renderMobile === 'function') renderMobile();
 }
 
+function toggleHideSuperseded() {
+  hideSuperseded = !hideSuperseded;
+  const chip = document.getElementById('chip-actual');
+  if (chip) chip.classList.toggle('active', hideSuperseded);
+  renderTable();
+}
+
+function invalidateOfferVersions() { _offerVersionsStale = true; }
+
 function buildRowHtml(o) {
     const conv = convertRate(o.rate);
     const isEur = parseRate(o.rate)?.currency === 'EUR';
     const isUsd = parseRate(o.rate)?.currency === 'USD';
+    const ver = offerVersionInfo(o);
+    // superseded row: the same offer was re-sent later with a different rate
+    const stale = ver && !ver.isLatest;
+    const verBadge = (() => {
+      if (!ver) return '';
+      const arrow = ver.dir > 0 ? '↑' : (ver.dir < 0 ? '↓' : '=');
+      const color = ver.dir > 0 ? '#10b981' : (ver.dir < 0 ? 'var(--red)' : 'var(--text3)');
+      if (stale) {
+        return `<span class="ver-badge" style="color:var(--text3);border-color:var(--border)" title="Перебит: актуальная ставка ${esc(ver.latest.rate || '—')} от ${ver.latest.received_at || '—'}">перебит</span>`;
+      }
+      return `<span class="ver-badge" style="color:${color};border-color:currentColor" title="Прошлая ставка: ${esc(ver.other.rate || '—')} от ${ver.other.received_at || '—'} · всего версий: ${ver.total}">${arrow} было ${esc(ver.other.rate || '—')}</span>`;
+    })();
     return `
-    <tr data-id="${o.id}">
+    <tr data-id="${o.id}" class="${stale ? 'row-stale' : ''}">
       <td class="bulk-cb-col"><input type="checkbox" class="row-cb" value="${o.id}" onchange="updateBulkBar()" style="accent-color:var(--accent);cursor:pointer"></td>
       <td style="width:70px;min-width:70px"><span class="td-geo">${flag(o.geo)} ${o.geo||'—'}</span></td>
       <td><span class="td-brand">${esc(o.brand)||'—'}</span>${searchAllProjects?`<span class="badge" style="font-size:9px;padding:1px 5px;margin-left:6px;opacity:0.75">${o.project==='phantom'?'👻':'🌪'}</span>`:''}</td>
       <td><span class="td-rate" style="${isEur?'':'opacity:0.55'}">${fmtEur(conv.eur)}</span></td>
-      <td><span class="td-rate" style="${isUsd?'':'opacity:0.55'}">${fmtUsd(conv.usd)}</span></td>
+      <td><span class="td-rate" style="${isUsd?'':'opacity:0.55'}">${fmtUsd(conv.usd)}</span>${verBadge}</td>
       <td>${sourceBadge(o.traffic_source)}</td>
       <td>${o.game_type?`<span class="badge badge-game">${esc(o.game_type)}</span>`:'<span class="td-empty">—</span>'}</td>
       <td>${o.min_deposit?`<span style="color:var(--text3);font-size:11px">${esc(o.min_deposit)}</span>`:'<span class="td-empty">—</span>'}</td>
@@ -1738,6 +1832,7 @@ async function saveOffer() {
     const bulkDate = document.getElementById('bulk-date').value || null;
     const toInsert = parsedOffers.map(o => ({...o, received_at: bulkDate, rate_usd_num: parseRateToUsd(o.rate)}));
     const { error } = await sb.from('offers').insert(toInsert);
+    invalidateOfferVersions();
     btn.disabled=false; btn.innerHTML=`<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
     if (error) { showToast('Ошибка: '+error.message,'error'); return; }
     showToast(`Добавлено ${parsedOffers.length} оффер(ов)`,'success');
@@ -1771,6 +1866,7 @@ async function saveOffer() {
   let error;
   if (editingId) ({error}=await sb.from('offers').update(payload).eq('id',editingId));
   else ({error}=await sb.from('offers').insert(payload));
+  invalidateOfferVersions();
 
   btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить';
   if (error) { showToast('Ошибка: '+error.message,'error'); return; }
@@ -1781,6 +1877,7 @@ async function saveOffer() {
 async function deleteOffer(id) {
   if (!confirm('Удалить этот оффер?')) return;
   const {error} = await sb.from('offers').delete().eq('id',id);
+  invalidateOfferVersions();
   if (error) { showToast('Ошибка удаления','error'); return; }
   showToast('Оффер удалён','success');
   loadOffers();
@@ -2631,6 +2728,7 @@ async function deleteSelected() {
   if (ids.length === 0) return;
   if (!confirm(`Удалить ${ids.length} оффер(ов)?`)) return;
   const { error } = await sb.from('offers').delete().in('id', ids);
+  invalidateOfferVersions();
   if (error) { showToast('Ошибка удаления: ' + error.message, 'error'); return; }
   showToast(`Удалено ${ids.length} оффер(ов)`, 'success');
   bulkMode = false;
