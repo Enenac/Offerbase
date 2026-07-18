@@ -264,6 +264,19 @@ tr:hover .row-actions{opacity:1}
 .rq-chip{font-size:11px;padding:5px 12px;border-radius:8px;background:var(--bg2);border:0.5px solid var(--border2);color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s}
 .rq-chip:hover{border-color:var(--accent)}
 .rq-chip.active{background:var(--accent-bg);border-color:var(--accent);color:var(--text1)}
+.st-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px 18px}
+.st-card-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.st-kpi{font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text1);line-height:1.15}
+.st-kpi-sub{font-size:11px;color:var(--text3);margin-top:4px}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.st-bar-row{display:flex;align-items:center;gap:10px;font-size:12px}
+.st-bar-label{width:130px;flex-shrink:0;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-bar-track{flex:1;height:8px;background:var(--bg3);border-radius:5px;overflow:hidden;min-width:40px}
+.st-bar-fill{height:100%;border-radius:5px;background:var(--accent)}
+.st-bar-val{width:96px;text-align:right;flex-shrink:0;font-family:'IBM Plex Mono',monospace;color:var(--text1);font-size:11px}
+.st-empty{font-size:12px;color:var(--text3);text-align:center;padding:18px;font-family:'IBM Plex Mono',monospace}
+.st-mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border2);font-size:12px}
+.st-mrow:last-child{border-bottom:none}
 .kb-notes{margin-top:8px;padding:8px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:12px;line-height:1.45;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;height:84px;overflow:hidden;box-sizing:border-box;-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent);mask-image:linear-gradient(to bottom,#000 70%,transparent)}
 .task-pf.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 .task-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:var(--bg);border:0.5px solid var(--border2);transition:border-color 0.12s,opacity 0.12s}
@@ -508,6 +521,9 @@ tr:hover .row-actions{opacity:1}
       </div>
       <div class="leftnav-item" id="lnav-tasks" onclick="switchPage('tasks')" title="Таски" style="display:none">
         <i class="ti ti-checklist"></i><span>Таски</span>
+      </div>
+      <div class="leftnav-item" id="lnav-stats" onclick="switchPage('stats')" title="Статистика" style="display:none">
+        <i class="ti ti-chart-bar"></i><span>Стата</span>
       </div>
     </div>
     <div class="leftnav-bottom">
@@ -1819,6 +1835,8 @@ function applyAdminUI() {
   if (ac) ac.style.display = isAdmin ? 'flex' : 'none';
   const lt = document.getElementById('lnav-tasks');
   if (lt) lt.style.display = isAdmin ? '' : 'none';
+  const ls = document.getElementById('lnav-stats');
+  if (ls) ls.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
     const sr = document.getElementById('showRejected'); if (sr) sr.checked = false;
     const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
@@ -3444,10 +3462,256 @@ let expandedPartnerId = null;
 let partnerSearchQuery = '';
 let currentPage = 'offers'; // 'offers' | 'partners'
 
+// ── STATS PAGE (admin only) ──────────────────────────
+let statsPeriod = 'all';   // 'month' | 'prev' | '90' | 'all'
+let statsScope = 'current'; // 'current' | 'both'
+let _statsDeliveries = [];
+
+function setStatsPeriod(p) {
+  statsPeriod = p;
+  document.querySelectorAll('.st-pf').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  renderStatsPage();
+}
+
+function setStatsScope(s) {
+  statsScope = s;
+  document.querySelectorAll('.st-sc').forEach(b => b.classList.toggle('active', b.dataset.s === s));
+  loadStatsPage();
+}
+
+function statsPeriodRange() {
+  const now = new Date();
+  if (statsPeriod === 'month') {
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: null };
+  }
+  if (statsPeriod === 'prev') {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      to: new Date(now.getFullYear(), now.getMonth(), 1)
+    };
+  }
+  if (statsPeriod === '90') {
+    const d = new Date(now); d.setDate(d.getDate() - 90);
+    return { from: d, to: null };
+  }
+  return { from: null, to: null };
+}
+
+async function loadStatsPage() {
+  if (!isAdmin) return;
+  const el = document.getElementById('statsContent');
+  if (el) el.innerHTML = `<div class="st-empty">Загрузка…</div>`;
+  let q = sb.from('deliveries').select('*');
+  if (statsScope === 'current') q = q.eq('project', currentProject);
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) { if (el) el.innerHTML = `<div class="st-empty">Ошибка: ${error.message}</div>`; return; }
+  _statsDeliveries = data || [];
+  renderStatsPage();
+}
+
+// margin only counts when both currencies match
+function deliveryMargin(d) {
+  const src = d.amount_src, out = d.amount_out;
+  if (src == null || out == null) return null;
+  if (!d.amount_src_cur || !d.amount_out_cur) return null;
+  if (d.amount_src_cur !== d.amount_out_cur) return null;
+  return { value: Number(src) - Number(out), cur: d.amount_src_cur };
+}
+
+function fmtMoney(v, cur) {
+  const sign = cur === 'EUR' ? '€' : '$';
+  const rounded = Math.round(v * 100) / 100;
+  return `${sign}${rounded.toLocaleString('ru-RU')}`;
+}
+
+function renderStatsPage() {
+  const el = document.getElementById('statsContent');
+  if (!el) return;
+  const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const { from, to } = statsPeriodRange();
+
+  const inPeriod = d => {
+    const t = new Date(d.created_at || 0);
+    if (from && t < from) return false;
+    if (to && t >= to) return false;
+    return true;
+  };
+  const rows = _statsDeliveries.filter(inPeriod);
+
+  if (!rows.length) {
+    el.innerHTML = `<div class="st-empty">За выбранный период выдач нет</div>`;
+    return;
+  }
+
+  // ── 1. Money totals
+  const totals = { EUR: 0, USD: 0 };
+  const counted = { EUR: 0, USD: 0 };
+  let negative = 0, noMargin = 0;
+  rows.forEach(d => {
+    const m = deliveryMargin(d);
+    if (!m) { noMargin++; return; }
+    totals[m.cur] = (totals[m.cur] || 0) + m.value;
+    counted[m.cur] = (counted[m.cur] || 0) + 1;
+    if (m.value <= 0) negative++;
+  });
+  const avgEur = counted.EUR ? totals.EUR / counted.EUR : null;
+  const avgUsd = counted.USD ? totals.USD / counted.USD : null;
+
+  const moneyCards = `
+    <div class="st-grid">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-coin"></i>Маржа EUR</div>
+        <div class="st-kpi">${fmtMoney(totals.EUR || 0, 'EUR')}</div>
+        <div class="st-kpi-sub">${counted.EUR} выдач · средняя ${avgEur != null ? fmtMoney(avgEur, 'EUR') : '—'}</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-coin"></i>Маржа USD</div>
+        <div class="st-kpi">${fmtMoney(totals.USD || 0, 'USD')}</div>
+        <div class="st-kpi-sub">${counted.USD} выдач · средняя ${avgUsd != null ? fmtMoney(avgUsd, 'USD') : '—'}</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-package"></i>Всего выдач</div>
+        <div class="st-kpi">${rows.length}</div>
+        <div class="st-kpi-sub">${noMargin} без расчёта маржи</div>
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-alert-triangle"></i>В минус или в ноль</div>
+        <div class="st-kpi" style="color:${negative ? 'var(--red)' : 'var(--text1)'}">${negative}</div>
+        <div class="st-kpi-sub">из ${counted.EUR + counted.USD} с маржой</div>
+      </div>
+    </div>`;
+
+  // ── 2. Margin by month
+  const byMonth = {};
+  rows.forEach(d => {
+    const m = deliveryMargin(d);
+    if (!m) return;
+    const dt = new Date(d.created_at);
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+    if (!byMonth[key]) byMonth[key] = { EUR: 0, USD: 0 };
+    byMonth[key][m.cur] += m.value;
+  });
+  const monthKeys = Object.keys(byMonth).sort().slice(-12);
+  const maxMonth = Math.max(1, ...monthKeys.map(k => Math.abs(byMonth[k].EUR) + Math.abs(byMonth[k].USD)));
+  const monthRows = monthKeys.length ? monthKeys.map(k => {
+    const v = byMonth[k];
+    const total = Math.abs(v.EUR) + Math.abs(v.USD);
+    const pct = Math.round((total / maxMonth) * 100);
+    const [y, mo] = k.split('-');
+    const label = new Date(+y, +mo - 1, 1).toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
+    const parts = [];
+    if (v.EUR) parts.push(fmtMoney(v.EUR, 'EUR'));
+    if (v.USD) parts.push(fmtMoney(v.USD, 'USD'));
+    return `
+      <div class="st-bar-row">
+        <span class="st-bar-label">${label}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${pct}%"></span></span>
+        <span class="st-bar-val">${parts.join(' · ') || '—'}</span>
+      </div>`;
+  }).join('') : `<div class="st-empty">Нет данных</div>`;
+
+  // ── 3. Top partners / sources by margin
+  const aggBy = field => {
+    const acc = {};
+    rows.forEach(d => {
+      const m = deliveryMargin(d);
+      if (!m) return;
+      const key = d[field] || '—';
+      if (!acc[key]) acc[key] = { EUR: 0, USD: 0, n: 0 };
+      acc[key][m.cur] += m.value;
+      acc[key].n++;
+    });
+    return Object.entries(acc)
+      .map(([name, v]) => ({ name, ...v, abs: Math.abs(v.EUR) + Math.abs(v.USD) }))
+      .sort((a, b) => b.abs - a.abs)
+      .slice(0, 8);
+  };
+  const barList = list => {
+    if (!list.length) return `<div class="st-empty">Нет данных</div>`;
+    const max = Math.max(1, ...list.map(x => x.abs));
+    return list.map(x => {
+      const parts = [];
+      if (x.EUR) parts.push(fmtMoney(x.EUR, 'EUR'));
+      if (x.USD) parts.push(fmtMoney(x.USD, 'USD'));
+      return `
+        <div class="st-bar-row">
+          <span class="st-bar-label" title="${esc(x.name)}">${esc(x.name)}</span>
+          <span class="st-bar-track"><span class="st-bar-fill" style="width:${Math.round((x.abs / max) * 100)}%"></span></span>
+          <span class="st-bar-val">${parts.join(' · ') || '—'}</span>
+        </div>`;
+    }).join('');
+  };
+
+  // ── 4. Status funnel
+  const STL = { waiting_link: '🔗 Ожидаем ссылку', waiting_launch: '⏳ Ожидаем запуска', launched: '✅ Запущен', problem: '⚠️ Проблема', stopped: '🛑 На стопе' };
+  const statusCounts = {};
+  rows.forEach(d => { statusCounts[d.status] = (statusCounts[d.status] || 0) + 1; });
+  const launched = statusCounts.launched || 0;
+  const conv = rows.length ? Math.round((launched / rows.length) * 100) : 0;
+  const funnel = Object.keys(STL).map(k => {
+    const n = statusCounts[k] || 0;
+    const pct = rows.length ? Math.round((n / rows.length) * 100) : 0;
+    return `
+      <div class="st-bar-row">
+        <span class="st-bar-label">${STL[k]}</span>
+        <span class="st-bar-track"><span class="st-bar-fill" style="width:${pct}%"></span></span>
+        <span class="st-bar-val">${n} · ${pct}%</span>
+      </div>`;
+  }).join('');
+
+  // ── 5. Stuck deliveries (non-final status, older than 7 days)
+  const DAY = 86400000;
+  const stuck = _statsDeliveries
+    .filter(d => d.status === 'waiting_link' || d.status === 'waiting_launch' || d.status === 'problem')
+    .map(d => ({ ...d, days: Math.floor((Date.now() - new Date(d.created_at || Date.now())) / DAY) }))
+    .filter(d => d.days >= 7)
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 15);
+
+  const stuckRows = stuck.length ? stuck.map(d => `
+    <div class="st-mrow">
+      <span style="width:150px;flex-shrink:0;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.partner) || '—'}</span>
+      <span style="flex:1;min-width:0;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((d.notes || '').replace(/\s+/g, ' ').trim()) || '—'}</span>
+      <span style="flex-shrink:0;color:var(--text3);font-size:11px">${STL[d.status] || d.status}</span>
+      <span style="flex-shrink:0;width:70px;text-align:right;font-family:'IBM Plex Mono',monospace;color:${d.days >= 21 ? 'var(--red)' : 'var(--text2)'}">${d.days} дн.</span>
+    </div>`).join('') : `<div class="st-empty">Зависших нет</div>`;
+
+  el.innerHTML = `
+    ${moneyCards}
+
+    <div class="st-card">
+      <div class="st-card-title"><i class="ti ti-chart-bar"></i>Маржа по месяцам</div>
+      ${monthRows}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-users"></i>Топ партнёров по марже</div>
+        ${barList(aggBy('partner'))}
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-arrow-down-circle"></i>Топ источников по марже</div>
+        ${barList(aggBy('created_by'))}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-filter"></i>Статусы выдач · до запуска ${conv}%</div>
+        ${funnel}
+      </div>
+      <div class="st-card">
+        <div class="st-card-title"><i class="ti ti-clock-exclamation"></i>Зависли дольше 7 дней</div>
+        ${stuckRows}
+      </div>
+    </div>`;
+}
+
 function switchPage(page) {
   if (page === 'tasks' && !isAdmin) return;
+  if (page === 'stats' && !isAdmin) return;
   currentPage = page;
-  ['offers','partners','requests','settings','deliveries','tasks'].forEach(x => {
+  ['offers','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
     if (el) el.classList.toggle('active', x === page);
   });
@@ -3459,6 +3723,8 @@ function switchPage(page) {
   document.getElementById('deliveriesPage').style.display = 'none';
   const tasksSec = document.getElementById('tasksPage');
   if (tasksSec) tasksSec.style.display = 'none';
+  const statsSec = document.getElementById('statsPage');
+  if (statsSec) statsSec.style.display = 'none';
   if (page === 'offers') {
     document.getElementById('offersView').style.display = 'flex';
     currentPage_offers = 0;
@@ -3483,6 +3749,9 @@ function switchPage(page) {
   } else if (page === 'tasks') {
     if (tasksSec) tasksSec.style.display = 'flex';
     loadTasks();
+  } else if (page === 'stats') {
+    if (statsSec) statsSec.style.display = 'flex';
+    loadStatsPage();
   }
   document.getElementById('count-smerch').style.display = page === 'offers' ? '' : 'none';
   document.getElementById('count-phantom').style.display = page === 'offers' ? '' : 'none';
@@ -4038,6 +4307,29 @@ function showToast(msg,type='success') {
       </div>
 
     </div>
+  </div>
+</div>
+
+<!-- ── STATS PAGE (admin only) ─────────────────────── -->
+<div id="statsPage" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+  <div class="topbar">
+    <span class="logo"><i class="ti ti-chart-bar"></i>Статистика</span>
+    <div class="topbar-right">
+      <div style="display:flex;gap:4px" id="statsPeriodFilter">
+        <button class="btn btn-ghost st-pf" data-p="month" onclick="setStatsPeriod('month')" style="font-size:12px;padding:6px 11px">Этот месяц</button>
+        <button class="btn btn-ghost st-pf" data-p="prev" onclick="setStatsPeriod('prev')" style="font-size:12px;padding:6px 11px">Прошлый</button>
+        <button class="btn btn-ghost st-pf" data-p="90" onclick="setStatsPeriod('90')" style="font-size:12px;padding:6px 11px">90 дней</button>
+        <button class="btn btn-ghost st-pf active" data-p="all" onclick="setStatsPeriod('all')" style="font-size:12px;padding:6px 11px">Всё время</button>
+      </div>
+      <div style="width:1px;height:22px;background:var(--border);margin:0 4px"></div>
+      <div style="display:flex;gap:4px" id="statsScopeFilter">
+        <button class="btn btn-ghost st-sc active" data-s="current" onclick="setStatsScope('current')" style="font-size:12px;padding:6px 11px">Текущий проект</button>
+        <button class="btn btn-ghost st-sc" data-s="both" onclick="setStatsScope('both')" style="font-size:12px;padding:6px 11px">Оба</button>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:20px 24px">
+    <div id="statsContent" style="max-width:1150px;margin:0 auto;display:flex;flex-direction:column;gap:18px"></div>
   </div>
 </div>
 
