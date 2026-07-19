@@ -1,6 +1,7 @@
 const SUPABASE_URL = "https://qwkcoerixspaojyzesxa.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3a2NvZXJpeHNwYW9qeXplc3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0OTU1MjUsImV4cCI6MjA5NjA3MTUyNX0.5vNIMd2tx1F4pXGvnZkX4iBXE1ZKv-JSO_VuMmQ25EU";
-const TG_TOKEN = "8640173889:AAHuAnXJ_npL2F0FwBn9OuQSstdycLqNSlM";
+// service_role key — bypasses RLS. Never hardcode: set in Vercel env vars.
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const TG_TOKEN = process.env.TG_TOKEN;
 const TG_CHAT_ID = "-1003675580116";
 const TG_THREAD_ID = 861;
 
@@ -35,6 +36,13 @@ async function sendTelegram(text) {
 
 export default async function handler(req, res) {
   try {
+    if (!SUPABASE_KEY || !TG_TOKEN) {
+      return res.status(500).json({
+        error: "Missing env vars",
+        has_supabase_key: !!SUPABASE_KEY,
+        has_tg_token: !!TG_TOKEN
+      });
+    }
     const now = new Date().toISOString();
 
     // Get pending reminders
