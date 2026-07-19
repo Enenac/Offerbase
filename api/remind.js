@@ -1,5 +1,6 @@
 const SUPABASE_URL = "https://qwkcoerixspaojyzesxa.supabase.co";
-// service_role key — bypasses RLS. Never hardcode: set in Vercel env vars.
+// Secrets live in Vercel env vars (SUPABASE_SERVICE_KEY, TG_TOKEN).
+// Note: changing a var requires a redeploy — values are injected at build time.
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const TG_TOKEN = process.env.TG_TOKEN;
 const TG_CHAT_ID = "-1003675580116";
