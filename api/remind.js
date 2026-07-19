@@ -39,7 +39,7 @@ export default async function handler(req, res) {
 
     // Get pending reminders
     const deliveries = await fetchSupabase(
-      `deliveries?remind_at=lte.${now}&remind_sent=eq.false&status=eq.pending&select=*`,
+      `deliveries?remind_at=lte.${now}&remind_sent=eq.false&status=eq.waiting_launch&select=*`,
       { prefer: "return=representation" }
     );
 
