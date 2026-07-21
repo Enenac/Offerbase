@@ -3285,16 +3285,22 @@ function renderDeliveries() {
 
   const now = new Date();
   const curSym = c => c === 'USD' ? '$' : '€';
-  // margin = source amount − partner amount, only when both amounts exist and currencies match
+  // per-deposit margin = source amount − partner amount, only when both amounts exist and currencies match
   const marginOf = d => {
     if (d.amount_src == null || d.amount_out == null) return null;
     if ((d.amount_src_cur || 'EUR') !== (d.amount_out_cur || 'EUR')) return null;
     return { value: d.amount_src - d.amount_out, cur: d.amount_src_cur || 'EUR' };
   };
+  // total margin = per-deposit margin × capa
+  const totalMarginOf = d => {
+    const m = marginOf(d);
+    if (!m || d.capa == null || isNaN(+d.capa)) return null;
+    return { value: m.value * (+d.capa), cur: m.cur };
+  };
 
-  // totals per currency across the filtered rows
+  // totals per currency across the filtered rows — based on TOTAL margin (× capa)
   const totals = {};
-  rows.forEach(d => { const m = marginOf(d); if (m) totals[m.cur] = (totals[m.cur] || 0) + m.value; });
+  rows.forEach(d => { const tm = totalMarginOf(d); if (tm) totals[tm.cur] = (totals[tm.cur] || 0) + tm.value; });
   const totalsStr = Object.keys(totals).length
     ? Object.entries(totals).map(([c, v]) => `${curSym(c)}${(+v.toFixed(2))}`).join(' · ')
     : '—';
@@ -3311,7 +3317,9 @@ function renderDeliveries() {
       <th>Выдаём</th>
       <th>Получаем</th>
       <th>Отдаём</th>
-      <th>Маржа</th>
+      <th>Капа</th>
+      <th>Маржа/деп</th>
+      <th>Маржа × капа</th>
       <th>Статус</th>
       <th>Напоминание</th>
       <th>Дата</th>
@@ -3332,13 +3340,22 @@ function renderDeliveries() {
         const mStr = m
           ? `<span style="font-weight:600;color:${m.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace">${curSym(m.cur)}${(+m.value.toFixed(2))}</span>`
           : '<span class="td-empty">—</span>';
+        const capaStr = (d.capa != null && !isNaN(+d.capa))
+          ? `<span style="font-family:'IBM Plex Mono',monospace">${(+d.capa)}</span>`
+          : '<span class="td-empty">—</span>';
+        const tm = totalMarginOf(d);
+        const tmStr = tm
+          ? `<span style="font-weight:700;color:${tm.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace">${curSym(tm.cur)}${(+tm.value.toFixed(2))}</span>`
+          : '<span class="td-empty">—</span>';
         return `<tr>
           <td style="font-weight:500;color:var(--text1);max-width:320px">${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${srcStr}</td>
           <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${outStr}</td>
+          <td style="color:var(--text2);font-size:12px">${capaStr}</td>
           <td style="font-size:12px">${mStr}</td>
+          <td style="font-size:12px">${tmStr}</td>
           <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
           <td><span class="del-remind ${isOverdue?'overdue':''}">${isOverdue?'⚠️ ':''} ${remindStr}</span></td>
           <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px">${createdStr}</td>
@@ -3371,6 +3388,13 @@ async function saveDelivery() {
   const status = document.getElementById('del-status').value;
   const remind = document.getElementById('del-remind').value;
   if (!offer) { document.getElementById('del-offer').focus(); return; }
+  const capaRaw = document.getElementById('del-capa').value.trim();
+  const capa = parseFloat(capaRaw);
+  if (capaRaw === '' || isNaN(capa) || capa < 0) {
+    showToast('Укажите капу — это обязательное условие выдачи', 'error');
+    document.getElementById('del-capa').focus();
+    return;
+  }
   const data = {
     project: currentProject,
     notes: offer,        // store the free-form offer text in notes
@@ -3382,6 +3406,7 @@ async function saveDelivery() {
     amount_src_cur: document.getElementById('del-src-cur').value,
     amount_out: parseFloat(document.getElementById('del-out-amt').value) || null,
     amount_out_cur: document.getElementById('del-out-cur').value,
+    capa,
   };
   const { error } = await sb.from('deliveries').insert(data);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -3403,11 +3428,19 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-src-cur').value = d.amount_src_cur || 'EUR';
   document.getElementById('edit-del-out-amt').value = d.amount_out ?? '';
   document.getElementById('edit-del-out-cur').value = d.amount_out_cur || 'EUR';
+  document.getElementById('edit-del-capa').value = d.capa ?? '';
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
 }
 
 async function updateDelivery() {
   const id = document.getElementById('edit-del-id').value;
+  const capaRaw = document.getElementById('edit-del-capa').value.trim();
+  const capa = parseFloat(capaRaw);
+  if (capaRaw === '' || isNaN(capa) || capa < 0) {
+    showToast('Укажите капу — это обязательное условие выдачи', 'error');
+    document.getElementById('edit-del-capa').focus();
+    return;
+  }
   const data = {
     notes: document.getElementById('edit-del-notes').value.trim()||null,
     created_by: document.getElementById('edit-del-by').value.trim()||null,
@@ -3418,6 +3451,7 @@ async function updateDelivery() {
     amount_src_cur: document.getElementById('edit-del-src-cur').value,
     amount_out: parseFloat(document.getElementById('edit-del-out-amt').value) || null,
     amount_out_cur: document.getElementById('edit-del-out-cur').value,
+    capa,
   };
   const { error } = await sb.from('deliveries').update(data).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -3643,13 +3677,14 @@ async function loadStatsPage() {
   renderStatsPage();
 }
 
-// margin only counts when both currencies match
+// stats margin = per-deposit margin × capa, only when currencies match and both amounts + capa present
 function deliveryMargin(d) {
   const src = d.amount_src, out = d.amount_out;
   if (src == null || out == null) return null;
   if (!d.amount_src_cur || !d.amount_out_cur) return null;
   if (d.amount_src_cur !== d.amount_out_cur) return null;
-  return { value: Number(src) - Number(out), cur: d.amount_src_cur };
+  if (d.capa == null || isNaN(+d.capa)) return null;
+  return { value: (Number(src) - Number(out)) * (+d.capa), cur: d.amount_src_cur };
 }
 
 function fmtMoney(v, cur) {
@@ -3691,19 +3726,19 @@ function renderStatsPage() {
   const moneyCards = `
     <div class="st-grid">
       <div class="st-card">
-        <div class="st-card-title"><i class="ti ti-coin"></i>Маржа EUR</div>
+        <div class="st-card-title"><i class="ti ti-coin"></i>Маржа EUR · с капой</div>
         <div class="st-kpi">${fmtMoney(totals.EUR || 0, 'EUR')}</div>
         <div class="st-kpi-sub">${counted.EUR} выдач · средняя ${avgEur != null ? fmtMoney(avgEur, 'EUR') : '—'}</div>
       </div>
       <div class="st-card">
-        <div class="st-card-title"><i class="ti ti-coin"></i>Маржа USD</div>
+        <div class="st-card-title"><i class="ti ti-coin"></i>Маржа USD · с капой</div>
         <div class="st-kpi">${fmtMoney(totals.USD || 0, 'USD')}</div>
         <div class="st-kpi-sub">${counted.USD} выдач · средняя ${avgUsd != null ? fmtMoney(avgUsd, 'USD') : '—'}</div>
       </div>
       <div class="st-card">
         <div class="st-card-title"><i class="ti ti-package"></i>Всего выдач</div>
         <div class="st-kpi">${rows.length}</div>
-        <div class="st-kpi-sub">${noMargin} без расчёта маржи</div>
+        <div class="st-kpi-sub">${noMargin} без расчёта (валюты/капа)</div>
       </div>
       <div class="st-card">
         <div class="st-card-title"><i class="ti ti-alert-triangle"></i>В минус или в ноль</div>
@@ -4970,6 +5005,12 @@ function showToast(msg,type='success') {
           </div>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Капа <span style="color:var(--red)">*</span></label>
+          <input class="form-input" type="number" step="any" min="0" id="del-capa" placeholder="Кол-во депозитов">
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label class="form-label">Статус</label>
@@ -5025,6 +5066,12 @@ function showToast(msg,type='success') {
             <input class="form-input" type="number" step="any" id="edit-del-out-amt" placeholder="210" style="flex:1">
             <select class="form-select" id="edit-del-out-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
           </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Капа <span style="color:var(--red)">*</span></label>
+          <input class="form-input" type="number" step="any" min="0" id="edit-del-capa" placeholder="Кол-во депозитов">
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
