@@ -287,7 +287,8 @@ tr:hover .row-actions{opacity:1}
 .task-row.dragging{opacity:0.4}
 .task-row.dnd-over-top{box-shadow:inset 0 2px 0 var(--accent)}
 .task-row.dnd-over-bottom{box-shadow:inset 0 -2px 0 var(--accent)}
-.task-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.task-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-sizing:border-box;transition:background 0.15s,border-color 0.15s}
+.task-dot:hover{border-color:#ef4444 !important}
 .task-grip{cursor:grab;color:var(--text3);flex-shrink:0;font-size:15px;touch-action:none}
 .task-badge{font-size:9px;padding:2px 7px;border-radius:5px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border:0.5px solid var(--border2);color:var(--text3)}
 .kb-card-title{font-size:12px;font-weight:500;color:var(--text1);margin-bottom:5px;line-height:1.35}
@@ -1351,6 +1352,10 @@ function switchProject(p) {
     loadRequests();
   } else if (currentPage === 'settings') {
     loadStats();
+  } else if (currentPage === 'tasks') {
+    renderTasks();
+  } else if (currentPage === 'stats') {
+    loadStatsPage();
   }
 }
 
@@ -1931,7 +1936,7 @@ function applyAdminUI() {
   const ac = document.getElementById('reqAdminControls');
   if (ac) ac.style.display = isAdmin ? 'flex' : 'none';
   const lt = document.getElementById('lnav-tasks');
-  if (lt) lt.style.display = isAdmin ? '' : 'none';
+  if (lt) lt.style.display = ''; // tasks are shared with managers
   const ls = document.getElementById('lnav-stats');
   if (ls) ls.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
@@ -1951,15 +1956,13 @@ function updateAccessUI() {
 }
 
 // ── TASKS ─────────────────────────────────────────────
-let taskFilter = 'all';
 
+// urgency is a simple flag now: urgent or not
 const TASK_PRIORITY = {
   urgent: { color: '#ef4444', label: 'Срочно' },
-  high:   { color: '#f59e0b', label: 'Высокая' },
-  medium: { color: '#eab308', label: 'Средняя' },
-  low:    { color: '#6b7280', label: 'Низкая' },
+  medium: { color: 'transparent', label: 'Обычная' },
 };
-const TASK_CATEGORY = { request: 'Запрос', delivery: 'Выдача', other: 'Другое' };
+const TASK_CATEGORY = { request: 'Запрос', delivery: 'Выдача', clarify: 'Уточнение', other: 'Другое' };
 const TASK_PROJECT = { smerch: '🌪 Смерч', phantom: '👻 Фантом' };
 
 async function loadTasks() {
@@ -1971,15 +1974,9 @@ async function loadTasks() {
   renderTasks();
 }
 
-function setTaskFilter(pf) {
-  taskFilter = pf;
-  document.querySelectorAll('.task-pf').forEach(b => b.classList.toggle('active', b.dataset.pf === pf));
-  renderTasks();
-}
-
 function visibleTasks() {
-  let items = allTasks.slice();
-  if (taskFilter !== 'all') items = items.filter(t => t.project === taskFilter);
+  // tasks follow the global project tabs at the top
+  let items = allTasks.filter(t => t.project === currentProject);
   // manual order first (sort_order), completed sink to bottom keeping their relative order
   items.sort((a, b) => (a.done - b.done) || ((a.sort_order ?? 0) - (b.sort_order ?? 0)));
   return items;
@@ -1999,17 +1996,16 @@ function renderTasks() {
   const emptyHtml = `<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Пока пусто</div>`;
   // draggable: only the right "all tasks" column carries drag/sort_order
   const rowHtml = (t, draggable) => {
-    const pr = TASK_PRIORITY[t.priority] || TASK_PRIORITY.medium;
-    const proj = TASK_PROJECT[t.project] || '';
+    const isUrgent = t.priority === 'urgent';
     const cat = TASK_CATEGORY[t.task_category] || '';
     const drag = draggable && !t.done;
     return `
       <div class="task-row" data-id="${t.id}" draggable="${drag ? 'true' : 'false'}">
         ${draggable ? `<i class="ti ti-grip-vertical task-grip" title="Перетащить"></i>` : `<span style="width:14px;flex-shrink:0"></span>`}
-        <span class="task-dot" style="background:${pr.color}" title="${pr.label}"></span>
+        <span class="task-dot" onclick="toggleTaskUrgent('${t.id}')" title="${isUrgent ? 'Снять срочность' : 'Пометить срочной'}" style="cursor:pointer;background:${isUrgent ? '#ef4444' : 'transparent'};border:1.5px solid ${isUrgent ? '#ef4444' : 'var(--border)'}"></span>
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:16px;height:16px">
         <span style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word">${esc(t.title)}</span>
-        ${proj ? `<span class="task-badge">${proj}</span>` : ''}
+        ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
         ${cat ? `<span class="task-badge">${cat}</span>` : ''}
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
       </div>`;
@@ -2027,19 +2023,39 @@ function renderTasks() {
   if (items.length) initTaskDnd(list);
 }
 
+let newTaskUrgent = false;
+
+function toggleNewTaskUrgent() {
+  newTaskUrgent = !newTaskUrgent;
+  const btn = document.getElementById('taskUrgentToggle');
+  if (btn) btn.classList.toggle('active', newTaskUrgent);
+}
+
+// flip urgency on an existing task by clicking its dot
+async function toggleTaskUrgent(id) {
+  const t = allTasks.find(x => x.id === id);
+  if (!t) return;
+  const priority = t.priority === 'urgent' ? 'medium' : 'urgent';
+  const { error } = await sb.from('tasks').update({ priority }).eq('id', id);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  t.priority = priority;
+  renderTasks();
+}
+
 async function addTask() {
   const title = (document.getElementById('taskTitle').value || '').trim();
-  const project = document.getElementById('taskProject').value;
-  const priority = document.getElementById('taskPriority').value;
+  const project = currentProject; // follows the global project tabs
+  const priority = newTaskUrgent ? 'urgent' : 'medium';
   const task_category = document.getElementById('taskCategory').value;
   if (!title) return;
-  if (!project) { showToast('Выберите проект', 'error'); return; }
   const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
   const { error } = await sb.from('tasks').insert({
     title, project, priority, task_category, done: false, sort_order: maxOrder + 1000
   });
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   document.getElementById('taskTitle').value = '';
+  newTaskUrgent = false;
+  document.getElementById('taskUrgentToggle')?.classList.remove('active');
   loadTasks();
 }
 
@@ -4197,7 +4213,6 @@ function renderStatsPage() {
 }
 
 function switchPage(page) {
-  if (page === 'tasks' && !isAdmin) return;
   if (page === 'stats' && !isAdmin) return;
   currentPage = page;
   ['offers','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
@@ -4746,11 +4761,7 @@ function showToast(msg,type='success') {
   <div class="topbar">
     <span class="logo"><i class="ti ti-checklist"></i>Таски</span>
     <div class="topbar-right">
-      <div style="display:flex;gap:4px" id="taskProjectFilter">
-        <button class="btn btn-ghost task-pf active" data-pf="all" onclick="setTaskFilter('all')" style="font-size:12px;padding:6px 12px">Все</button>
-        <button class="btn btn-ghost task-pf" data-pf="smerch" onclick="setTaskFilter('smerch')" style="font-size:12px;padding:6px 12px">🌪 Смерч</button>
-        <button class="btn btn-ghost task-pf" data-pf="phantom" onclick="setTaskFilter('phantom')" style="font-size:12px;padding:6px 12px">👻 Фантом</button>
-      </div>
+      <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Проект переключается вкладками сверху</span>
     </div>
   </div>
   <div style="flex:1;overflow-y:auto;padding:24px">
@@ -4760,16 +4771,13 @@ function showToast(msg,type='success') {
       <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px">
         <input class="form-input" id="taskTitle" type="text" placeholder="Новая задача..." style="width:100%;font-size:13px;margin-bottom:10px" onkeydown="if(event.key==='Enter')addTask()">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select class="form-select" id="taskProject" style="width:auto;font-size:12px"><option value="">Проект…</option><option value="smerch">🌪 Смерч</option><option value="phantom">👻 Фантом</option></select>
-          <select class="form-select" id="taskPriority" style="width:auto;font-size:12px">
-            <option value="urgent">🔴 Срочно</option>
-            <option value="high">🟠 Высокая</option>
-            <option value="medium" selected>🟡 Средняя</option>
-            <option value="low">⚪ Низкая</option>
-          </select>
+          <button class="rq-chip" id="taskUrgentToggle" onclick="toggleNewTaskUrgent()" title="Пометить задачу срочной">
+            <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
+          </button>
           <select class="form-select" id="taskCategory" style="width:auto;font-size:12px">
             <option value="request">Запрос</option>
             <option value="delivery">Выдача</option>
+            <option value="clarify">Уточнение</option>
             <option value="other" selected>Другое</option>
           </select>
           <button class="btn btn-primary" onclick="addTask()" style="font-size:12px;margin-left:auto"><i class="ti ti-plus"></i>Добавить</button>
