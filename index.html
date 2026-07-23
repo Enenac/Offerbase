@@ -282,7 +282,9 @@ tr:hover .row-actions{opacity:1}
 .ver-badge{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border-radius:5px;border:0.5px solid;font-family:'IBM Plex Mono',monospace;white-space:nowrap;vertical-align:middle;cursor:help}
 .kb-notes{margin-top:8px;padding:8px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:12px;line-height:1.45;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;height:84px;overflow:hidden;box-sizing:border-box;-webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent);mask-image:linear-gradient(to bottom,#000 70%,transparent)}
 .task-pf.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
-.task-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:var(--bg);border:0.5px solid var(--border2);transition:border-color 0.12s,opacity 0.12s}
+.task-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:9px;background:var(--bg);border:0.5px solid var(--border2);transition:border-color 0.12s,opacity 0.12s}
+.task-row > .task-dot,.task-row > input[type=checkbox],.task-row > .task-grip{margin-top:2px}
+.task-row > .task-badge,.task-row > .icon-btn{margin-top:1px}
 .task-row:hover{border-color:var(--accent-border)}
 .task-row.dragging{opacity:0.4}
 .task-row.dnd-over-top{box-shadow:inset 0 2px 0 var(--accent)}
@@ -2013,7 +2015,7 @@ function renderTasks() {
         ${draggable ? `<i class="ti ti-grip-vertical task-grip" title="Перетащить"></i>` : `<span style="width:14px;flex-shrink:0"></span>`}
         <span class="task-dot" onclick="toggleTaskUrgent('${t.id}')" title="${isUrgent ? 'Снять срочность' : 'Пометить срочной'}" style="cursor:pointer;background:${isUrgent ? '#ef4444' : 'transparent'};border:1.5px solid ${isUrgent ? '#ef4444' : 'var(--border)'}"></span>
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:16px;height:16px">
-        <span style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word">${esc(t.title)}</span>
+        <span style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.45">${esc(t.title)}</span>
         ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
         ${cat ? `<span class="task-badge">${cat}</span>` : ''}
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
@@ -4803,7 +4805,7 @@ function showToast(msg,type='success') {
 
       <!-- Add task -->
       <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px">
-        <input class="form-input" id="taskTitle" type="text" placeholder="Новая задача..." style="width:100%;font-size:13px;margin-bottom:10px" onkeydown="if(event.key==='Enter')addTask()">
+        <textarea class="form-input" id="taskTitle" rows="3" placeholder="Новая задача — формат сохранится, Ctrl+Enter чтобы добавить" style="width:100%;font-size:13px;margin-bottom:10px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;min-height:70px" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();addTask();}"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="rq-chip" id="taskUrgentToggle" onclick="toggleNewTaskUrgent()" title="Пометить задачу срочной">
             <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
