@@ -3539,9 +3539,17 @@ function renderDeliveries() {
     return { value: m.value * (+d.capa), cur: m.cur };
   };
 
-  // totals per currency across the filtered rows — based on TOTAL margin (× capa)
+  // totals per currency across the filtered rows — based on TOTAL margin (× capa).
+  // Deliveries in "problem" or "stopped" don't earn, so they're left out of the sum.
+  const COUNTS_TOWARD_MARGIN = d => d.status !== 'problem' && d.status !== 'stopped';
   const totals = {};
-  rows.forEach(d => { const tm = totalMarginOf(d); if (tm) totals[tm.cur] = (totals[tm.cur] || 0) + tm.value; });
+  let excludedCount = 0;
+  rows.forEach(d => {
+    const tm = totalMarginOf(d);
+    if (!tm) return;
+    if (!COUNTS_TOWARD_MARGIN(d)) { excludedCount++; return; }
+    totals[tm.cur] = (totals[tm.cur] || 0) + tm.value;
+  });
   const totalsStr = Object.keys(totals).length
     ? Object.entries(totals).map(([c, v]) => `${curSym(c)}${(+v.toFixed(2))}`).join(' · ')
     : '—';
@@ -3550,6 +3558,7 @@ function renderDeliveries() {
   <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 12px">
     <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace">Σ Маржа:</span>
     <span style="font-size:14px;font-weight:600;color:#10b981;font-family:'IBM Plex Mono',monospace">${totalsStr}</span>
+    ${excludedCount ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace" title="Выдачи со статусом «Проблема» или «На стопе» не идут в сумму">· ${excludedCount} не в счёт (проблема/стоп)</span>` : ''}
   </div>
   <table class="del-table">
     <thead><tr>
@@ -3577,16 +3586,19 @@ function renderDeliveries() {
         const createdStr = d.created_at ? new Date(d.created_at).toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}) : '—';
         const srcStr = d.amount_src != null ? `${curSym(d.amount_src_cur||'EUR')}${(+d.amount_src)}` : '<span class="td-empty">—</span>';
         const outStr = d.amount_out != null ? `${curSym(d.amount_out_cur||'EUR')}${(+d.amount_out)}` : '<span class="td-empty">—</span>';
+        const counts = COUNTS_TOWARD_MARGIN(d);
+        const notCountedTip = counts ? '' : ' title="Не учитывается в Σ Маржа — проблема или стоп"';
+        const dimIfNotCounted = counts ? '' : 'opacity:0.4;text-decoration:line-through;';
         const m = marginOf(d);
         const mStr = m
-          ? `<span style="font-weight:600;color:${m.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace">${curSym(m.cur)}${(+m.value.toFixed(2))}</span>`
+          ? `<span style="font-weight:600;${dimIfNotCounted}color:${m.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace"${notCountedTip}>${curSym(m.cur)}${(+m.value.toFixed(2))}</span>`
           : '<span class="td-empty">—</span>';
         const capaStr = (d.capa != null && !isNaN(+d.capa))
           ? `<span style="font-family:'IBM Plex Mono',monospace">${(+d.capa)}</span>`
           : '<span class="td-empty">—</span>';
         const tm = totalMarginOf(d);
         const tmStr = tm
-          ? `<span style="font-weight:700;color:${tm.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace">${curSym(tm.cur)}${(+tm.value.toFixed(2))}</span>`
+          ? `<span style="font-weight:700;${dimIfNotCounted}color:${tm.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace"${notCountedTip}>${curSym(tm.cur)}${(+tm.value.toFixed(2))}</span>`
           : '<span class="td-empty">—</span>';
         return `<tr>
           <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</div></td>
@@ -3967,13 +3979,15 @@ async function loadStatsPage() {
   renderStatsPage();
 }
 
-// stats margin = per-deposit margin × capa, only when currencies match and both amounts + capa present
+// stats margin = per-deposit margin × capa, only when currencies match and both amounts + capa present.
+// Deliveries in "problem" or "stopped" never earn, so they're excluded — same rule as the deliveries page.
 function deliveryMargin(d) {
   const src = d.amount_src, out = d.amount_out;
   if (src == null || out == null) return null;
   if (!d.amount_src_cur || !d.amount_out_cur) return null;
   if (d.amount_src_cur !== d.amount_out_cur) return null;
   if (d.capa == null || isNaN(+d.capa)) return null;
+  if (d.status === 'problem' || d.status === 'stopped') return null;
   return { value: (Number(src) - Number(out)) * (+d.capa), cur: d.amount_src_cur };
 }
 
