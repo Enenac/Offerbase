@@ -264,6 +264,8 @@ tr:hover .row-actions{opacity:1}
 .rq-chip{font-size:11px;padding:5px 12px;border-radius:8px;background:var(--bg2);border:0.5px solid var(--border2);color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s}
 .rq-chip:hover{border-color:var(--accent)}
 .rq-chip.active{background:var(--accent-bg);border-color:var(--accent);color:var(--text1)}
+.rq-status-btn{transition:filter 0.15s}
+.rq-status-btn:hover{filter:brightness(1.35)}
 .st-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px 18px}
 .st-card-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:14px;display:flex;align-items:center;gap:7px}
 .st-kpi{font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text1);line-height:1.15}
@@ -1042,7 +1044,9 @@ function initApp() {
   });
   document.addEventListener('click', e => {
     if (!e.target.closest('.filter-dropdown')) closeAllMenus();
+    if (!e.target.closest('#reqStatusPop') && !e.target.closest('.rq-status-btn')) closeReqStatusMenu();
   });
+  window.addEventListener('scroll', () => closeReqStatusMenu(), true);
   // default date = today
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('f-date').value = today;
@@ -2450,9 +2454,10 @@ function renderRequestsList() {
     const notes = (req.notes || '').replace(/\s+/g, ' ').trim();
     return `
     <div class="rq-row" onclick="openReqDetail('${req.id}')">
-      <span class="rq-status" style="${KB_COUNT_STYLES[meta.countCls]}">
+      <span class="rq-status rq-status-btn" onclick="event.stopPropagation();toggleReqStatusMenu('${req.id}')" title="Сменить статус" style="${KB_COUNT_STYLES[meta.countCls]};cursor:pointer">
         <span style="width:6px;height:6px;border-radius:50%;background:${meta.dot};display:inline-block"></span>
         ${REQ_STATUS_LABELS[req.status] || req.status}
+        <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.55;margin-left:1px"></i>
       </span>
       <span class="rq-title">${esc(req.title) || 'Без названия'}</span>
       <span class="rq-notes">${notes ? flagEmojiToImg(esc(notes)) : '<span style="opacity:0.35">—</span>'}</span>
@@ -2825,6 +2830,56 @@ async function sendDispatchMulti(reqId) {
   showToast(`Отправлено: ${rows.length}`, 'success');
   await loadRequests();
   openReqDetail(reqId);
+}
+
+// quick status switch straight from the list row
+function toggleReqStatusMenu(reqId) {
+  const existing = document.getElementById('reqStatusPop');
+  if (existing && existing.dataset.req === reqId) { existing.remove(); return; }
+  existing?.remove();
+
+  const req = allRequests.find(r => r.id === reqId);
+  if (!req) return;
+  const badge = event.currentTarget;
+  const rect = badge.getBoundingClientRect();
+
+  const pop = document.createElement('div');
+  pop.id = 'reqStatusPop';
+  pop.dataset.req = reqId;
+  pop.className = 'filter-menu';
+  // fixed positioning keeps it above the scrolling list instead of being clipped
+  pop.style.cssText = `position:fixed;top:${rect.bottom + 5}px;left:${rect.left}px;min-width:160px;z-index:120`;
+  pop.onclick = e => e.stopPropagation();
+
+  pop.innerHTML = Object.keys(REQ_STATUS_META).map(k => {
+    const m = REQ_STATUS_META[k];
+    const active = k === req.status;
+    return `<div class="filter-option ${active ? 'selected' : ''}" onclick="setReqStatusQuick('${reqId}','${k}')">
+      <span style="width:7px;height:7px;border-radius:50%;background:${m.dot};display:inline-block;flex-shrink:0"></span>
+      ${REQ_STATUS_LABELS[k]}
+      ${active ? '<i class="ti ti-check" style="margin-left:auto;font-size:12px"></i>' : ''}
+    </div>`;
+  }).join('');
+
+  document.body.appendChild(pop);
+  // keep it on screen if the row sits near the bottom
+  const ph = pop.getBoundingClientRect().height;
+  if (rect.bottom + ph + 8 > window.innerHeight) pop.style.top = `${Math.max(8, rect.top - ph - 5)}px`;
+}
+
+function closeReqStatusMenu() {
+  document.getElementById('reqStatusPop')?.remove();
+}
+
+async function setReqStatusQuick(reqId, status) {
+  closeReqStatusMenu();
+  const req = allRequests.find(r => r.id === reqId);
+  if (req) req.status = status; // optimistic: repaint immediately
+  renderRequests();
+  const { error } = await sb.from('requests').update({ status }).eq('id', reqId);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); await loadRequests(); return; }
+  showToast(`Статус: ${REQ_STATUS_LABELS[status]}`, 'success');
+  updateRequestsBadge();
 }
 
 async function updateReqStatus(reqId, status) {
