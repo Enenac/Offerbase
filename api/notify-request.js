@@ -23,7 +23,7 @@ function buildMessage(row) {
 
   let text = `📥 <b>Новый запрос</b>\n`;
   text += `<b>Партнёр:</b> ${partner}\n`;
-  if (body) text += `\n<pre>${escapeHtml(body)}</pre>`;
+  if (body) text += `\n${escapeHtml(body)}`;
   return text;
 }
 
@@ -47,6 +47,17 @@ async function sendTelegram(text) {
 
 export default async function handler(req, res) {
   try {
+    if (req.method === "GET") {
+      // quick config check: open this URL in a browser
+      return res.status(200).json({
+        ok: true,
+        has_tg_token: !!TG_TOKEN,
+        thread_configured: !!TG_REQUESTS_THREAD_ID,
+        thread_id: TG_REQUESTS_THREAD_ID || null,
+        chat_id: TG_CHAT_ID,
+        secret_required: !!HOOK_SECRET
+      });
+    }
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -75,7 +86,12 @@ export default async function handler(req, res) {
     if (!result.ok) {
       return res.status(502).json({ error: "Telegram rejected", detail: result.description });
     }
-    return res.status(200).json({ ok: true, message_id: result.result?.message_id });
+    return res.status(200).json({
+      ok: true,
+      message_id: result.result?.message_id,
+      thread_configured: !!TG_REQUESTS_THREAD_ID,
+      thread_used: TG_REQUESTS_THREAD_ID ? Number(TG_REQUESTS_THREAD_ID) : null
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
