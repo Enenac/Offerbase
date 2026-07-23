@@ -2013,7 +2013,7 @@ function renderTasks() {
   const rowHtml = (t, draggable) => {
     const isUrgent = t.priority === 'urgent';
     const cat = TASK_CATEGORY[t.task_category] || '';
-    const drag = draggable && !t.done && _editingTaskId !== t.id;
+    const drag = draggable && !t.done;
     return `
       <div class="task-row" data-id="${t.id}" draggable="${drag ? 'true' : 'false'}">
         ${draggable ? `<i class="ti ti-grip-vertical task-grip" title="Перетащить"></i>` : `<span style="width:14px;flex-shrink:0"></span>`}
@@ -2022,7 +2022,7 @@ function renderTasks() {
         <span class="task-text" onclick="openTaskDetail('${t.id}')" title="Открыть задачу" style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.45;cursor:pointer">${esc(t.title)}</span>
         ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
         ${cat ? `<span class="task-badge">${cat}</span>` : ''}
-        <button class="icon-btn" onclick="startEditTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
+        <button class="icon-btn" onclick="openTaskDetail('${t.id}', true)" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
       </div>`;
   };
@@ -2083,13 +2083,22 @@ async function toggleTaskUrgent(id) {
   renderTasks();
 }
 
-// ── task detail modal ────────────────────────────────
+// ── task detail modal (view + edit in one place) ─────
 let _detailTaskId = null;
+let _detailEditing = false;
 
-function openTaskDetail(id) {
+function openTaskDetail(id, startInEdit = false) {
   const t = allTasks.find(x => x.id === id);
   if (!t) return;
   _detailTaskId = id;
+  _detailEditing = !!startInEdit;
+  renderTaskDetail();
+  document.getElementById('taskDetailOverlay').classList.remove('hidden');
+}
+
+function renderTaskDetail() {
+  const t = allTasks.find(x => x.id === _detailTaskId);
+  if (!t) return;
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const isUrgent = t.priority === 'urgent';
@@ -2099,27 +2108,95 @@ function openTaskDetail(id) {
     ? new Date(t.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
     : '';
 
-  document.getElementById('taskDetailTitle').textContent = t.done ? 'Задача · выполнена' : 'Задача';
-  document.getElementById('taskDetailMeta').innerHTML = `
+  document.getElementById('taskDetailTitle').textContent =
+    _detailEditing ? 'Редактирование' : (t.done ? 'Задача · выполнена' : 'Задача');
+
+  const meta = document.getElementById('taskDetailMeta');
+  const body = document.getElementById('taskDetailText');
+  const footer = document.getElementById('taskDetailFooter');
+
+  if (_detailEditing) {
+    // editable meta: urgency + category
+    meta.innerHTML = `
+      <button class="rq-chip ${isUrgent ? 'active' : ''}" id="taskDetailUrgent" onclick="toggleDetailUrgent()" style="padding:5px 11px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
+      </button>
+      <select class="form-select" id="taskDetailCat" style="width:auto;font-size:12px;padding:5px 10px">
+        <option value="request">Запрос</option>
+        <option value="delivery">Выдача</option>
+        <option value="clarify">Уточнение</option>
+        <option value="other">Другое</option>
+      </select>
+      ${proj ? `<span class="task-badge" style="align-self:center">${proj}</span>` : ''}`;
+
+    body.outerHTML = `<textarea id="taskDetailText" class="form-input"
+      style="width:100%;font-size:13.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;border-radius:9px;padding:16px 18px;min-height:280px;max-height:60vh;resize:vertical"></textarea>`;
+    const ta = document.getElementById('taskDetailText');
+    ta.value = t.title || '';
+    document.getElementById('taskDetailCat').value = t.task_category || 'other';
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveTaskDetail(); }
+      if (e.key === 'Escape') { e.preventDefault(); _detailEditing = false; renderTaskDetail(); }
+    });
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    footer.innerHTML = `
+      <span style="margin-right:auto;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Ctrl+Enter — сохранить · Esc — отмена</span>
+      <button class="btn btn-ghost" onclick="_detailEditing=false;renderTaskDetail()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveTaskDetail()"><i class="ti ti-check"></i>Сохранить</button>`;
+    return;
+  }
+
+  // view mode
+  meta.innerHTML = `
     ${isUrgent ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
     ${cat ? `<span class="task-badge">${cat}</span>` : ''}
     ${proj ? `<span class="task-badge">${proj}</span>` : ''}
     ${created ? `<span class="task-badge" style="opacity:0.7">${created}</span>` : ''}`;
-  // flag emojis render as images, same as elsewhere in the app
-  document.getElementById('taskDetailText').innerHTML = flagEmojiToImg(esc(t.title));
 
-  const doneBtn = document.getElementById('taskDetailDone');
-  doneBtn.innerHTML = t.done
-    ? '<i class="ti ti-arrow-back-up"></i>Вернуть в работу'
-    : '<i class="ti ti-check"></i>Выполнено';
-  doneBtn.onclick = async () => { await toggleTask(id, !t.done); closeTaskDetail(); };
-  document.getElementById('taskDetailEdit').onclick = () => { closeTaskDetail(); startEditTask(id); };
+  body.outerHTML = `<div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto">${flagEmojiToImg(esc(t.title))}</div>`;
 
-  document.getElementById('taskDetailOverlay').classList.remove('hidden');
+  footer.innerHTML = `
+    <button class="btn btn-ghost" onclick="copyTaskText()" style="margin-right:auto"><i class="ti ti-copy"></i>Копировать</button>
+    <button class="btn btn-ghost" onclick="_detailEditing=true;renderTaskDetail()"><i class="ti ti-pencil"></i>Редактировать</button>
+    <button class="btn btn-ghost" onclick="toggleTaskFromDetail()">${t.done ? '<i class="ti ti-arrow-back-up"></i>Вернуть в работу' : '<i class="ti ti-check"></i>Выполнено'}</button>`;
+}
+
+function toggleDetailUrgent() {
+  const btn = document.getElementById('taskDetailUrgent');
+  if (btn) btn.classList.toggle('active');
+}
+
+async function toggleTaskFromDetail() {
+  const t = allTasks.find(x => x.id === _detailTaskId);
+  if (!t) return;
+  await toggleTask(t.id, !t.done);
+  closeTaskDetail();
+}
+
+async function saveTaskDetail() {
+  const id = _detailTaskId;
+  const ta = document.getElementById('taskDetailText');
+  if (!ta) return;
+  const title = (ta.value || '').trim();
+  if (!title) { showToast('Текст задачи не может быть пустым', 'error'); return; }
+  const task_category = document.getElementById('taskDetailCat')?.value || 'other';
+  const priority = document.getElementById('taskDetailUrgent')?.classList.contains('active') ? 'urgent' : 'medium';
+
+  const { error } = await sb.from('tasks').update({ title, task_category, priority }).eq('id', id);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  const t = allTasks.find(x => x.id === id);
+  if (t) { t.title = title; t.task_category = task_category; t.priority = priority; }
+  _detailEditing = false;
+  showToast('Задача обновлена', 'success');
+  renderTasks();
+  renderTaskDetail();
 }
 
 function closeTaskDetail() {
   _detailTaskId = null;
+  _detailEditing = false;
   document.getElementById('taskDetailOverlay')?.classList.add('hidden');
 }
 
@@ -2129,74 +2206,6 @@ function copyTaskText() {
   navigator.clipboard.writeText(t.title || '')
     .then(() => showToast('Скопировано', 'success'))
     .catch(() => showToast('Не удалось скопировать', 'error'));
-}
-
-// ── inline task editing ──────────────────────────────
-let _editingTaskId = null;
-
-function startEditTask(id) {
-  const t = allTasks.find(x => x.id === id);
-  if (!t) return;
-  _editingTaskId = id;
-
-  // find every rendered copy of this task (it can appear in both columns)
-  const rows = document.querySelectorAll(`.task-row[data-id="${id}"]`);
-  if (!rows.length) return;
-  // edit in the first one; collapse the mirror to avoid two live editors
-  rows.forEach((row, i) => {
-    if (i > 0) { row.style.opacity = '0.35'; row.style.pointerEvents = 'none'; return; }
-    const span = row.querySelector('.task-text');
-    if (!span) return;
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:6px';
-    wrap.innerHTML = `
-      <textarea class="form-input task-edit-input" rows="3"
-        style="width:100%;font-size:13px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;min-height:64px"></textarea>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <select class="form-select task-edit-cat" style="width:auto;font-size:11px;padding:4px 8px">
-          <option value="request">Запрос</option>
-          <option value="delivery">Выдача</option>
-          <option value="clarify">Уточнение</option>
-          <option value="other">Другое</option>
-        </select>
-        <button class="btn btn-primary" onclick="saveEditTask('${id}')" style="font-size:11px;padding:4px 10px"><i class="ti ti-check"></i>Сохранить</button>
-        <button class="btn btn-ghost" onclick="cancelEditTask()" style="font-size:11px;padding:4px 10px">Отмена</button>
-        <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Ctrl+Enter · Esc</span>
-      </div>`;
-    span.replaceWith(wrap);
-
-    const ta = wrap.querySelector('.task-edit-input');
-    ta.value = t.title || '';
-    wrap.querySelector('.task-edit-cat').value = t.task_category || 'other';
-    ta.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEditTask(id); }
-      if (e.key === 'Escape') { e.preventDefault(); cancelEditTask(); }
-    });
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-    // grow to fit existing content
-    ta.style.height = Math.min(ta.scrollHeight + 2, 320) + 'px';
-  });
-}
-
-function cancelEditTask() {
-  _editingTaskId = null;
-  renderTasks();
-}
-
-async function saveEditTask(id) {
-  const wrap = document.querySelector('.task-edit-input');
-  if (!wrap) return;
-  const title = wrap.value.trim();
-  const task_category = document.querySelector('.task-edit-cat')?.value || 'other';
-  if (!title) { showToast('Текст задачи не может быть пустым', 'error'); return; }
-  const { error } = await sb.from('tasks').update({ title, task_category }).eq('id', id);
-  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
-  const t = allTasks.find(x => x.id === id);
-  if (t) { t.title = title; t.task_category = task_category; }
-  _editingTaskId = null;
-  showToast('Задача обновлена', 'success');
-  renderTasks();
 }
 
 async function addTask() {
@@ -4924,11 +4933,7 @@ function showToast(msg,type='success') {
       <div id="taskDetailMeta" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px"></div>
       <div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto"></div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" id="taskDetailCopy" onclick="copyTaskText()" style="margin-right:auto"><i class="ti ti-copy"></i>Копировать</button>
-      <button class="btn btn-ghost" id="taskDetailEdit"><i class="ti ti-pencil"></i>Редактировать</button>
-      <button class="btn btn-ghost" id="taskDetailDone"><i class="ti ti-check"></i>Выполнено</button>
-    </div>
+    <div class="modal-footer" id="taskDetailFooter"></div>
   </div>
 </div>
 
