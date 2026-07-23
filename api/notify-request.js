@@ -8,8 +8,6 @@ const TG_REQUESTS_THREAD_ID = process.env.TG_REQUESTS_THREAD_ID;
 // shared secret so only Supabase can trigger this endpoint
 const HOOK_SECRET = process.env.HOOK_SECRET;
 
-const PROJECT_LABEL = { smerch: "🌪 Smerch-Traffic", phantom: "👻 Phantom Partners" };
-
 function escapeHtml(s) {
   return String(s || "")
     .replace(/&/g, "&amp;")
@@ -19,19 +17,12 @@ function escapeHtml(s) {
 
 function buildMessage(row) {
   const partner = escapeHtml(row.title) || "без названия";
-  const project = PROJECT_LABEL[row.project] || row.project || "—";
-  const date = row.received_at
-    ? new Date(row.received_at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
-    : "";
-
   const raw = (row.raw_text || "").trim();
   // Telegram caps messages at 4096 chars; leave room for the header
   const body = raw.length > 3500 ? raw.slice(0, 3500) + "\n…(обрезано)" : raw;
 
   let text = `📥 <b>Новый запрос</b>\n`;
   text += `<b>Партнёр:</b> ${partner}\n`;
-  text += `<b>Проект:</b> ${escapeHtml(project)}\n`;
-  if (date) text += `<b>Дата:</b> ${date}\n`;
   if (body) text += `\n<pre>${escapeHtml(body)}</pre>`;
   return text;
 }
