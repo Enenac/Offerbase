@@ -269,6 +269,7 @@ tr:hover .row-actions{opacity:1}
 .rq-status-btn:hover{filter:brightness(1.35)}
 .del-offer-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 .del-offer-cell img{vertical-align:-2px}
+.del-date-cell:hover{color:var(--accent) !important;text-decoration:underline dotted}
 .st-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px 18px}
 .st-card-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:14px;display:flex;align-items:center;gap:7px}
 .st-kpi{font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--text1);line-height:1.15}
@@ -3598,7 +3599,7 @@ function renderDeliveries() {
           <td style="font-size:12px">${tmStr}</td>
           <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
           <td><span class="del-remind ${isOverdue?'overdue':''}">${isOverdue?'⚠️ ':''} ${remindStr}</span></td>
-          <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px">${createdStr}</td>
+          <td class="del-date-cell" onclick="startEditDeliveryDate('${d.id}', event)" title="Изменить дату добавления" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer">${createdStr}</td>
           <td>
             <div style="display:flex;gap:4px">
               <button class="act-btn" onclick="openEditDelivery('${d.id}')" title="Редактировать"><i class="ti ti-edit"></i></button>
@@ -3670,6 +3671,55 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-out-cur').value = d.amount_out_cur || 'EUR';
   document.getElementById('edit-del-capa').value = d.capa ?? '';
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
+}
+
+// edit the "added on" date straight from the table cell
+function startEditDeliveryDate(id, ev) {
+  ev?.stopPropagation();
+  const cell = ev?.currentTarget;
+  if (!cell || cell.querySelector('input')) return;
+  const d = allDeliveries.find(x => x.id === id);
+  if (!d) return;
+
+  const cur = d.created_at ? new Date(d.created_at) : new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const value = `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}`;
+  const original = cell.innerHTML;
+
+  cell.innerHTML = `<input type="date" class="form-input" value="${value}"
+    style="font-size:11px;padding:3px 6px;width:130px;font-family:'IBM Plex Mono',monospace">`;
+  const input = cell.querySelector('input');
+  input.onclick = e => e.stopPropagation();
+
+  let done = false;
+  const revert = () => { if (!done) { done = true; cell.innerHTML = original; } };
+
+  const save = async () => {
+    if (done) return;
+    const v = input.value;
+    if (!v) { revert(); return; }
+    done = true;
+    // keep the original time of day so ordering within a day stays intact
+    const [y, mo, da] = v.split('-').map(Number);
+    const next = new Date(cur);
+    next.setFullYear(y, mo - 1, da);
+    const iso = next.toISOString();
+
+    const { error } = await sb.from('deliveries').update({ created_at: iso }).eq('id', id);
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); cell.innerHTML = original; return; }
+    d.created_at = iso;
+    showToast('Дата обновлена', 'success');
+    renderDeliveries();
+  };
+
+  input.addEventListener('change', save);
+  input.addEventListener('blur', () => setTimeout(revert, 120));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { e.preventDefault(); revert(); }
+  });
+  input.focus();
+  input.showPicker?.();
 }
 
 async function updateDelivery() {
