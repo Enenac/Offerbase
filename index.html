@@ -1991,7 +1991,16 @@ function renderTasks() {
 
   const cnt = document.getElementById('tasksCount');
   const open = items.filter(t => !t.done).length;
-  if (cnt) cnt.textContent = items.length ? `${open} активных · ${items.length} всего` : '';
+  const doneCount = items.filter(t => t.done).length;
+  if (cnt) cnt.textContent = items.length
+    ? `${open} активных${doneCount ? ` · ${doneCount} выполнено` : ''}`
+    : '';
+
+  // completed tasks are hidden by default; the topbar chip reveals them
+  const shown = showDoneTasks ? items : items.filter(t => !t.done);
+
+  const lbl = document.getElementById('tasksDoneLabel');
+  if (lbl) lbl.textContent = showDoneTasks ? 'Скрыть выполненные' : `Выполненные${doneCount ? ` (${doneCount})` : ''}`;
 
   const emptyHtml = `<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Пока пусто</div>`;
   // draggable: only the right "all tasks" column carries drag/sort_order
@@ -2012,18 +2021,43 @@ function renderTasks() {
   };
 
   // Right column: all tasks (draggable)
-  list.innerHTML = items.length ? items.map(t => rowHtml(t, true)).join('') : emptyHtml;
+  list.innerHTML = shown.length ? shown.map(t => rowHtml(t, true)).join('') : emptyHtml;
 
   // Left column: only delivery-category tasks (mirror, not draggable)
   if (listDelivery) {
-    const deliveryItems = items.filter(t => t.task_category === 'delivery');
+    const deliveryItems = shown.filter(t => t.task_category === 'delivery');
     listDelivery.innerHTML = deliveryItems.length ? deliveryItems.map(t => rowHtml(t, false)).join('') : emptyHtml;
   }
 
-  if (items.length) initTaskDnd(list);
+  if (shown.length) initTaskDnd(list);
 }
 
 let newTaskUrgent = false;
+let newTaskCat = 'other';
+let showDoneTasks = false;
+
+function toggleTaskCatMenu() {
+  const m = document.getElementById('taskCatMenu');
+  if (m) m.classList.toggle('hidden');
+}
+
+function pickTaskCat(cat) {
+  newTaskCat = cat;
+  document.getElementById('taskCatLabel').textContent = TASK_CATEGORY[cat] || 'Другое';
+  document.querySelectorAll('#taskCatMenu .filter-option').forEach(o => {
+    o.classList.toggle('selected', o.getAttribute('onclick') === `pickTaskCat('${cat}')`);
+  });
+  document.getElementById('taskCatMenu')?.classList.add('hidden');
+}
+
+function toggleShowDoneTasks() {
+  showDoneTasks = !showDoneTasks;
+  const chip = document.getElementById('tasksDoneToggle');
+  const icon = chip?.querySelector('i');
+  if (chip) chip.classList.toggle('active', showDoneTasks);
+  if (icon) icon.className = showDoneTasks ? 'ti ti-eye' : 'ti ti-eye-off';
+  renderTasks();
+}
 
 function toggleNewTaskUrgent() {
   newTaskUrgent = !newTaskUrgent;
@@ -2046,7 +2080,7 @@ async function addTask() {
   const title = (document.getElementById('taskTitle').value || '').trim();
   const project = currentProject; // follows the global project tabs
   const priority = newTaskUrgent ? 'urgent' : 'medium';
-  const task_category = document.getElementById('taskCategory').value;
+  const task_category = newTaskCat;
   if (!title) return;
   const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
   const { error } = await sb.from('tasks').insert({
@@ -4761,7 +4795,7 @@ function showToast(msg,type='success') {
   <div class="topbar">
     <span class="logo"><i class="ti ti-checklist"></i>Таски</span>
     <div class="topbar-right">
-      <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Проект переключается вкладками сверху</span>
+      <span id="tasksDoneToggle" class="chip" onclick="toggleShowDoneTasks()" style="font-size:11px"><i class="ti ti-eye-off" style="font-size:11px"></i><span id="tasksDoneLabel">Выполненные</span></span>
     </div>
   </div>
   <div style="flex:1;overflow-y:auto;padding:24px">
@@ -4774,12 +4808,19 @@ function showToast(msg,type='success') {
           <button class="rq-chip" id="taskUrgentToggle" onclick="toggleNewTaskUrgent()" title="Пометить задачу срочной">
             <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
           </button>
-          <select class="form-select" id="taskCategory" style="width:auto;font-size:12px">
-            <option value="request">Запрос</option>
-            <option value="delivery">Выдача</option>
-            <option value="clarify">Уточнение</option>
-            <option value="other" selected>Другое</option>
-          </select>
+          <div class="filter-dropdown" id="taskCatDd">
+            <button class="rq-chip" onclick="event.stopPropagation();toggleTaskCatMenu()" style="padding:6px 12px">
+              <i class="ti ti-tag" style="font-size:12px"></i>
+              <span id="taskCatLabel">Другое</span>
+              <i class="ti ti-chevron-down" style="font-size:11px;opacity:0.6"></i>
+            </button>
+            <div class="filter-menu hidden" id="taskCatMenu" style="min-width:150px">
+              <div class="filter-option" onclick="pickTaskCat('request')"><i class="ti ti-inbox" style="font-size:13px;width:15px"></i>Запрос</div>
+              <div class="filter-option" onclick="pickTaskCat('delivery')"><i class="ti ti-link" style="font-size:13px;width:15px"></i>Выдача</div>
+              <div class="filter-option" onclick="pickTaskCat('clarify')"><i class="ti ti-help-circle" style="font-size:13px;width:15px"></i>Уточнение</div>
+              <div class="filter-option selected" onclick="pickTaskCat('other')"><i class="ti ti-dots" style="font-size:13px;width:15px"></i>Другое</div>
+            </div>
+          </div>
           <button class="btn btn-primary" onclick="addTask()" style="font-size:12px;margin-left:auto"><i class="ti ti-plus"></i>Добавить</button>
         </div>
       </div>
