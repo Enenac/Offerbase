@@ -2009,15 +2009,16 @@ function renderTasks() {
   const rowHtml = (t, draggable) => {
     const isUrgent = t.priority === 'urgent';
     const cat = TASK_CATEGORY[t.task_category] || '';
-    const drag = draggable && !t.done;
+    const drag = draggable && !t.done && _editingTaskId !== t.id;
     return `
       <div class="task-row" data-id="${t.id}" draggable="${drag ? 'true' : 'false'}">
         ${draggable ? `<i class="ti ti-grip-vertical task-grip" title="Перетащить"></i>` : `<span style="width:14px;flex-shrink:0"></span>`}
         <span class="task-dot" onclick="toggleTaskUrgent('${t.id}')" title="${isUrgent ? 'Снять срочность' : 'Пометить срочной'}" style="cursor:pointer;background:${isUrgent ? '#ef4444' : 'transparent'};border:1.5px solid ${isUrgent ? '#ef4444' : 'var(--border)'}"></span>
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:16px;height:16px">
-        <span style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.45">${esc(t.title)}</span>
+        <span class="task-text" ondblclick="startEditTask('${t.id}')" title="Двойной клик — редактировать" style="flex:1;font-size:13px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.45;cursor:text">${esc(t.title)}</span>
         ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
         ${cat ? `<span class="task-badge">${cat}</span>` : ''}
+        <button class="icon-btn" onclick="startEditTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
       </div>`;
   };
@@ -2075,6 +2076,74 @@ async function toggleTaskUrgent(id) {
   const { error } = await sb.from('tasks').update({ priority }).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   t.priority = priority;
+  renderTasks();
+}
+
+// ── inline task editing ──────────────────────────────
+let _editingTaskId = null;
+
+function startEditTask(id) {
+  const t = allTasks.find(x => x.id === id);
+  if (!t) return;
+  _editingTaskId = id;
+
+  // find every rendered copy of this task (it can appear in both columns)
+  const rows = document.querySelectorAll(`.task-row[data-id="${id}"]`);
+  if (!rows.length) return;
+  // edit in the first one; collapse the mirror to avoid two live editors
+  rows.forEach((row, i) => {
+    if (i > 0) { row.style.opacity = '0.35'; row.style.pointerEvents = 'none'; return; }
+    const span = row.querySelector('.task-text');
+    if (!span) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:6px';
+    wrap.innerHTML = `
+      <textarea class="form-input task-edit-input" rows="3"
+        style="width:100%;font-size:13px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;min-height:64px"></textarea>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select class="form-select task-edit-cat" style="width:auto;font-size:11px;padding:4px 8px">
+          <option value="request">Запрос</option>
+          <option value="delivery">Выдача</option>
+          <option value="clarify">Уточнение</option>
+          <option value="other">Другое</option>
+        </select>
+        <button class="btn btn-primary" onclick="saveEditTask('${id}')" style="font-size:11px;padding:4px 10px"><i class="ti ti-check"></i>Сохранить</button>
+        <button class="btn btn-ghost" onclick="cancelEditTask()" style="font-size:11px;padding:4px 10px">Отмена</button>
+        <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Ctrl+Enter · Esc</span>
+      </div>`;
+    span.replaceWith(wrap);
+
+    const ta = wrap.querySelector('.task-edit-input');
+    ta.value = t.title || '';
+    wrap.querySelector('.task-edit-cat').value = t.task_category || 'other';
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEditTask(id); }
+      if (e.key === 'Escape') { e.preventDefault(); cancelEditTask(); }
+    });
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    // grow to fit existing content
+    ta.style.height = Math.min(ta.scrollHeight + 2, 320) + 'px';
+  });
+}
+
+function cancelEditTask() {
+  _editingTaskId = null;
+  renderTasks();
+}
+
+async function saveEditTask(id) {
+  const wrap = document.querySelector('.task-edit-input');
+  if (!wrap) return;
+  const title = wrap.value.trim();
+  const task_category = document.querySelector('.task-edit-cat')?.value || 'other';
+  if (!title) { showToast('Текст задачи не может быть пустым', 'error'); return; }
+  const { error } = await sb.from('tasks').update({ title, task_category }).eq('id', id);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  const t = allTasks.find(x => x.id === id);
+  if (t) { t.title = title; t.task_category = task_category; }
+  _editingTaskId = null;
+  showToast('Задача обновлена', 'success');
   renderTasks();
 }
 
