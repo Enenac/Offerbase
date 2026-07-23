@@ -257,10 +257,11 @@ tr:hover .row-actions{opacity:1}
 .kb-col.dnd-over{border-color:var(--accent);background:var(--accent-bg)}
 .rq-row{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:9px;cursor:pointer;transition:border-color 0.15s,background 0.15s}
 .rq-row:hover{border-color:var(--accent);background:var(--bg3)}
-.rq-title{font-size:13px;color:var(--text1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rq-notes{font-size:11px;color:var(--text3);flex:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rq-date{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
-.rq-status{font-size:10px;padding:2px 9px;border-radius:10px;font-weight:500;font-family:'IBM Plex Mono',monospace;flex-shrink:0;display:flex;align-items:center;gap:5px}
+.rq-title{font-size:13px;color:var(--text1);flex:0 0 240px;width:240px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rq-notes{font-size:11px;color:var(--text3);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rq-date{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0;width:64px;text-align:right}
+.rq-status{font-size:10px;padding:3px 9px;border-radius:10px;font-weight:500;font-family:'IBM Plex Mono',monospace;flex-shrink:0;display:flex;align-items:center;gap:5px;width:118px;box-sizing:border-box}
+.rq-status .rq-status-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rq-chip{font-size:11px;padding:5px 12px;border-radius:8px;background:var(--bg2);border:0.5px solid var(--border2);color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s}
 .rq-chip:hover{border-color:var(--accent)}
 .rq-chip.active{background:var(--accent-bg);border-color:var(--accent);color:var(--text1)}
@@ -2456,8 +2457,8 @@ function renderRequestsList() {
     <div class="rq-row" onclick="openReqDetail('${req.id}')">
       <span class="rq-status rq-status-btn" onclick="event.stopPropagation();toggleReqStatusMenu('${req.id}')" title="Сменить статус" style="${KB_COUNT_STYLES[meta.countCls]};cursor:pointer">
         <span style="width:6px;height:6px;border-radius:50%;background:${meta.dot};display:inline-block"></span>
-        ${REQ_STATUS_LABELS[req.status] || req.status}
-        <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.55;margin-left:1px"></i>
+        <span class="rq-status-label">${REQ_STATUS_LABELS[req.status] || req.status}</span>
+        <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.55;flex-shrink:0"></i>
       </span>
       <span class="rq-title">${esc(req.title) || 'Без названия'}</span>
       <span class="rq-notes">${notes ? flagEmojiToImg(esc(notes)) : '<span style="opacity:0.35">—</span>'}</span>
