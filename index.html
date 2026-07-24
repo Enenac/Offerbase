@@ -2473,6 +2473,7 @@ function renderRequestsList() {
       </span>
       <span class="rq-title">${esc(req.title) || 'Без названия'}</span>
       <span class="rq-notes">${notes ? flagEmojiToImg(esc(notes)) : '<span style="opacity:0.35">—</span>'}</span>
+      ${req.proposed_offer ? `<i class="ti ti-target-arrow" style="color:#10b981;font-size:13px;flex-shrink:0" title="Предложено: ${esc((req.proposed_offer||'').replace(/\s+/g,' ').slice(0,140))}"></i>` : ''}
       ${dateStr ? `<span class="rq-date">${dateStr}</span>` : ''}
       <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red);flex-shrink:0"><i class="ti ti-trash"></i></button>
     </div>`;
@@ -2693,6 +2694,14 @@ async function openReqDetail(reqId) {
         <textarea class="form-input" style="width:100%;min-height:150px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" placeholder="Преобразуй запрос в удобный формат..." onchange="saveReqField('${reqId}','notes',this.value)">${esc(req.notes)}</textarea>
       </div>
 
+      ${(req.proposed_offer || req.status === 'proposed' || req.status === 'closed') ? `
+      <div>
+        <div style="font-size:10px;color:#10b981;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-target-arrow" style="font-size:12px"></i>Предложенный оффер
+        </div>
+        <textarea class="form-input" style="width:100%;min-height:90px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;border-color:rgba(16,185,129,0.35)" placeholder="Что предложили партнёру..." onchange="saveReqField('${reqId}','proposed_offer',this.value)">${esc(req.proposed_offer)}</textarea>
+      </div>` : ''}
+
       ${dispatchSection}
     </div>`;
 
@@ -2883,8 +2892,58 @@ function closeReqStatusMenu() {
   document.getElementById('reqStatusPop')?.remove();
 }
 
+// ── proposed offer prompt ────────────────────────────
+let _proposePending = null; // { reqId, prevStatus }
+
+function openProposeModal(reqId) {
+  const req = allRequests.find(r => r.id === reqId);
+  if (!req) return;
+  _proposePending = { reqId, prevStatus: req.status };
+  document.getElementById('proposePartner').textContent = `Партнёр: ${req.title || '—'}`;
+  const ta = document.getElementById('proposeText');
+  ta.value = req.proposed_offer || '';
+  document.getElementById('proposeOverlay').classList.remove('hidden');
+  setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 40);
+  ta.onkeydown = e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirmPropose(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeProposeModal(); }
+  };
+}
+
+function closeProposeModal() {
+  _proposePending = null;
+  document.getElementById('proposeOverlay')?.classList.add('hidden');
+  renderRequests(); // repaint in case an optimistic change needs reverting
+}
+
+async function confirmPropose() {
+  if (!_proposePending) return;
+  const { reqId } = _proposePending;
+  const text = (document.getElementById('proposeText').value || '').trim();
+  if (!text) { showToast('Укажите предложенный оффер', 'error'); return; }
+
+  const { error } = await sb.from('requests')
+    .update({ status: 'proposed', proposed_offer: text }).eq('id', reqId);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+
+  const req = allRequests.find(r => r.id === reqId);
+  if (req) { req.status = 'proposed'; req.proposed_offer = text; }
+  _proposePending = null;
+  document.getElementById('proposeOverlay')?.classList.add('hidden');
+  showToast('Оффер записан · статус «Предложен»', 'success');
+  renderRequests();
+  updateRequestsBadge();
+  // keep the open detail view in sync
+  if (document.getElementById('reqDetailOverlay') &&
+      !document.getElementById('reqDetailOverlay').classList.contains('hidden')) {
+    openReqDetail(reqId);
+  }
+}
+
 async function setReqStatusQuick(reqId, status) {
   closeReqStatusMenu();
+  // moving to "proposed" always asks which offer was proposed
+  if (status === 'proposed') { openProposeModal(reqId); return; }
   const req = allRequests.find(r => r.id === reqId);
   if (req) req.status = status; // optimistic: repaint immediately
   renderRequests();
@@ -2895,6 +2954,7 @@ async function setReqStatusQuick(reqId, status) {
 }
 
 async function updateReqStatus(reqId, status) {
+  if (status === 'proposed') { openProposeModal(reqId); return; }
   await sb.from('requests').update({ status }).eq('id', reqId);
   await loadRequests();
 }
@@ -5048,6 +5108,26 @@ function showToast(msg,type='success') {
         <i class="ti ti-logout" style="font-size:12px"></i><span id="settingsAccessSub">Выйти</span>
       </button>
 
+    </div>
+  </div>
+</div>
+
+<!-- ── PROPOSED OFFER PROMPT ─────────────────── -->
+<div class="modal-overlay hidden" id="proposeOverlay" onclick="if(event.target===this)closeProposeModal()">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-target-arrow"></i>Какой оффер предложили?</span>
+      <button class="icon-btn" onclick="closeProposeModal()" style="color:var(--text3)"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px" id="proposePartner"></div>
+      <textarea class="form-input" id="proposeText" placeholder="Например: IT • Leon • FB • Slots • 170 USD • MinDep 10 EUR • Cap 15 FTD"
+        style="width:100%;min-height:140px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px"></textarea>
+    </div>
+    <div class="modal-footer">
+      <span style="margin-right:auto;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Ctrl+Enter — сохранить</span>
+      <button class="btn btn-ghost" onclick="closeProposeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="confirmPropose()"><i class="ti ti-check"></i>Сохранить</button>
     </div>
   </div>
 </div>
