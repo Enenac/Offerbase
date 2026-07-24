@@ -2,6 +2,15 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<script>
+// applied before first paint so the theme never flashes
+(function(){
+  try {
+    var t = localStorage.getItem('ob_theme');
+    if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  } catch(e){}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OfferBase</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23818cf8'/><text x='50%25' y='54%25' font-size='18' font-family='system-ui,sans-serif' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'>O</text></svg>">
@@ -18,6 +27,32 @@
   --text1:#e2e6f8;--text2:#8892c0;--text3:#3d4870;
   --green:#34d399;--green-bg:#0a1e14;--green-border:#143020;
   --amber:#f59e0b;--red:#f87171;
+  /* status tints — flipped per theme */
+  --tint-blue-bg:#0c1428;--tint-blue-fg:#60a5fa;--tint-blue-br:#162040;
+  --tint-green-bg:#0a2a1a;--tint-green-br:#0a5a2a;
+  --tint-red-bg:#1e0a0a;--tint-red-br:#3a1212;
+  --tint-amber-bg:#2a1f0a;--tint-amber-fg:#f59e0b;--tint-amber-br:#5a3f0a;
+  --tint-cyan-bg:#0a2030;--tint-cyan-fg:#0ea5e9;--tint-cyan-br:#0a4a6a;
+  --tint-indigo-bg:#1a1a3a;--tint-indigo-fg:#818cf8;--tint-indigo-br:#3a3a7a;
+  --shadow:var(--shadow);
+  --overlay:rgba(0,0,0,0.75);
+}
+/* Light theme — same layout and weight, lighter surfaces */
+[data-theme="light"]{
+  --bg:#f6f7fb;--bg2:#ffffff;--bg3:#f0f2f8;--bg4:#e7eaf4;
+  --border:#e3e7f0;--border2:#d3d9e8;
+  --accent:#5257d8;--accent-bg:#eceefc;--accent-border:#c3c8f5;
+  --text1:#171a2b;--text2:#5b6284;--text3:#98a0bb;
+  --green:#0d9668;--green-bg:#e6f7f0;--green-border:#b3e5d1;
+  --amber:#b45309;--red:#dc2626;
+  --tint-blue-bg:#eaf1fe;--tint-blue-fg:#2563eb;--tint-blue-br:#c6dbfb;
+  --tint-green-bg:#e6f7f0;--tint-green-br:#b3e5d1;
+  --tint-red-bg:#fdecec;--tint-red-br:#f7c9c9;
+  --tint-amber-bg:#fdf3e3;--tint-amber-fg:#b45309;--tint-amber-br:#f2ddb4;
+  --tint-cyan-bg:#e6f5fd;--tint-cyan-fg:#0369a1;--tint-cyan-br:#bde3f5;
+  --tint-indigo-bg:#eceefc;--tint-indigo-fg:#4f46e5;--tint-indigo-br:#c8ccf7;
+  --shadow:rgba(23,26,43,0.13);
+  --overlay:rgba(23,26,43,0.42);
 }
 html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM Plex Sans',sans-serif;font-size:13px}
 #app{display:flex;flex-direction:row;height:100vh;overflow:hidden}
@@ -26,7 +61,7 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM P
 .leftnav-items{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;flex:1}
 .leftnav-bottom{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-top:0.5px solid var(--border)}
 .leftnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:48px;padding:8px 4px;border-radius:8px;cursor:pointer;transition:all 0.15s;color:var(--text3);font-size:9px;font-family:'IBM Plex Mono',monospace;text-align:center;border:0.5px solid transparent;position:relative}
-.nav-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;display:none;align-items:center;justify-content:center;background:#ef4444;color:#fff;font-size:9px;font-weight:600;font-family:'IBM Plex Mono',monospace;border-radius:8px;line-height:1;border:1.5px solid var(--bg2)}
+.nav-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;display:none;align-items:center;justify-content:center;background:var(--red);color:#fff;font-size:9px;font-weight:600;font-family:'IBM Plex Mono',monospace;border-radius:8px;line-height:1;border:1.5px solid var(--bg2)}
 .leftnav-item i{font-size:18px}
 .leftnav-item:hover{color:var(--text2);background:var(--bg3)}
 .leftnav-item.active{color:var(--accent);background:var(--accent-bg);border-color:var(--accent-border)}
@@ -43,7 +78,7 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM P
 .search-box input::placeholder{color:var(--text3)}
 .btn{display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid;transition:all 0.15s;font-family:'IBM Plex Sans',sans-serif}
 .btn-primary{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
-.btn-primary:hover{background:#1c2540;border-color:#3a4a80}
+.btn-primary:hover{background:var(--accent-bg);border-color:var(--accent-border)}
 .btn-ghost{background:none;border-color:var(--border);color:var(--text2)}
 .btn-ghost:hover{background:var(--bg3);border-color:var(--border2)}
 .btn-green{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
@@ -114,18 +149,18 @@ td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
 .td-empty{color:var(--border2);font-family:'IBM Plex Mono',monospace}
 
 .badge{display:inline-block;padding:2px 7px;border-radius:7px;font-size:11px;font-weight:500}
-.badge-seo{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
-.badge-ppc{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
-.badge-fb{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
+.badge-seo{background:var(--tint-green-bg);color:var(--green);border:0.5px solid var(--tint-green-br)}
+.badge-ppc{background:var(--tint-blue-bg);color:var(--tint-blue-fg);border:0.5px solid var(--tint-blue-br)}
+.badge-fb{background:var(--tint-blue-bg);color:var(--tint-blue-fg);border:0.5px solid var(--tint-blue-br)}
 .badge-push{background:#180e28;color:#c084fc;border:0.5px solid #281640}
-.badge-social{background:#201008;color:#fb923c;border:0.5px solid #341a0c}
+.badge-social{background:var(--tint-amber-bg);color:var(--tint-amber-fg);border:0.5px solid var(--tint-amber-br)}
 .badge-native{background:#0c1c1c;color:#2dd4bf;border:0.5px solid #143030}
 .badge-email{background:#1a1008;color:#fbbf24;border:0.5px solid #302010}
 .badge-other{background:var(--bg3);color:var(--text2);border:0.5px solid var(--border)}
 .badge-game{background:#111828;color:#7888c0;border:0.5px solid #1a2438}
-.badge-direct{background:#0c1e0c;color:#4ade80;border:0.5px solid #183018}
-.badge-network{background:#0c1428;color:#60a5fa;border:0.5px solid #162040}
-.badge-kpi{background:#1e1008;color:#fb923c;border:0.5px solid #341a0c}
+.badge-direct{background:var(--tint-green-bg);color:var(--green);border:0.5px solid var(--tint-green-br)}
+.badge-network{background:var(--tint-blue-bg);color:var(--tint-blue-fg);border:0.5px solid var(--tint-blue-br)}
+.badge-kpi{background:var(--tint-amber-bg);color:var(--tint-amber-fg);border:0.5px solid var(--tint-amber-br)}
 .badge-softkpi{background:#1a1608;color:#eab308;border:0.5px solid #33290c}
 .badge-nokpi{background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)}
 
@@ -148,11 +183,11 @@ td{padding:8px 14px;vertical-align:middle;white-space:nowrap}
 tr:hover .row-actions{opacity:1}
 .act-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:3px 4px;border-radius:5px;transition:all 0.15s}
 .act-btn:hover{color:var(--accent);background:var(--accent-bg)}
-.act-btn.danger:hover{color:var(--red);background:#1e0a0a}
+.act-btn.danger:hover{color:var(--red);background:var(--tint-red-bg)}
 
 /* DROPDOWN */
 .filter-dropdown{position:relative;display:inline-block}
-.filter-menu{position:absolute;top:calc(100% + 4px);left:0;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;min-width:170px;z-index:50;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+.filter-menu{position:absolute;top:calc(100% + 4px);left:0;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;min-width:170px;z-index:50;padding:4px;box-shadow:0 8px 24px var(--shadow)}
 .filter-menu.hidden{display:none}
 .hidden{display:none !important}
 .filter-option{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text2);transition:background 0.1s;user-select:none}
@@ -164,7 +199,7 @@ tr:hover .row-actions{opacity:1}
 .filter-menu-list{max-height:200px;overflow-y:auto}
 
 /* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-overlay{position:fixed;inset:0;background:var(--overlay);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 .modal-overlay.hidden{display:none}
 .modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:12px;width:100%;max-width:700px;max-height:92vh;overflow-y:auto}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:0.5px solid var(--border)}
@@ -184,7 +219,7 @@ tr:hover .row-actions{opacity:1}
 .template-area textarea{width:100%;background:none;border:none;outline:none;padding:10px 14px;font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace;resize:none;min-height:110px;line-height:1.7}
 .template-area textarea::placeholder{color:var(--text3)}
 .template-parse-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:9px;border:none;border-top:0.5px solid var(--border);background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;border-radius:0 0 8px 8px;transition:all 0.15s}
-.template-parse-btn:hover{background:#1c2540}
+.template-parse-btn:hover{background:var(--accent-bg)}
 .template-parse-btn i{font-size:14px}
 
 .parse-preview{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;margin-bottom:14px;overflow:hidden}
@@ -212,8 +247,8 @@ tr:hover .row-actions{opacity:1}
 .empty i{font-size:40px;color:var(--border2)}
 .loading{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text3);gap:10px;font-family:'IBM Plex Mono',monospace;font-size:12px}
 .toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;transition:all 0.3s;font-family:'IBM Plex Mono',monospace}
-.toast.success{background:#0a1e14;border:0.5px solid var(--green-border);color:var(--green)}
-.toast.error{background:#1e0a0a;border:0.5px solid #3a1212;color:var(--red)}
+.toast.success{background:var(--tint-green-bg);border:0.5px solid var(--green-border);color:var(--green)}
+.toast.error{background:var(--tint-red-bg);border:0.5px solid var(--tint-red-br);color:var(--red)}
 .toast.hidden{opacity:0;transform:translateY(8px);pointer-events:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
@@ -231,17 +266,17 @@ tr:hover .row-actions{opacity:1}
 .req-card-title{font-size:13px;color:var(--text1);font-weight:500;flex:1}
 .req-card-meta{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:10px}
 .req-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:500;font-family:'IBM Plex Mono',monospace;border:0.5px solid}
-.req-status.new{background:#1a1a3a;border-color:#3a3a7a;color:#818cf8}
-.req-status.sent{background:#2a1f0a;border-color:#5a3f0a;color:#f59e0b}
-.req-status.proposed{background:#0a2a1a;border-color:#0a5a2a;color:#10b981}
-.req-status.rejected{background:#2a0a0a;border-color:#5a1a1a;color:#ef4444}
+.req-status.new{background:var(--tint-indigo-bg);border-color:var(--tint-indigo-br);color:var(--tint-indigo-fg)}
+.req-status.sent{background:var(--tint-amber-bg);border-color:var(--tint-amber-br);color:var(--tint-amber-fg)}
+.req-status.proposed{background:var(--tint-green-bg);border-color:var(--tint-green-br);color:var(--green)}
+.req-status.rejected{background:var(--tint-red-bg);border-color:var(--tint-red-br);color:var(--red)}
 .req-status.closed{background:var(--bg3);border-color:var(--border);color:var(--text3)}
 .req-items-table{width:100%;border-collapse:collapse;font-size:11px}
 .req-items-table th{padding:6px 12px;text-align:left;color:var(--text3);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;border-bottom:0.5px solid var(--border)}
 .req-items-table td{padding:7px 12px;color:var(--text2);border-bottom:0.5px solid var(--border);vertical-align:middle}
 .req-items-table tr:last-child td{border-bottom:none}
 .dispatch-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;background:var(--accent-bg);border:0.5px solid var(--accent-border);color:var(--accent);font-family:'IBM Plex Mono',monospace}
-.match-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:10px;font-size:10px;background:#0a2a0a;border:0.5px solid #1a5a1a;color:#10b981;font-family:'IBM Plex Mono',monospace}
+.match-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:10px;font-size:10px;background:#0a2a0a;border:0.5px solid #1a5a1a;color:var(--green);font-family:'IBM Plex Mono',monospace}
 
 /* Kanban board */
 .kb-col{display:flex;flex-direction:column;background:var(--bg2);border:0.5px solid var(--border2);border-radius:10px;overflow:hidden;min-width:0}
@@ -253,7 +288,7 @@ tr:hover .row-actions{opacity:1}
 .kb-card{background:var(--bg);border:0.5px solid var(--border2);border-radius:8px;padding:9px 11px;cursor:grab;transition:border-color 0.12s}
 .kb-card:hover{border-color:var(--accent-border)}
 .kb-card.dnd-source{opacity:0.35}
-.kb-card-clone{position:fixed;z-index:9999;box-sizing:border-box;pointer-events:none;margin:0;transform-origin:center;box-shadow:0 14px 30px rgba(0,0,0,0.5);transition:transform 0.12s ease;cursor:grabbing}
+.kb-card-clone{position:fixed;z-index:9999;box-sizing:border-box;pointer-events:none;margin:0;transform-origin:center;box-shadow:0 14px 30px var(--shadow);transition:transform 0.12s ease;cursor:grabbing}
 .kb-col.dnd-over{border-color:var(--accent);background:var(--accent-bg)}
 .rq-row{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:9px;cursor:pointer;transition:border-color 0.15s,background 0.15s}
 .rq-row:hover{border-color:var(--accent);background:var(--bg3)}
@@ -300,7 +335,7 @@ tr:hover .row-actions{opacity:1}
 .task-row.dnd-over-top{box-shadow:inset 0 2px 0 var(--accent)}
 .task-row.dnd-over-bottom{box-shadow:inset 0 -2px 0 var(--accent)}
 .task-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;box-sizing:border-box;transition:background 0.15s,border-color 0.15s}
-.task-dot:hover{border-color:#ef4444 !important}
+.task-dot:hover{border-color:var(--red) !important}
 .task-grip{cursor:grab;color:var(--text3);flex-shrink:0;font-size:15px;touch-action:none}
 .task-badge{font-size:9px;padding:2px 7px;border-radius:5px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border:0.5px solid var(--border2);color:var(--text3)}
 .kb-card-title{font-size:12px;font-weight:500;color:var(--text1);margin-bottom:5px;line-height:1.35}
@@ -315,7 +350,7 @@ tr:hover .row-actions{opacity:1}
 .partner-name{flex:1;font-size:13px;color:var(--text1)}
 .partner-type-toggle{display:flex;border-radius:6px;overflow:hidden;border:0.5px solid var(--border2);flex-shrink:0}
 .ptt-btn{padding:4px 10px;font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;border:none;background:var(--bg3);color:var(--text3);transition:all 0.12s}
-.ptt-btn.active-direct{background:#0a1e14;color:var(--green)}
+.ptt-btn.active-direct{background:var(--tint-green-bg);color:var(--green)}
 .ptt-btn.active-network{background:var(--accent-bg);color:var(--accent)}
 .partner-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 4px;border-radius:4px;transition:color 0.12s;flex-shrink:0}
 .partner-del:hover{color:var(--red)}
@@ -324,9 +359,9 @@ tr:hover .row-actions{opacity:1}
 .icon-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px 5px;border-radius:6px;display:inline-flex;align-items:center;transition:all 0.15s}
 .icon-btn:hover{color:var(--text1);background:var(--bg3)}
 /* ── PARTNER SIDEBAR ─────────────────────────────── */
-#partnerSidebar{position:fixed;top:0;right:0;width:420px;height:100vh;background:var(--bg2);border-left:0.5px solid var(--border2);z-index:90;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);box-shadow:-8px 0 32px rgba(0,0,0,0.4)}
+#partnerSidebar{position:fixed;top:0;right:0;width:420px;height:100vh;background:var(--bg2);border-left:0.5px solid var(--border2);z-index:90;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);box-shadow:-8px 0 32px var(--shadow)}
 #partnerSidebar.open{transform:translateX(0)}
-#sidebarOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:89;opacity:0;pointer-events:none;transition:opacity 0.25s}
+#sidebarOverlay{position:fixed;inset:0;background:var(--shadow);z-index:89;opacity:0;pointer-events:none;transition:opacity 0.25s}
 #sidebarOverlay.open{opacity:1;pointer-events:all}
 .sb-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--border);flex-shrink:0}
 .sb-title{font-size:14px;font-weight:500;color:var(--text1);font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:8px}
@@ -371,13 +406,13 @@ tr:hover .row-actions{opacity:1}
 .del-status{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:500;white-space:nowrap}
 .del-status.waiting_link{background:rgba(129,140,248,0.1);color:#818cf8;border:0.5px solid rgba(129,140,248,0.2)}
 .del-status.waiting_launch{background:rgba(245,158,11,0.1);color:#f59e0b;border:0.5px solid rgba(245,158,11,0.2)}
-.del-status.launched{background:rgba(16,185,129,0.1);color:#10b981;border:0.5px solid rgba(16,185,129,0.2)}
-.del-status.problem{background:rgba(239,68,68,0.1);color:#ef4444;border:0.5px solid rgba(239,68,68,0.2)}
+.del-status.launched{background:rgba(16,185,129,0.1);color:var(--green);border:0.5px solid rgba(16,185,129,0.2)}
+.del-status.problem{background:rgba(239,68,68,0.1);color:var(--red);border:0.5px solid rgba(239,68,68,0.2)}
 .del-status.stopped{background:rgba(107,114,128,0.1);color:#6b7280;border:0.5px solid rgba(107,114,128,0.2)}
 .del-link{color:var(--accent);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;display:inline-block}
 .del-link:hover{text-decoration:underline}
 .del-remind{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);white-space:nowrap}
-.del-remind.overdue{color:#ef4444}
+.del-remind.overdue{color:var(--red)}
 
 /* ── SETTINGS ────────────────────────────────────── */
 .region-card{border:0.5px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color 0.15s}
@@ -425,8 +460,8 @@ tr:hover .row-actions{opacity:1}
 .m-geo{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
 .m-card-r2{display:flex;align-items:center;gap:4px}
 .m-bdg{padding:1px 5px;border-radius:4px;font-size:9px;font-weight:500;flex-shrink:0}
-.m-bsrc{background:#1e2a3a;color:#60a5fa}
-.m-bgame{background:#1a2a1a;color:var(--green)}
+.m-bsrc{background:var(--tint-blue-bg);color:var(--tint-blue-fg)}
+.m-bgame{background:var(--tint-green-bg);color:var(--green)}
 .m-partner{font-size:9px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .m-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
 .m-rate-eur{font-size:13px;font-weight:600;color:var(--accent)}
@@ -435,7 +470,7 @@ tr:hover .row-actions{opacity:1}
 .m-dot.active{background:var(--green)}
 .m-dot.stop{background:var(--red)}
 .m-dot.capped{background:#fb923c}
-.m-dot.outdated{background:#374151}
+.m-dot.outdated{background:var(--text3)}
 .m-bottom-nav{display:flex;background:var(--bg2);border-top:0.5px solid var(--border);flex-shrink:0}
 .m-nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 0 20px;border:none;background:none;cursor:pointer}
 .m-nav-tab i{font-size:20px;color:var(--text3)}
@@ -748,11 +783,11 @@ tr:hover .row-actions{opacity:1}
   </div>
 
   <!-- Bulk action bar (visible only in bulk mode with selections) -->
-  <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;padding:7px 24px;background:#1a0a0a;border-bottom:0.5px solid #3a1212;flex-shrink:0">
+  <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;padding:7px 24px;background:var(--tint-red-bg);border-bottom:0.5px solid var(--tint-red-br);flex-shrink:0">
     <span style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace"><span id="bulkCount">0</span> выбрано</span>
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost" onclick="toggleBulkMode()" style="font-size:11px;padding:4px 10px">Отмена</button>
-      <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
+      <button class="btn" onclick="deleteSelected()" style="background:var(--tint-red-bg);border-color:var(--tint-red-br);color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
     </div>
   </div>
 
@@ -1007,6 +1042,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('mobileApp').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
   }
+  initTheme();
   const hideSplash = () => {
     const s = document.getElementById('bootSplash');
     if (!s) return;
@@ -2028,7 +2064,7 @@ function renderTasks() {
         <span class="task-dot" onclick="toggleTaskUrgent('${t.id}')" title="${isUrgent ? 'Снять срочность' : 'Пометить срочной'}" style="cursor:pointer;background:${isUrgent ? '#ef4444' : 'transparent'};border:1.5px solid ${isUrgent ? '#ef4444' : 'var(--border)'}"></span>
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:14px;height:14px">
         <span class="task-text" onclick="openTaskDetail('${t.id}')" title="Открыть задачу" style="flex:1;font-size:12.5px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.4;cursor:pointer">${esc(t.title)}</span>
-        ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
+        ${isUrgent && !t.done ? `<span class="task-badge" style="color:var(--red);border-color:var(--red)">Срочно</span>` : ''}
         ${cat ? `<span class="task-badge">${cat}</span>` : ''}
         <button class="icon-btn" onclick="openTaskDetail('${t.id}', true)" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
@@ -2133,7 +2169,7 @@ function renderTaskDetail() {
     // editable meta: urgency + category
     meta.innerHTML = `
       <button class="rq-chip ${isUrgent ? 'active' : ''}" id="taskDetailUrgent" onclick="toggleDetailUrgent()" style="padding:5px 11px">
-        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span>Срочно
       </button>
       <select class="form-select" id="taskDetailCat" style="width:auto;font-size:12px;padding:5px 10px">
         <option value="request">Запрос</option>
@@ -2164,7 +2200,7 @@ function renderTaskDetail() {
 
   // view mode
   meta.innerHTML = `
-    ${isUrgent ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
+    ${isUrgent ? `<span class="task-badge" style="color:var(--red);border-color:var(--red)">Срочно</span>` : ''}
     ${cat ? `<span class="task-badge">${cat}</span>` : ''}
     ${proj ? `<span class="task-badge">${proj}</span>` : ''}
     ${created ? `<span class="task-badge" style="opacity:0.7">${created}</span>` : ''}`;
@@ -2389,11 +2425,11 @@ const KB_COLUMNS = [
 ];
 
 const KB_COUNT_STYLES = {
-  'cnt-new':  'background:#1a1a3a;color:#818cf8;border:0.5px solid #3a3a7a',
-  'cnt-sent': 'background:#2a1f0a;color:#f59e0b;border:0.5px solid #5a3f0a',
-  'cnt-prop': 'background:#0a2a1a;color:#10b981;border:0.5px solid #0a5a2a',
-  'cnt-rej':  'background:#2a0a0a;color:#ef4444;border:0.5px solid #5a1a1a',
-  'cnt-nf':   'background:#0a2030;color:#0ea5e9;border:0.5px solid #0a4a6a',
+  'cnt-new':  'background:var(--tint-indigo-bg);color:var(--tint-indigo-fg);border:0.5px solid var(--tint-indigo-br)',
+  'cnt-sent': 'background:var(--tint-amber-bg);color:var(--tint-amber-fg);border:0.5px solid var(--tint-amber-br)',
+  'cnt-prop': 'background:var(--tint-green-bg);color:var(--green);border:0.5px solid var(--tint-green-br)',
+  'cnt-rej':  'background:var(--tint-red-bg);color:var(--red);border:0.5px solid var(--tint-red-br)',
+  'cnt-nf':   'background:var(--tint-cyan-bg);color:var(--tint-cyan-fg);border:0.5px solid var(--tint-cyan-br)',
   'cnt-cls':  'background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)',
 };
 
@@ -2473,7 +2509,7 @@ function renderRequestsList() {
       </span>
       <span class="rq-title">${esc(req.title) || 'Без названия'}</span>
       <span class="rq-notes">${notes ? flagEmojiToImg(esc(notes)) : '<span style="opacity:0.35">—</span>'}</span>
-      ${req.proposed_offer ? `<i class="ti ti-target-arrow" style="color:#10b981;font-size:13px;flex-shrink:0" title="Предложено: ${esc((req.proposed_offer||'').replace(/\s+/g,' ').slice(0,140))}"></i>` : ''}
+      ${req.proposed_offer ? `<i class="ti ti-target-arrow" style="color:var(--green);font-size:13px;flex-shrink:0" title="Предложено: ${esc((req.proposed_offer||'').replace(/\s+/g,' ').slice(0,140))}"></i>` : ''}
       ${dateStr ? `<span class="rq-date">${dateStr}</span>` : ''}
       <button class="icon-btn" onclick="event.stopPropagation();deleteRequest('${req.id}')" style="color:var(--red);flex-shrink:0"><i class="ti ti-trash"></i></button>
     </div>`;
@@ -2696,7 +2732,7 @@ async function openReqDetail(reqId) {
 
       ${(req.proposed_offer || req.status === 'proposed' || req.status === 'closed') ? `
       <div>
-        <div style="font-size:10px;color:#10b981;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:flex;align-items:center;gap:6px">
           <i class="ti ti-target-arrow" style="font-size:12px"></i>Предложенный оффер
         </div>
         <textarea class="form-input" style="width:100%;min-height:90px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;border-color:rgba(16,185,129,0.35)" placeholder="Что предложили партнёру..." onchange="saveReqField('${reqId}','proposed_offer',this.value)">${esc(req.proposed_offer)}</textarea>
@@ -2890,6 +2926,27 @@ function toggleReqStatusMenu(reqId) {
 
 function closeReqStatusMenu() {
   document.getElementById('reqStatusPop')?.remove();
+}
+
+// ── theme ────────────────────────────────────────────
+function setTheme(theme) {
+  if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('ob_theme', theme); } catch (e) {}
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.themeVal === theme);
+  });
+  // favicon/status bar tint follows the theme
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f7fb' : '#0b0d14');
+}
+
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+function initTheme() {
+  setTheme(currentTheme());
 }
 
 // ── proposed offer prompt ────────────────────────────
@@ -3625,7 +3682,7 @@ function renderDeliveries() {
   el.innerHTML = `
   <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 12px">
     <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace">Σ Маржа:</span>
-    <span style="font-size:14px;font-weight:600;color:#10b981;font-family:'IBM Plex Mono',monospace">${totalsStr}</span>
+    <span style="font-size:14px;font-weight:600;color:var(--green);font-family:'IBM Plex Mono',monospace">${totalsStr}</span>
     ${excludedCount ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace" title="Выдачи со статусом «Проблема» или «На стопе» не идут в сумму">· ${excludedCount} не в счёт (проблема/стоп)</span>` : ''}
   </div>
   <table class="del-table">
@@ -4336,7 +4393,7 @@ function renderStatsPage() {
       </div>
       <div class="st-card">
         <div class="st-card-title"><i class="ti ti-flame"></i>Активных</div>
-        <div class="st-kpi" style="color:#10b981">${offActive.length}</div>
+        <div class="st-kpi" style="color:var(--green)">${offActive.length}</div>
         <div class="st-kpi-sub">${pct(offActive.length, offAll.length)}% базы</div>
       </div>
       <div class="st-card">
@@ -5003,7 +5060,7 @@ function showToast(msg,type='success') {
       <button class="btn btn-primary" onclick="openAddPartnerModal()"><i class="ti ti-plus"></i>Добавить партнёра</button>
     </div>
   </div>
-  <div id="partnerSyncBanner" style="display:none;align-items:center;gap:12px;padding:10px 24px;background:#1e1608;border-bottom:0.5px solid #33290c;flex-shrink:0">
+  <div id="partnerSyncBanner" style="display:none;align-items:center;gap:12px;padding:10px 24px;background:var(--tint-amber-bg);border-bottom:0.5px solid var(--tint-amber-br);flex-shrink:0">
     <i class="ti ti-alert-triangle" style="color:#eab308;font-size:15px"></i>
     <span style="font-size:12px;color:var(--text1)" id="partnerSyncText"></span>
     <button class="btn btn-primary" style="margin-left:auto;font-size:11px;padding:5px 12px" onclick="openPartnerSyncModal()"><i class="ti ti-plug-connected"></i>Синхронизировать</button>
@@ -5068,6 +5125,22 @@ function showToast(msg,type='success') {
           <div class="stat"><span class="stat-val" id="s-active">—</span><span class="stat-lbl">Активных</span></div>
           <div class="stat"><span class="stat-val" id="s-geo">—</span><span class="stat-lbl">GEO</span></div>
           <div class="stat"><span class="stat-val" id="s-partners">—</span><span class="stat-lbl">Партнёров</span></div>
+        </div>
+      </div>
+
+      <!-- Theme block -->
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:14px;font-weight:500;color:var(--text1);font-family:'IBM Plex Mono',monospace">Оформление</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Выбор сохраняется в этом браузере</div>
+        </div>
+        <div style="padding:16px 20px;display:flex;align-items:center;gap:8px">
+          <button class="rq-chip theme-btn" data-theme-val="dark" onclick="setTheme('dark')" style="padding:7px 14px">
+            <i class="ti ti-moon" style="font-size:13px"></i>Тёмная
+          </button>
+          <button class="rq-chip theme-btn" data-theme-val="light" onclick="setTheme('light')" style="padding:7px 14px">
+            <i class="ti ti-sun" style="font-size:13px"></i>Светлая
+          </button>
         </div>
       </div>
 
@@ -5165,7 +5238,7 @@ function showToast(msg,type='success') {
           oninput="autoGrowTask(this)"
           onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();addTask();}"></textarea>
         <button class="rq-chip" id="taskUrgentToggle" onclick="toggleNewTaskUrgent()" title="Срочная задача" style="padding:6px 9px;flex-shrink:0;height:32px">
-          <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--red);display:inline-block"></span>Срочно
         </button>
         <div class="filter-dropdown" id="taskCatDd" style="flex-shrink:0">
           <button class="rq-chip" onclick="event.stopPropagation();toggleTaskCatMenu()" style="padding:6px 9px;height:32px">
