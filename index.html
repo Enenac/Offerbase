@@ -754,8 +754,17 @@ tr:hover .row-actions{opacity:1}
   <!-- Bulk action bar (visible only in bulk mode with selections) -->
   <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;padding:7px 24px;background:#1a0a0a;border-bottom:0.5px solid #3a1212;flex-shrink:0">
     <span style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace"><span id="bulkCount">0</span> выбрано</span>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-ghost" onclick="toggleBulkMode()" style="font-size:11px;padding:4px 10px">Отмена</button>
+      <div class="filter-dropdown">
+        <button class="btn btn-ghost" onclick="event.stopPropagation();toggleFilterMenu('bulkStatus')" style="font-size:11px;padding:4px 10px"><i class="ti ti-refresh"></i>Сменить статус<i class="ti ti-chevron-down" style="font-size:10px;opacity:0.6;margin-left:3px"></i></button>
+        <div class="filter-menu hidden" id="menu-bulkStatus" style="right:0;left:auto;min-width:170px">
+          <div class="filter-option" onclick="setSelectedStatus('active')"><span style="width:7px;height:7px;border-radius:50%;background:#34d399;display:inline-block"></span>Активен</div>
+          <div class="filter-option" onclick="setSelectedStatus('stop')"><span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block"></span>Стоп</div>
+          <div class="filter-option" onclick="setSelectedStatus('capped')"><span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block"></span>Заполнен</div>
+          <div class="filter-option" onclick="setSelectedStatus('outdated')"><span style="width:7px;height:7px;border-radius:50%;background:#6b7280;display:inline-block"></span>Устарел</div>
+        </div>
+      </div>
       <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
     </div>
   </div>
@@ -3036,6 +3045,27 @@ function clearSelection() {
   const sa = document.getElementById('selectAll');
   if (sa) { sa.checked = false; sa.indeterminate = false; }
   document.getElementById('bulkBar').style.display = 'none';
+}
+
+async function setSelectedStatus(status) {
+  const ids = [...document.querySelectorAll('.row-cb:checked')].map(el => el.value);
+  toggleFilterMenu('bulkStatus');
+  if (ids.length === 0) { showToast('Ничего не выбрано', 'error'); return; }
+  const label = { active: 'Активен', stop: 'Стоп', capped: 'Заполнен', outdated: 'Устарел' }[status] || status;
+
+  // update in chunks to stay within PostgREST limits on big selections
+  const BATCH = 200;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const { error } = await sb.from('offers').update({ status }).in('id', ids.slice(i, i + BATCH));
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  }
+  invalidateOfferVersions();
+  showToast(`Статус «${label}» → ${ids.length} оффер(ов)`, 'success');
+  bulkMode = false;
+  document.getElementById('offersTable').classList.remove('bulk-mode');
+  document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
+  clearSelection();
+  loadOffers();
 }
 
 async function deleteSelected() {
