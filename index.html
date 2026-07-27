@@ -289,8 +289,8 @@ tr:hover .row-actions{opacity:1}
 .row-stale{opacity:0.42}
 .row-stale .td-rate{text-decoration:line-through}
 .ver-badge{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border-radius:5px;border:0.5px solid;font-family:'IBM Plex Mono',monospace;white-space:nowrap;vertical-align:middle;cursor:help}
-.kb-notes{margin-top:6px;padding:6px 8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:11.5px;line-height:1.4;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;max-height:52px;overflow:hidden;box-sizing:border-box}
-.kb-notes.clipped{-webkit-mask-image:linear-gradient(to bottom,#000 62%,transparent);mask-image:linear-gradient(to bottom,#000 62%,transparent)}
+.kb-notes{margin-top:6px;padding:6px 8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;font-size:11.5px;line-height:1.4;color:var(--text2);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;height:46px;overflow:hidden;box-sizing:border-box}
+.kb-notes.clipped{-webkit-mask-image:linear-gradient(to bottom,#000 60%,transparent);mask-image:linear-gradient(to bottom,#000 60%,transparent)}
 .task-pf.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 .task-row{display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border-radius:7px;background:var(--bg);border:0.5px solid var(--border2);transition:border-color 0.12s,opacity 0.12s}
 .task-row > .task-dot,.task-row > input[type=checkbox],.task-row > .task-grip{margin-top:2px}
@@ -702,7 +702,7 @@ tr:hover .row-actions{opacity:1}
     <!-- Rate filter -->
     <div class="filter-dropdown">
       <div class="chip" id="chip-rate" onclick="toggleFilterMenu('rate')"><i class="ti ti-currency-dollar"></i>Ставка</div>
-      <div class="filter-menu hidden" id="menu-rate" style="right:0;left:auto;min-width:210px">
+      <div class="filter-menu hidden" id="menu-rate" style="left:0;right:auto;min-width:210px">
         <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Валюта</div>
           <select id="rateCurrency" class="form-select" style="font-size:11px" onchange="applyRateFilter()">
@@ -2616,7 +2616,7 @@ function renderKbCard(req) {
     <div class="kb-card-meta">
       ${dateStr ? `<span class="kb-tag">${dateStr}</span>` : ''}
     </div>
-    ${req.notes ? `<div class="kb-notes">${flagEmojiToImg(esc(req.notes))}</div>` : ''}
+    <div class="kb-notes">${req.notes ? flagEmojiToImg(esc(req.notes)) : ''}</div>
   </div>`;
 }
 
