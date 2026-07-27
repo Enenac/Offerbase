@@ -2630,6 +2630,13 @@ function renderKbCard(req) {
 }
 
 // ── REQUEST DETAIL ────────────────────────────────────
+// closing the detail view repaints the list so edited fields show immediately
+function closeReqDetailAndRefresh() {
+  document.getElementById('reqDetailOverlay').classList.add('hidden');
+  renderRequests();
+  updateRequestsBadge();
+}
+
 async function openReqDetail(reqId) {
   const req = allRequests.find(r => r.id === reqId);
   if (!req) return;
@@ -5007,11 +5014,11 @@ function showToast(msg,type='success') {
 </div>
 
 <!-- ── REQUEST DETAIL MODAL ─────────────────────────── -->
-<div class="modal-overlay hidden" id="reqDetailOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
+<div class="modal-overlay hidden" id="reqDetailOverlay" onclick="if(event.target===this)closeReqDetailAndRefresh()">
   <div class="modal" style="max-width:860px">
     <div class="modal-header">
       <span class="modal-title" id="reqDetailTitle"><i class="ti ti-inbox"></i>Запрос</span>
-      <button class="icon-btn" onclick="document.getElementById('reqDetailOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" onclick="closeReqDetailAndRefresh()"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body" id="reqDetailBody"></div>
   </div>
