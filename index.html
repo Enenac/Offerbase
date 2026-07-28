@@ -1110,6 +1110,7 @@ async function loadOffers() {
   await fetchRates();
   await autoExpireOffers();
   await syncPlatforms();
+  await syncMinDeposits();
   // Default filter: active only
   if (!filters.status) {
     filters.status = 'active';
@@ -1286,6 +1287,45 @@ async function syncPlatforms() {
   }
 
   if (conflicts.length > 0) showPlatformConflicts(conflicts);
+}
+
+// Fill missing min_deposit from siblings, keyed by brand + geo.
+// Same brand in different geos can have different min deposits, so geo is part of the key.
+async function syncMinDeposits() {
+  const { data, error } = await sb.from('offers')
+    .select('id, brand, geo, min_deposit')
+    .limit(100000);
+  if (error) { console.error('syncMinDeposits load error:', error); return; }
+
+  const isEmpty = v => v == null || String(v).trim() === '' || ['-', '–', '—', '--'].includes(String(v).trim());
+  const keyOf = o => `${(o.brand || '').toLowerCase().trim()}|${(o.geo || '').toLowerCase().trim()}`;
+
+  // collect distinct non-empty min_deposit values per brand+geo
+  const known = {};
+  (data || []).forEach(o => {
+    if (!(o.brand || '').trim() || !(o.geo || '').trim()) return; // need both to be safe
+    if (isEmpty(o.min_deposit)) return;
+    const k = keyOf(o);
+    (known[k] = known[k] || new Set()).add(String(o.min_deposit).trim());
+  });
+
+  // fill only where that brand+geo has exactly one agreed value
+  const byValue = {};
+  (data || []).forEach(o => {
+    if (!isEmpty(o.min_deposit)) return; // already set (incl. explicit dash) — leave it
+    if (!(o.brand || '').trim() || !(o.geo || '').trim()) return;
+    const vals = known[keyOf(o)];
+    if (!vals || vals.size !== 1) return; // unknown or conflicting → skip
+    const v = [...vals][0];
+    (byValue[v] = byValue[v] || []).push(o.id);
+  });
+
+  for (const [val, ids] of Object.entries(byValue)) {
+    const BATCH = 500;
+    for (let i = 0; i < ids.length; i += BATCH) {
+      await sb.from('offers').update({ min_deposit: val }).in('id', ids.slice(i, i + BATCH));
+    }
+  }
 }
 
 function showPlatformConflicts(conflicts) {
