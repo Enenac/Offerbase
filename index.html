@@ -1109,8 +1109,6 @@ async function loadOffers() {
   document.getElementById('emptyState').classList.add('hidden');
   await fetchRates();
   await autoExpireOffers();
-  await syncPlatforms();
-  await syncMinDeposits();
   // Default filter: active only
   if (!filters.status) {
     filters.status = 'active';
@@ -1119,6 +1117,29 @@ async function loadOffers() {
   }
   currentPage_offers = 0;
   await fetchOffers();
+
+  // heavy full-table syncs run in the background so the table shows immediately;
+  // when they finish (and only if they actually changed something) the view refreshes
+  runBackgroundSyncs();
+}
+
+let _bgSyncRunning = false;
+async function runBackgroundSyncs() {
+  if (_bgSyncRunning) return;
+  _bgSyncRunning = true;
+  try {
+    const changed = await syncPlatforms();
+    const changed2 = await syncMinDeposits();
+    if ((changed || changed2) && currentPage === 'offers') {
+      currentPage_offers = 0;
+      invalidateOfferVersions();
+      await fetchOffers();
+    }
+  } catch (e) {
+    console.error('background sync error:', e);
+  } finally {
+    _bgSyncRunning = false;
+  }
 }
 
 async function fetchOffers() {
@@ -1279,14 +1300,17 @@ async function syncPlatforms() {
     byPlat[p].push(o.id);
   });
 
+  let didChange = false;
   for (const [plat, ids] of Object.entries(byPlat)) {
     const BATCH = 500;
     for (let i = 0; i < ids.length; i += BATCH) {
       await sb.from('offers').update({ platform: plat }).in('id', ids.slice(i, i + BATCH));
+      didChange = true;
     }
   }
 
   if (conflicts.length > 0) showPlatformConflicts(conflicts);
+  return didChange;
 }
 
 // Fill missing min_deposit from siblings, keyed by brand + geo.
@@ -1320,12 +1344,15 @@ async function syncMinDeposits() {
     (byValue[v] = byValue[v] || []).push(o.id);
   });
 
+  let didChange = false;
   for (const [val, ids] of Object.entries(byValue)) {
     const BATCH = 500;
     for (let i = 0; i < ids.length; i += BATCH) {
       await sb.from('offers').update({ min_deposit: val }).in('id', ids.slice(i, i + BATCH));
+      didChange = true;
     }
   }
+  return didChange;
 }
 
 function showPlatformConflicts(conflicts) {
