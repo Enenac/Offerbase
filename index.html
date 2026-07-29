@@ -3481,8 +3481,30 @@ let mobileSearchQuery = '';
 
 function isMobile() { return window.innerWidth <= 600; }
 
+let _mSearchResults = null;   // full-DB search results, or null when not searching
+let _mSearchTimer = null;
 function onMobileSearch(val) {
-  mobileSearchQuery = val.toLowerCase();
+  mobileSearchQuery = val.toLowerCase().trim();
+  clearTimeout(_mSearchTimer);
+  if (!mobileSearchQuery) { _mSearchResults = null; renderMobile(); return; }
+  _mSearchTimer = setTimeout(runMobileSearch, 350);
+}
+
+async function runMobileSearch() {
+  const q = mobileSearchQuery;
+  if (!q) { _mSearchResults = null; renderMobile(); return; }
+  const list = document.getElementById('mOffersList');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Поиск…</div>';
+  // search the whole base, current project only, brand/partner/platform like desktop
+  const { data, error } = await sb.from('offers')
+    .select('*')
+    .eq('project', currentProject)
+    .or(`brand.ilike.%${q}%,partner.ilike.%${q}%,platform.ilike.%${q}%`)
+    .order('received_at', { ascending: false, nullsFirst: false })
+    .limit(500);
+  if (q !== mobileSearchQuery) return; // a newer keystroke superseded this one
+  if (error) { _mSearchResults = []; }
+  else _mSearchResults = data || [];
   renderMobile();
 }
 
@@ -3685,21 +3707,16 @@ function renderMobile() {
   const rv = document.getElementById('mRateVal');
   if (rv) rv.textContent = eurUsd ? eurUsd.toFixed(3) : '—';
 
-  let rows = allOffers.filter(o => o.project === currentProject);
+  // when searching, use full-DB results; otherwise the loaded page
+  let rows = (mobileSearchQuery && _mSearchResults !== null)
+    ? _mSearchResults.slice()
+    : allOffers.filter(o => o.project === currentProject);
 
   if (mobileFilters.status) rows = rows.filter(o => o.status === mobileFilters.status);
   if (mobileFilters.geo) rows = rows.filter(o => (o.geo||'').toUpperCase() === mobileFilters.geo.toUpperCase());
   if (mobileFilters.source) rows = rows.filter(o => o.traffic_source === mobileFilters.source);
   if (mobileFilters.gametype) rows = rows.filter(o => o.game_type === mobileFilters.gametype);
   if (mobileFilters.partner) rows = rows.filter(o => o.partner === mobileFilters.partner);
-
-  if (mobileSearchQuery) {
-    rows = rows.filter(o =>
-      (o.brand||'').toLowerCase().includes(mobileSearchQuery) ||
-      (o.partner||'').toLowerCase().includes(mobileSearchQuery) ||
-      (o.geo||'').toLowerCase().includes(mobileSearchQuery)
-    );
-  }
 
   rows = rows.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
 
