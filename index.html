@@ -2505,7 +2505,7 @@ async function loadRequests() {
 }
 
 const REQ_STATUS_LABELS = {
-  new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт'
+  new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', wishlist: 'Вишлист', closed: 'Закрыт'
 };
 
 const KB_COLUMNS = [
@@ -2521,6 +2521,7 @@ const KB_COUNT_STYLES = {
   'cnt-prop': 'background:#0a2a1a;color:#10b981;border:0.5px solid #0a5a2a',
   'cnt-rej':  'background:#2a0a0a;color:#ef4444;border:0.5px solid #5a1a1a',
   'cnt-nf':   'background:#0a2030;color:#0ea5e9;border:0.5px solid #0a4a6a',
+  'cnt-wish': 'background:#1e0a2e;color:#a855f7;border:0.5px solid #3a1a5a',
   'cnt-cls':  'background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)',
 };
 
@@ -2531,6 +2532,7 @@ const REQ_STATUS_META = {
   proposed:  { dot: '#10b981', countCls: 'cnt-prop' },
   rejected:  { dot: '#ef4444', countCls: 'cnt-rej' },
   not_found: { dot: '#0ea5e9', countCls: 'cnt-nf' },
+  wishlist:  { dot: '#a855f7', countCls: 'cnt-wish' },
   closed:    { dot: '#6b7280', countCls: 'cnt-cls' },
 };
 
@@ -2558,10 +2560,12 @@ function renderRequestsList() {
   if (!chipsEl || !rowsEl) return;
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // hidden statuses respect the same admin checkboxes as the board
+  // hidden statuses respect the show checkboxes
   const showRejected = document.getElementById('showRejected')?.checked;
   const showNotFound = document.getElementById('showNotFound')?.checked;
+  const showWishlist = document.getElementById('showWishlist')?.checked;
   const allowed = ['new', 'sent', 'proposed', 'closed'];
+  if (showWishlist) allowed.push('wishlist');
   if (showRejected) allowed.push('rejected');
   if (showNotFound) allowed.push('not_found');
 
@@ -2612,8 +2616,10 @@ function renderRequests() {
   const board = document.getElementById('kanbanBoard');
   const showRejected = document.getElementById('showRejected')?.checked;
   const showNotFound = document.getElementById('showNotFound')?.checked;
+  const showWishlist = document.getElementById('showWishlist')?.checked;
 
   const cols = [...KB_COLUMNS.slice(0, 3)]; // Новый, Отправлен, Предложен
+  if (showWishlist) cols.push({ key: 'wishlist',  label: 'Вишлист',   dot: '#a855f7', countCls: 'cnt-wish' });
   if (showRejected) cols.push({ key: 'rejected',  label: 'Отклонён',  dot: '#ef4444', countCls: 'cnt-rej' });
   if (showNotFound) cols.push({ key: 'not_found', label: 'Не найдено', dot: '#0ea5e9', countCls: 'cnt-nf' });
   cols.push(KB_COLUMNS[3]); // Закрыт
@@ -2815,7 +2821,7 @@ async function openReqDetail(reqId) {
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text3)">Статус:</span>
           <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onchange="updateReqStatus('${reqId}', this.value)">
-            ${['new', 'sent', 'proposed', 'rejected', 'not_found', 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
+            ${['new', 'sent', 'proposed', 'rejected', 'not_found', 'wishlist', 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -5290,6 +5296,10 @@ function showToast(msg,type='success') {
   <div class="topbar">
     <span class="logo"><i class="ti ti-inbox"></i>Запросы</span>
     <div class="topbar-right">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+        <input type="checkbox" id="showWishlist" onchange="renderRequests()" style="accent-color:#a855f7">
+        <span>Показать вишлист</span>
+      </label>
       <div id="reqAdminControls" style="display:none;align-items:center;gap:16px">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
           <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
