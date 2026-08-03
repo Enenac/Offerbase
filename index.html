@@ -2081,7 +2081,6 @@ function applyAdminUI() {
   const ls = document.getElementById('lnav-stats');
   if (ls) ls.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
-    const sr = document.getElementById('showRejected'); if (sr) sr.checked = false;
     const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
   }
   updateAccessUI();
@@ -5310,11 +5309,11 @@ function showToast(msg,type='success') {
         <input type="checkbox" id="showWishlist" onchange="renderRequests()" style="accent-color:#a855f7">
         <span>Показать вишлист</span>
       </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+        <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
+        <span>Показать отклонённые</span>
+      </label>
       <div id="reqAdminControls" style="display:none;align-items:center;gap:16px">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
-          <input type="checkbox" id="showRejected" onchange="renderRequests()" style="accent-color:var(--accent)">
-          <span>Показать отклонённые</span>
-        </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
           <input type="checkbox" id="showNotFound" onchange="renderRequests()" style="accent-color:var(--accent)">
           <span>Показать не найдено</span>
