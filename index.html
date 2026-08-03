@@ -3887,9 +3887,19 @@ function renderDeliveries() {
   // totals per currency across the filtered rows — based on TOTAL margin (× capa).
   // Deliveries in "problem" or "stopped" don't earn, so they're left out of the sum.
   const COUNTS_TOWARD_MARGIN = d => d.status !== 'problem' && d.status !== 'stopped';
+  // Σ Маржа covers the current calendar month only; resets when a new month starts
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+  const inThisMonth = d => {
+    const t = new Date(d.created_at || 0).getTime();
+    return t >= monthStart && t < monthEnd;
+  };
+  const monthName = now.toLocaleDateString('ru-RU', { month: 'long', year: '2-digit' });
+
   const totals = {};
   let excludedCount = 0;
   rows.forEach(d => {
+    if (!inThisMonth(d)) return;
     const tm = totalMarginOf(d);
     if (!tm) return;
     if (!COUNTS_TOWARD_MARGIN(d)) { excludedCount++; return; }
@@ -3900,8 +3910,8 @@ function renderDeliveries() {
     : '—';
 
   el.innerHTML = `
-  <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 12px">
-    <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace">Σ Маржа:</span>
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 4px 12px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace">Σ Маржа · ${monthName}:</span>
     <span style="font-size:14px;font-weight:600;color:#10b981;font-family:'IBM Plex Mono',monospace">${totalsStr}</span>
     ${excludedCount ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace" title="Выдачи со статусом «Проблема» или «На стопе» не идут в сумму">· ${excludedCount} не в счёт (проблема/стоп)</span>` : ''}
   </div>
