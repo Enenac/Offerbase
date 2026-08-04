@@ -380,6 +380,11 @@ tr:hover .row-actions{opacity:1}
 .del-status.launched{background:rgba(16,185,129,0.1);color:#10b981;border:0.5px solid rgba(16,185,129,0.2)}
 .del-status.problem{background:rgba(239,68,68,0.1);color:#ef4444;border:0.5px solid rgba(239,68,68,0.2)}
 .del-status.stopped{background:rgba(107,114,128,0.1);color:#6b7280;border:0.5px solid rgba(107,114,128,0.2)}
+.del-month-sep td{padding:0!important;border:none!important}
+.del-month-sep-inner{display:flex;align-items:center;gap:10px;padding:22px 8px 10px}
+.del-month-sep-inner span{font-size:11px;font-weight:600;color:var(--text3);text-transform:capitalize;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.del-month-sep-inner::after{content:'';flex:1;height:1px;background:var(--border)}
+.del-month-sep:first-child .del-month-sep-inner{padding-top:2px}
 .del-link{color:var(--accent);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;display:inline-block}
 .del-link:hover{text-decoration:underline}
 .del-remind{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);white-space:nowrap}
@@ -3993,7 +3998,9 @@ function renderDeliveries() {
       <th></th>
     </tr></thead>
     <tbody>
-      ${rows.map(d => {
+      ${(() => {
+        let lastMonthKey = null;
+        return rows.map(d => {
         const statusMap = {waiting_link:'waiting_link',waiting_launch:'waiting_launch',launched:'launched',problem:'problem',stopped:'stopped'};
         const statusLabel = {waiting_link:'Ожидаем ссылку',waiting_launch:'Ожидаем запуска',launched:'Запущен',problem:'Проблема',stopped:'На стопе'};
         const cls = statusMap[d.status] || 'waiting_link';
@@ -4017,7 +4024,18 @@ function renderDeliveries() {
         const tmStr = tm
           ? `<span style="font-weight:700;${dimIfNotCounted}color:${tm.value>=0?'#10b981':'#ef4444'};font-family:'IBM Plex Mono',monospace"${notCountedTip}>${curSym(tm.cur)}${(+tm.value.toFixed(2))}</span>`
           : '<span class="td-empty">—</span>';
-        return `<tr>
+        // month separator — inserted whenever the delivery's month differs from the previous row's
+        const createdDate = d.created_at ? new Date(d.created_at) : null;
+        const monthKey = createdDate ? `${createdDate.getFullYear()}-${createdDate.getMonth()}` : 'unknown';
+        let sep = '';
+        if (monthKey !== lastMonthKey) {
+          lastMonthKey = monthKey;
+          const monthLabel = createdDate
+            ? createdDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+            : 'Без даты';
+          sep = `<tr class="del-month-sep"><td colspan="12"><div class="del-month-sep-inner"><span>${monthLabel}</span></div></td></tr>`;
+        }
+        return `${sep}<tr>
           <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</div></td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
@@ -4036,7 +4054,8 @@ function renderDeliveries() {
             </div>
           </td>
         </tr>`;
-      }).join('')}
+        }).join('');
+      })()}
     </tbody>
   </table>`;
 }
