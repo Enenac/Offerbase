@@ -191,8 +191,10 @@ tr:hover .row-actions{opacity:1}
 .parse-preview-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:0.5px solid var(--border)}
 .parse-preview-title{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
 .parse-preview-count{font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace}
-.parse-preview-row{display:grid;grid-template-columns:50px 1fr 1fr 80px 80px;gap:8px;padding:6px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2);align-items:center}
+.parse-preview-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 14px;border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2)}
 .parse-preview-row:last-child{border-bottom:none}
+.parse-field{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
+.parse-field-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace}
 .parse-error{padding:10px 14px;font-size:11px;color:var(--red);font-family:'IBM Plex Mono',monospace}
 
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -1894,11 +1896,15 @@ function parseTemplate() {
     </div>
     ${parsedOffers.map(o=>`
       <div class="parse-preview-row">
-        <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text1)">${flag(o.geo)} ${o.geo||'—'}</span>
-        <span style="color:var(--text1);font-weight:500">${esc(o.brand)||'—'}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text1)">${flag(o.geo)} ${esc(o.geo)||'—'}</span>
+        <span style="color:var(--text1);font-weight:600">${esc(o.brand)||'—'}</span>
         <span style="color:var(--text3)">${esc(o.traffic_source)||'—'} • ${esc(o.game_type)||'—'}</span>
-        <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace">${esc(o.rate)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.partner)||'—'}</span>
+        <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace;font-weight:500">${esc(o.rate)||'—'}</span>
+        ${o.min_deposit ? `<span class="parse-field"><span class="parse-field-label">MinDep</span>${esc(o.min_deposit)}</span>` : ''}
+        ${o.capa ? `<span class="parse-field"><span class="parse-field-label">Капа</span>${esc(o.capa)}</span>` : ''}
+        ${o.kpi ? `<span class="parse-field"><span class="parse-field-label">KPI</span>${esc(o.kpi)}</span>` : ''}
+        ${o.platform ? `<span class="parse-field"><span class="parse-field-label">Платформа</span>${esc(o.platform)}</span>` : ''}
+        ${o.partner ? `<span class="parse-field"><span class="parse-field-label">Партнёр</span>${esc(o.partner)}</span>` : ''}
       </div>
     `).join('')}
   `;
