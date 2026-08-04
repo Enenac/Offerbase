@@ -1109,8 +1109,9 @@ function initApp() {
   document.addEventListener('click', e => {
     if (!e.target.closest('.filter-dropdown')) closeAllMenus();
     if (!e.target.closest('#reqStatusPop') && !e.target.closest('.rq-status-btn')) closeReqStatusMenu();
+    if (!e.target.closest('#delStatusPop') && !e.target.closest('.del-status-btn')) closeDelStatusMenu();
   });
-  window.addEventListener('scroll', () => closeReqStatusMenu(), true);
+  window.addEventListener('scroll', () => { closeReqStatusMenu(); closeDelStatusMenu(); }, true);
   // default date = today
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('f-date').value = today;
@@ -3852,6 +3853,61 @@ function setDeliveryFilter(f) {
   renderDeliveries();
 }
 
+const DELIVERY_STATUS_META = {
+  waiting_link:   { label: 'Ожидаем ссылку',  emoji: '🔗' },
+  waiting_launch: { label: 'Ожидаем запуска', emoji: '⏳' },
+  launched:       { label: 'Запущен',         emoji: '✅' },
+  problem:        { label: 'Проблема',        emoji: '⚠️' },
+  stopped:        { label: 'На стопе',        emoji: '🛑' },
+};
+
+// quick status switch straight from the deliveries table row
+function toggleDelStatusMenu(delId) {
+  const existing = document.getElementById('delStatusPop');
+  if (existing && existing.dataset.del === delId) { existing.remove(); return; }
+  existing?.remove();
+
+  const d = allDeliveries.find(x => x.id === delId);
+  if (!d) return;
+  const badge = event.currentTarget;
+  const rect = badge.getBoundingClientRect();
+
+  const pop = document.createElement('div');
+  pop.id = 'delStatusPop';
+  pop.dataset.del = delId;
+  pop.className = 'filter-menu';
+  pop.style.cssText = `position:fixed;top:${rect.bottom + 5}px;left:${rect.left}px;min-width:170px;z-index:120`;
+  pop.onclick = e => e.stopPropagation();
+
+  pop.innerHTML = Object.keys(DELIVERY_STATUS_META).map(k => {
+    const m = DELIVERY_STATUS_META[k];
+    const active = k === d.status;
+    return `<div class="filter-option ${active ? 'selected' : ''}" onclick="setDelStatusQuick('${delId}','${k}')">
+      <span style="flex-shrink:0">${m.emoji}</span>
+      ${m.label}
+      ${active ? '<i class="ti ti-check" style="margin-left:auto;font-size:12px"></i>' : ''}
+    </div>`;
+  }).join('');
+
+  document.body.appendChild(pop);
+  const ph = pop.getBoundingClientRect().height;
+  if (rect.bottom + ph + 8 > window.innerHeight) pop.style.top = `${Math.max(8, rect.top - ph - 5)}px`;
+}
+
+function closeDelStatusMenu() {
+  document.getElementById('delStatusPop')?.remove();
+}
+
+async function setDelStatusQuick(delId, status) {
+  closeDelStatusMenu();
+  const d = allDeliveries.find(x => x.id === delId);
+  if (d) d.status = status; // optimistic: repaint immediately
+  renderDeliveries();
+  const { error } = await sb.from('deliveries').update({ status }).eq('id', delId);
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); await loadDeliveries(); return; }
+  showToast(`Статус: ${DELIVERY_STATUS_META[status].label}`, 'success');
+}
+
 function renderDeliveries() {
   const el = document.getElementById('deliveriesTable');
   if (!el) return;
@@ -3964,7 +4020,7 @@ function renderDeliveries() {
           <td style="color:var(--text2);font-size:12px">${capaStr}</td>
           <td style="font-size:12px">${mStr}</td>
           <td style="font-size:12px">${tmStr}</td>
-          <td><span class="del-status ${cls}">${statusLabel[d.status]||d.status}</span></td>
+          <td><span class="del-status ${cls} del-status-btn" onclick="event.stopPropagation();toggleDelStatusMenu('${d.id}')" title="Сменить статус" style="cursor:pointer">${statusLabel[d.status]||d.status}</span></td>
           <td><span class="del-remind ${isOverdue?'overdue':''}">${isOverdue?'⚠️ ':''} ${remindStr}</span></td>
           <td class="del-date-cell" onclick="startEditDeliveryDate('${d.id}', event)" title="Изменить дату добавления" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer">${createdStr}</td>
           <td>
