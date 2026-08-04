@@ -3464,7 +3464,8 @@ function refreshExportText() {
     for (const f of EXPORT_FIELDS) {
       if (!on(f.key)) continue;
       const p = fieldPart(f, o);
-      if (p) parts.push(p);
+      if (!p) continue;
+      parts.push(f.key === 'kpi' ? ('KPI: ' + p) : p);
     }
     return parts.join(' • ');
   }).filter(Boolean);
