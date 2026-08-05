@@ -2238,6 +2238,7 @@ async function toggleTaskUrgent(id) {
 // ── task detail modal (view + edit in one place) ─────
 let _detailTaskId = null;
 let _detailEditing = false;
+let _focusNotesOnEdit = false;
 
 function openTaskDetail(id, startInEdit = false) {
   const t = allTasks.find(x => x.id === id);
@@ -2296,8 +2297,14 @@ function renderTaskDetail() {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveTaskDetail(); }
       if (e.key === 'Escape') { e.preventDefault(); _detailEditing = false; renderTaskDetail(); }
     });
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
+    if (_focusNotesOnEdit) {
+      _focusNotesOnEdit = false;
+      const notesTa = document.getElementById('taskDetailNotes');
+      notesTa.focus();
+    } else {
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }
 
     footer.innerHTML = `
       <span style="margin-right:auto;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Ctrl+Enter — сохранить · Esc — отмена</span>
@@ -2317,7 +2324,7 @@ function renderTaskDetail() {
     ${t.notes ? `<div style="margin-top:10px">
       <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px"><i class="ti ti-note" style="margin-right:4px"></i>Заметка</label>
       <div style="font-size:12.5px;line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-word;background:rgba(250,204,21,0.06);border:0.5px solid rgba(250,204,21,0.18);border-radius:9px;padding:12px 14px">${esc(t.notes)}</div>
-    </div>` : ''}`;
+    </div>` : `<button class="btn btn-ghost" onclick="_detailEditing=true;_focusNotesOnEdit=true;renderTaskDetail()" style="margin-top:10px;font-size:11.5px;padding:7px 12px;color:var(--text3)"><i class="ti ti-note-plus"></i>Добавить заметку</button>`}`;
 
   footer.innerHTML = `
     <button class="btn btn-ghost" onclick="copyTaskText()" style="margin-right:auto"><i class="ti ti-copy"></i>Копировать</button>
