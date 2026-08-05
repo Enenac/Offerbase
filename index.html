@@ -2165,6 +2165,7 @@ function renderTasks() {
         <span class="task-dot" onclick="toggleTaskUrgent('${t.id}')" title="${isUrgent ? 'Снять срочность' : 'Пометить срочной'}" style="cursor:pointer;background:${isUrgent ? '#ef4444' : 'transparent'};border:1.5px solid ${isUrgent ? '#ef4444' : 'var(--border)'}"></span>
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:14px;height:14px">
         <span class="task-text" onclick="openTaskDetail('${t.id}')" title="Открыть задачу" style="flex:1;font-size:12.5px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.4;cursor:pointer">${esc(t.title)}</span>
+        ${t.notes ? `<i class="ti ti-note" onclick="openTaskDetail('${t.id}')" title="Есть заметка: ${esc(t.notes).slice(0,140)}" style="color:#facc15;flex-shrink:0;cursor:pointer;font-size:14px"></i>` : ''}
         ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
         ${cat ? `<span class="task-badge">${cat}</span>` : ''}
         <button class="icon-btn" onclick="openTaskDetail('${t.id}', true)" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
@@ -2281,10 +2282,16 @@ function renderTaskDetail() {
       ${proj ? `<span class="task-badge" style="align-self:center">${proj}</span>` : ''}`;
 
     body.outerHTML = `<textarea id="taskDetailText" class="form-input"
-      style="width:100%;font-size:13.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;border-radius:9px;padding:16px 18px;min-height:280px;max-height:60vh;resize:vertical"></textarea>`;
+      style="width:100%;font-size:13.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;border-radius:9px;padding:16px 18px;min-height:280px;max-height:60vh;resize:vertical"></textarea>
+      <div style="margin-top:10px">
+        <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px"><i class="ti ti-note" style="margin-right:4px"></i>Заметка (только для тебя)</label>
+        <textarea id="taskDetailNotes" class="form-input" placeholder="Любые пометки, которые помогут тебе..."
+          style="width:100%;font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;border-radius:9px;padding:12px 14px;min-height:70px;max-height:30vh;resize:vertical"></textarea>
+      </div>`;
     const ta = document.getElementById('taskDetailText');
     ta.value = t.title || '';
     document.getElementById('taskDetailCat').value = t.task_category || 'other';
+    document.getElementById('taskDetailNotes').value = t.notes || '';
     ta.addEventListener('keydown', e => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveTaskDetail(); }
       if (e.key === 'Escape') { e.preventDefault(); _detailEditing = false; renderTaskDetail(); }
@@ -2306,7 +2313,11 @@ function renderTaskDetail() {
     ${proj ? `<span class="task-badge">${proj}</span>` : ''}
     ${created ? `<span class="task-badge" style="opacity:0.7">${created}</span>` : ''}`;
 
-  body.outerHTML = `<div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto">${flagEmojiToImg(esc(t.title))}</div>`;
+  body.outerHTML = `<div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto">${flagEmojiToImg(esc(t.title))}</div>
+    ${t.notes ? `<div style="margin-top:10px">
+      <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px"><i class="ti ti-note" style="margin-right:4px"></i>Заметка</label>
+      <div style="font-size:12.5px;line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-word;background:rgba(250,204,21,0.06);border:0.5px solid rgba(250,204,21,0.18);border-radius:9px;padding:12px 14px">${esc(t.notes)}</div>
+    </div>` : ''}`;
 
   footer.innerHTML = `
     <button class="btn btn-ghost" onclick="copyTaskText()" style="margin-right:auto"><i class="ti ti-copy"></i>Копировать</button>
@@ -2334,11 +2345,12 @@ async function saveTaskDetail() {
   if (!title) { showToast('Текст задачи не может быть пустым', 'error'); return; }
   const task_category = document.getElementById('taskDetailCat')?.value || 'other';
   const priority = document.getElementById('taskDetailUrgent')?.classList.contains('active') ? 'urgent' : 'medium';
+  const notes = (document.getElementById('taskDetailNotes')?.value || '').trim() || null;
 
-  const { error } = await sb.from('tasks').update({ title, task_category, priority }).eq('id', id);
+  const { error } = await sb.from('tasks').update({ title, task_category, priority, notes }).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   const t = allTasks.find(x => x.id === id);
-  if (t) { t.title = title; t.task_category = task_category; t.priority = priority; }
+  if (t) { t.title = title; t.task_category = task_category; t.priority = priority; t.notes = notes; }
   _detailEditing = false;
   showToast('Задача обновлена', 'success');
   renderTasks();
