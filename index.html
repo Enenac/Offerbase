@@ -2265,7 +2265,7 @@ function renderTaskDetail() {
     _detailEditing ? 'Редактирование' : (t.done ? 'Задача · выполнена' : 'Задача');
 
   const meta = document.getElementById('taskDetailMeta');
-  const body = document.getElementById('taskDetailText');
+  const bodyWrap = document.getElementById('taskDetailBody');
   const footer = document.getElementById('taskDetailFooter');
 
   if (_detailEditing) {
@@ -2282,7 +2282,7 @@ function renderTaskDetail() {
       </select>
       ${proj ? `<span class="task-badge" style="align-self:center">${proj}</span>` : ''}`;
 
-    body.outerHTML = `<textarea id="taskDetailText" class="form-input"
+    bodyWrap.innerHTML = `<textarea id="taskDetailText" class="form-input"
       style="width:100%;font-size:13.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;border-radius:9px;padding:16px 18px;min-height:280px;max-height:60vh;resize:vertical"></textarea>
       <div style="margin-top:10px">
         <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px"><i class="ti ti-note" style="margin-right:4px"></i>Заметка (только для тебя)</label>
@@ -2320,7 +2320,7 @@ function renderTaskDetail() {
     ${proj ? `<span class="task-badge">${proj}</span>` : ''}
     ${created ? `<span class="task-badge" style="opacity:0.7">${created}</span>` : ''}`;
 
-  body.outerHTML = `<div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto">${flagEmojiToImg(esc(t.title))}</div>
+  bodyWrap.innerHTML = `<div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto">${flagEmojiToImg(esc(t.title))}</div>
     ${t.notes ? `<div style="margin-top:10px">
       <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px"><i class="ti ti-note" style="margin-right:4px"></i>Заметка</label>
       <div style="font-size:12.5px;line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-word;background:rgba(250,204,21,0.06);border:0.5px solid rgba(250,204,21,0.18);border-radius:9px;padding:12px 14px">${esc(t.notes)}</div>
@@ -5531,7 +5531,7 @@ function showToast(msg,type='success') {
     </div>
     <div class="modal-body">
       <div id="taskDetailMeta" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px"></div>
-      <div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto"></div>
+      <div id="taskDetailBody"><div id="taskDetailText" style="font-size:13.5px;line-height:1.75;color:var(--text1);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;background:var(--bg);border:0.5px solid var(--border2);border-radius:9px;padding:16px 18px;max-height:60vh;overflow-y:auto"></div></div>
     </div>
     <div class="modal-footer" id="taskDetailFooter"></div>
   </div>
