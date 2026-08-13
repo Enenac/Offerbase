@@ -308,6 +308,7 @@ tr:hover .row-actions{opacity:1}
 .task-dot:hover{border-color:#ef4444 !important}
 .task-grip{cursor:grab;color:var(--text3);flex-shrink:0;font-size:15px;touch-action:none}
 .task-badge{font-size:9px;padding:2px 7px;border-radius:5px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border:0.5px solid var(--border2);color:var(--text3)}
+.task-badge-col{font-size:9px;padding:2px 7px;border-radius:5px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;border:0.5px solid var(--border2);color:var(--text3);display:inline-block;width:64px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
 .kb-card-title{font-size:12px;font-weight:500;color:var(--text1);line-height:1.3;padding-right:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kb-card-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
 .kb-tag{padding:1px 6px;border-radius:7px;font-size:10px;background:var(--bg3);border:0.5px solid var(--border);color:var(--text3);font-family:'IBM Plex Mono',monospace}
@@ -2166,8 +2167,8 @@ function renderTasks() {
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:14px;height:14px">
         <span class="task-text" onclick="openTaskDetail('${t.id}')" title="Открыть задачу" style="flex:1;font-size:12.5px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.4;cursor:pointer">${esc(t.title)}</span>
         ${t.notes ? `<i class="ti ti-note" onclick="openTaskDetail('${t.id}')" title="Есть заметка: ${esc(t.notes).slice(0,140)}" style="color:#facc15;flex-shrink:0;cursor:pointer;font-size:14px"></i>` : ''}
-        ${isUrgent && !t.done ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
-        ${cat ? `<span class="task-badge">${cat}</span>` : ''}
+        <span class="task-badge-col" style="${isUrgent && !t.done ? 'color:#ef4444;border-color:#ef4444' : 'visibility:hidden'}">Срочно</span>
+        <span class="task-badge-col" style="${cat ? '' : 'visibility:hidden'}">${cat || '—'}</span>
         <button class="icon-btn" onclick="openTaskDetail('${t.id}', true)" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
       </div>`;
@@ -3725,8 +3726,8 @@ function renderMobileTasks() {
     return `<div class="m-task-card">
       <span onclick="mToggleTaskDone('${t.id}',true)" style="width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;flex-shrink:0;margin-top:1px;cursor:pointer"></span>
       <span class="m-task-txt" onclick="openTaskDetail('${t.id}')">${esc(t.title)}</span>
-      ${urgent ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444;flex-shrink:0">Срочно</span>` : ''}
-      ${cat ? `<span class="task-badge" style="flex-shrink:0">${cat}</span>` : ''}
+      ${urgent ? `<span class="task-badge-col" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : `<span class="task-badge-col" style="visibility:hidden">Срочно</span>`}
+      ${cat ? `<span class="task-badge-col">${cat}</span>` : `<span class="task-badge-col" style="visibility:hidden">—</span>`}
     </div>`;
   }).join('');
 }
