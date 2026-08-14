@@ -2098,6 +2098,7 @@ function applyAdminUI() {
   if (ls) ls.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
     const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
+    const sk = document.getElementById('showKultra'); if (sk) sk.checked = false;
   }
   updateAccessUI();
   updateRequestsBadge();
@@ -2564,7 +2565,7 @@ async function loadRequests() {
 }
 
 const REQ_STATUS_LABELS = {
-  new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', wishlist: 'Вишлист', closed: 'Закрыт'
+  new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', wishlist: 'Вишлист', kultra: 'KULTRA', closed: 'Закрыт'
 };
 
 const KB_COLUMNS = [
@@ -2581,6 +2582,7 @@ const KB_COUNT_STYLES = {
   'cnt-rej':  'background:#2a0a0a;color:#ef4444;border:0.5px solid #5a1a1a',
   'cnt-nf':   'background:#0a2030;color:#0ea5e9;border:0.5px solid #0a4a6a',
   'cnt-wish': 'background:#1e0a2e;color:#a855f7;border:0.5px solid #3a1a5a',
+  'cnt-kul':  'background:#2e0a12;color:#fb7185;border:0.5px solid #5a1a2a',
   'cnt-cls':  'background:var(--bg3);color:var(--text3);border:0.5px solid var(--border)',
 };
 
@@ -2592,6 +2594,7 @@ const REQ_STATUS_META = {
   rejected:  { dot: '#ef4444', countCls: 'cnt-rej' },
   not_found: { dot: '#0ea5e9', countCls: 'cnt-nf' },
   wishlist:  { dot: '#a855f7', countCls: 'cnt-wish' },
+  kultra:    { dot: '#fb7185', countCls: 'cnt-kul' },
   closed:    { dot: '#6b7280', countCls: 'cnt-cls' },
 };
 
@@ -2623,10 +2626,12 @@ function renderRequestsList() {
   const showRejected = document.getElementById('showRejected')?.checked;
   const showNotFound = document.getElementById('showNotFound')?.checked;
   const showWishlist = document.getElementById('showWishlist')?.checked;
+  const showKultra = isAdmin && document.getElementById('showKultra')?.checked;
   const allowed = ['new', 'sent', 'proposed', 'closed'];
   if (showWishlist) allowed.push('wishlist');
   if (showRejected) allowed.push('rejected');
   if (showNotFound) allowed.push('not_found');
+  if (showKultra) allowed.push('kultra');
 
   const pool = allRequests.filter(r => allowed.includes(r.status));
   if (reqStatusFilter !== 'all' && !allowed.includes(reqStatusFilter)) reqStatusFilter = 'all';
@@ -2676,11 +2681,13 @@ function renderRequests() {
   const showRejected = document.getElementById('showRejected')?.checked;
   const showNotFound = document.getElementById('showNotFound')?.checked;
   const showWishlist = document.getElementById('showWishlist')?.checked;
+  const showKultra = isAdmin && document.getElementById('showKultra')?.checked;
 
   const cols = [...KB_COLUMNS.slice(0, 3)]; // Новый, Отправлен, Предложен
   if (showWishlist) cols.push({ key: 'wishlist',  label: 'Вишлист',   dot: '#a855f7', countCls: 'cnt-wish' });
   if (showRejected) cols.push({ key: 'rejected',  label: 'Отклонён',  dot: '#ef4444', countCls: 'cnt-rej' });
   if (showNotFound) cols.push({ key: 'not_found', label: 'Не найдено', dot: '#0ea5e9', countCls: 'cnt-nf' });
+  if (showKultra) cols.push({ key: 'kultra', label: 'KULTRA', dot: '#fb7185', countCls: 'cnt-kul' });
   cols.push(KB_COLUMNS[3]); // Закрыт
 
   board.style.gridTemplateColumns = `repeat(${cols.length}, minmax(0, 1fr))`;
@@ -2880,7 +2887,7 @@ async function openReqDetail(reqId) {
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text3)">Статус:</span>
           <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onchange="updateReqStatus('${reqId}', this.value)">
-            ${['new', 'sent', 'proposed', 'rejected', 'not_found', 'wishlist', 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
+            ${['new', 'sent', 'proposed', 'rejected', 'not_found', 'wishlist', ...(isAdmin ? ['kultra'] : []), 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -3073,7 +3080,7 @@ function toggleReqStatusMenu(reqId) {
   pop.style.cssText = `position:fixed;top:${rect.bottom + 5}px;left:${rect.left}px;min-width:160px;z-index:120`;
   pop.onclick = e => e.stopPropagation();
 
-  pop.innerHTML = Object.keys(REQ_STATUS_META).map(k => {
+  pop.innerHTML = Object.keys(REQ_STATUS_META).filter(k => k !== 'kultra' || isAdmin).map(k => {
     const m = REQ_STATUS_META[k];
     const active = k === req.status;
     return `<div class="filter-option ${active ? 'selected' : ''}" onclick="setReqStatusQuick('${reqId}','${k}')">
@@ -5447,6 +5454,10 @@ function showToast(msg,type='success') {
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
           <input type="checkbox" id="showNotFound" onchange="renderRequests()" style="accent-color:var(--accent)">
           <span>Показать не найдено</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3)">
+          <input type="checkbox" id="showKultra" onchange="renderRequests()" style="accent-color:var(--accent)">
+          <span>Показать KULTRA</span>
         </label>
       </div>
       <div style="display:flex;gap:4px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;padding:3px">
