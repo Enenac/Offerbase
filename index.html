@@ -2048,6 +2048,7 @@ async function deleteOffer(id) {
 // ── AUTH ──────────────────────────────────────────────
 const LOGIN_DOMAIN = '@smerch.local';
 let isAdmin = false;
+let hideTasks = false;
 let currentUser = null;
 
 async function doLogin() {
@@ -2076,8 +2077,9 @@ async function doLogin() {
 
 async function onSignedIn(user) {
   currentUser = user;
-  const { data: profile } = await sb.from('profiles').select('is_admin, name').eq('id', user.id).maybeSingle();
+  const { data: profile } = await sb.from('profiles').select('is_admin, name, hide_tasks').eq('id', user.id).maybeSingle();
   isAdmin = !!(profile && profile.is_admin);
+  hideTasks = !!(profile && profile.hide_tasks);
   document.getElementById('authGate').style.display = 'none';
   applyAdminUI();
   initApp();
@@ -2093,7 +2095,9 @@ function applyAdminUI() {
   const ac = document.getElementById('reqAdminControls');
   if (ac) ac.style.display = isAdmin ? 'flex' : 'none';
   const lt = document.getElementById('lnav-tasks');
-  if (lt) lt.style.display = ''; // tasks are shared with managers
+  if (lt) lt.style.display = hideTasks ? 'none' : ''; // tasks are shared with managers, unless hidden per-profile
+  const mtb = document.getElementById('m-tab-tasks');
+  if (mtb) mtb.style.display = hideTasks ? 'none' : '';
   const ls = document.getElementById('lnav-stats');
   if (ls) ls.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
@@ -3680,6 +3684,7 @@ function mSwitchProject(p) {
 
 let mSection = 'offers';
 function mSwitchSection(sec) {
+  if (sec === 'tasks' && hideTasks) return;
   mSection = sec;
   ['offers', 'requests', 'tasks'].forEach(s => {
     document.getElementById('m-sec-' + s).classList.toggle('hidden', s !== sec);
@@ -4993,6 +4998,7 @@ function renderStatsPage() {
 
 function switchPage(page) {
   if (page === 'stats' && !isAdmin) return;
+  if (page === 'tasks' && hideTasks) return;
   currentPage = page;
   ['offers','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
