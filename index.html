@@ -2079,7 +2079,7 @@ async function onSignedIn(user) {
   currentUser = user;
   const { data: profile } = await sb.from('profiles').select('is_admin, name, hide_tasks').eq('id', user.id).maybeSingle();
   isAdmin = !!(profile && profile.is_admin);
-  hideTasks = !!(profile && profile.hide_tasks);
+  hideTasks = !isAdmin && !!(profile && profile.hide_tasks);
   document.getElementById('authGate').style.display = 'none';
   applyAdminUI();
   initApp();
