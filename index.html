@@ -522,7 +522,7 @@ tr:hover .row-actions{opacity:1}
   <!-- Project tabs (shared across all sections) -->
   <div class="m-proj-tabs">
     <div class="m-proj-tab active" id="m-proj-smerch" onclick="mSwitchProject('smerch')">🌪 Smerch</div>
-    <div class="m-proj-tab" id="m-proj-phantom" onclick="mSwitchProject('phantom')">👻 Phantom</div>
+    <div class="m-proj-tab" id="m-proj-phantom" onclick="mSwitchProject('phantom')" style="display:none">👻 Phantom</div>
   </div>
 
   <!-- ── OFFERS SECTION ── -->
@@ -620,7 +620,7 @@ tr:hover .row-actions{opacity:1}
     <div class="proj-tab active" onclick="switchProject('smerch')" id="tab-smerch">
       <i class="ti ti-tornado"></i>Smerch-Traffic<span class="proj-count" id="count-smerch">0</span>
     </div>
-    <div class="proj-tab" onclick="switchProject('phantom')" id="tab-phantom">
+    <div class="proj-tab" onclick="switchProject('phantom')" id="tab-phantom" style="display:none">
       <i class="ti ti-ghost"></i>Phantom Partners<span class="proj-count" id="count-phantom">0</span>
     </div>
   </div>
@@ -634,7 +634,7 @@ tr:hover .row-actions{opacity:1}
         <input type="text" id="searchInput" placeholder="Бренд, партнёр...">
       </div>
       <button class="btn btn-ghost" id="searchScopeBtn" onclick="toggleSearchScope()"
-        style="font-size:11px;padding:6px 11px;display:flex;align-items:center;gap:6px;white-space:nowrap"
+        style="font-size:11px;padding:6px 11px;display:none;align-items:center;gap:6px;white-space:nowrap"
         title="Область поиска: текущий проект или оба">
         <i class="ti ti-layers-subtract"></i><span id="searchScopeLabel">Этот проект</span>
       </button>
@@ -1483,6 +1483,7 @@ function showLoading(v) {
 }
 
 function switchProject(p) {
+  if (p === 'phantom') return; // Phantom Partners discontinued — Smerch only
   currentProject = p;
   const prevStatus = filters.status; // keep status filter across project switch
   filters = {};
@@ -3668,6 +3669,7 @@ function updateMobileChips() {
 }
 
 function mSwitchProject(p) {
+  if (p === 'phantom') return; // Phantom Partners discontinued — Smerch only
   currentProject = p;
   document.getElementById('m-proj-smerch').classList.toggle('active', p === 'smerch');
   document.getElementById('m-proj-phantom').classList.toggle('active', p === 'phantom');
