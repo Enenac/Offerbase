@@ -3194,10 +3194,22 @@ async function deleteRequest(reqId) {
 
 // ── NEW REQUEST ───────────────────────────────────────
 function openNewRequestModal() {
-  document.getElementById('reqTitle').value = '';
-  document.getElementById('reqDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('reqRaw').value = '';
-  document.getElementById('newReqOverlay').classList.remove('hidden');
+  try {
+    const t = document.getElementById('reqTitle');
+    const d = document.getElementById('reqDate');
+    const r = document.getElementById('reqRaw');
+    const ov = document.getElementById('newReqOverlay');
+    if (!t || !d || !r || !ov) {
+      showToast('Не удалось открыть форму запроса (элемент не найден)', 'error');
+      return;
+    }
+    t.value = '';
+    d.value = new Date().toISOString().split('T')[0];
+    r.value = '';
+    ov.classList.remove('hidden');
+  } catch (e) {
+    showToast('Ошибка открытия формы: ' + e.message, 'error');
+  }
 }
 
 async function saveNewRequest() {
