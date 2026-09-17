@@ -1081,6 +1081,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('mobileApp').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
   }
+  // iOS Safari sometimes miscalculates 100dvh right after a reload (before the
+  // address bar chrome settles), cutting off the bottom nav. Pin the real height in px instead.
+  const fixMobileHeight = () => {
+    const el = document.getElementById('mobileApp');
+    if (el && window.innerWidth <= 600) el.style.height = window.innerHeight + 'px';
+  };
+  fixMobileHeight();
+  window.addEventListener('resize', fixMobileHeight);
+  window.addEventListener('orientationchange', () => setTimeout(fixMobileHeight, 250));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fixMobileHeight);
+  setTimeout(fixMobileHeight, 300); // catch late address-bar collapse
   const hideSplash = () => {
     const s = document.getElementById('bootSplash');
     if (!s) return;
