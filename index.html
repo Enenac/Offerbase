@@ -2,6 +2,9 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OfferBase</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23818cf8'/><text x='50%25' y='54%25' font-size='18' font-family='system-ui,sans-serif' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'>O</text></svg>">
@@ -1092,6 +1095,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('orientationchange', () => setTimeout(fixMobileHeight, 250));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', fixMobileHeight);
   setTimeout(fixMobileHeight, 300); // catch late address-bar collapse
+  // redundant binding in case inline onclick misfires on some mobile browsers
+  document.querySelectorAll('[onclick="openNewRequestModal()"]').forEach(btn => {
+    btn.addEventListener('click', openNewRequestModal);
+  });
   const hideSplash = () => {
     const s = document.getElementById('bootSplash');
     if (!s) return;
