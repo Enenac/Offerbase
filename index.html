@@ -1222,8 +1222,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         const chip = (label, val) => val ? `<span style="padding:3px 8px;border-radius:5px;background:var(--accent-bg);color:var(--accent);border:0.5px solid var(--accent-border);font-family:'IBM Plex Mono',monospace">${label}: ${esc(String(val))}</span>` : '';
         const chips = [
           chip('GEO', _mDelParsed.geo), chip('Бренд', _mDelParsed.brand),
-          chip('Источник', _mDelParsed.traffic_source), chip('Ставка', _mDelParsed.rate),
-          chip('Капа', _mDelParsed.capa), chip('Партнёр', _mDelParsed.partner),
+          chip('Источник', _mDelParsed.traffic_source), chip('Подход', _mDelParsed.game_type),
+          chip('Ставка', _mDelParsed.rate), chip('Капа', _mDelParsed.capa), chip('Партнёр', _mDelParsed.partner),
         ].filter(Boolean).join('');
         mDelParsePreview.innerHTML = chips || `<span style="color:var(--text3)">Не удалось распознать поля — сохранится как есть</span>`;
         mDelParsePreview.classList.remove('hidden');
@@ -1248,6 +1248,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!offer) { showToast('Вставьте текст оффера', 'error'); document.getElementById('mDelOfferInput').focus(); return; }
       const partner = (document.getElementById('mDelPartnerInput').value || '').trim();
       const p = _mDelParsed || {};
+      // The parsed rate is what the partner earns per FTD — carry it straight into "Сумма партнёру", currency included
+      const rateAmt = parseRateAmountCur(p.rate);
       const data = {
         project: currentProject,
         notes: offer,
@@ -1256,13 +1258,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         brand: p.brand || null,
         geo: p.geo || null,
         traffic_source: p.traffic_source || null,
+        game_type: p.game_type || null,
         rate: p.rate || null,
         status: 'waiting_link',
         remind_at: null,
         amount_src: null,
         amount_src_cur: 'EUR',
-        amount_out: null,
-        amount_out_cur: 'EUR',
+        amount_out: rateAmt ? rateAmt.value : null,
+        amount_out_cur: rateAmt ? rateAmt.cur : 'EUR',
         capa: (p.capa != null ? p.capa : 0), // filled by AI parse when available, else finished from desktop later
       };
       const { error } = await sb.from('deliveries').insert(data);
@@ -2023,6 +2026,20 @@ function flagEmoji(geo) {
   if (code === 'UK') code = 'GB';
   if (!/^[A-Z]{2}$/.test(code)) return '';
   return String.fromCodePoint(0x1F1E6 + code.charCodeAt(0) - 65, 0x1F1E6 + code.charCodeAt(1) - 65);
+}
+
+// Uniform "GEO • Brand • Source • GameType" label for a delivery's offer, built from
+// structured fields when available (filled by AI parse or desktop edit); falls back to
+// the raw pasted text for older/legacy rows that only have notes.
+function deliveryOfferLabel(d) {
+  const parts = [d.brand, d.traffic_source, d.game_type].filter(v => v && v.trim());
+  if (d.geo || parts.length) {
+    const flagHtml = d.geo ? flag(d.geo) : '';
+    const geoText = d.geo ? esc(d.geo.toUpperCase()) : '';
+    const rest = parts.map(esc).join(' • ');
+    return `${flagHtml}${geoText}${geoText && rest ? ' • ' : ''}${rest}`;
+  }
+  return flagEmojiToImg(esc(d.notes || d.brand || '—'));
 }
 
 function sourceBadge(s) {
@@ -3721,6 +3738,17 @@ function parseRateToUsd(rate) {
   return n;
 }
 
+// Extracts {value, cur} from a rate string like "$190", "165 EUR", "200 USD" — used to
+// auto-fill "Сумма партнёру" from an AI-parsed offer rate on the mobile quick-add form.
+function parseRateAmountCur(rate) {
+  if (!rate) return null;
+  const n = parseFloat(String(rate).replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return null;
+  const s = String(rate).toLowerCase();
+  const cur = (s.includes('$') || s.includes('usd')) ? 'USD' : 'EUR'; // € or unlabeled defaults to EUR
+  return { value: n, cur };
+}
+
 function deduplicateOffers(rows) {
   const map = new Map();
   for (const o of rows) {
@@ -4010,7 +4038,7 @@ function renderMobileDeliveries() {
     const counts = d.status !== 'problem' && d.status !== 'stopped';
     return `<div class="m-req-card">
       <div class="m-req-top">
-        <span class="m-req-partner">${flagEmojiToImg(esc(d.notes || d.brand || 'Без названия'))}</span>
+        <span class="m-req-partner">${deliveryOfferLabel(d) || esc('Без названия')}</span>
         <span class="m-req-status" onclick="event.stopPropagation();toggleDelStatusMenu('${d.id}')" style="cursor:pointer;background:rgba(129,140,248,0.08);color:${meta.dot};border:0.5px solid ${meta.dot}44"><span style="width:5px;height:5px;border-radius:50%;background:${meta.dot};display:inline-block"></span>${meta.label}</span>
       </div>
       <div class="m-req-notes" style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--text3)">
@@ -4365,7 +4393,7 @@ function renderDeliveries() {
           sep = `<tr class="del-month-sep"><td colspan="12"><div class="del-month-sep-inner"><span>${monthLabel}</span></div></td></tr>`;
         }
         return `${sep}<tr${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? ' style="background:rgba(245,158,11,0.05)"' : ''}>
-          <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? '<i class="ti ti-alert-triangle" style="color:#f59e0b;margin-right:5px;font-size:13px" title="Добавлено с телефона — нужно доработать детали"></i>' : ''}${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</div></td>
+          <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? '<i class="ti ti-alert-triangle" style="color:#f59e0b;margin-right:5px;font-size:13px" title="Добавлено с телефона — нужно доработать детали"></i>' : ''}${deliveryOfferLabel(d)}</div></td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${srcStr}</td>
@@ -4438,6 +4466,9 @@ function openEditDelivery(id) {
   if (!d) return;
   document.getElementById('edit-del-id').value = d.id;
   document.getElementById('edit-del-notes').value = d.notes||'';
+  document.getElementById('edit-del-geo').value = d.geo||'';
+  document.getElementById('edit-del-brand').value = d.brand||'';
+  document.getElementById('edit-del-source').value = d.traffic_source||'';
   document.getElementById('edit-del-by').value = d.created_by||'';
   document.getElementById('edit-del-partner').value = d.partner||'';
   document.getElementById('edit-del-status').value = d.status||'waiting_link';
@@ -4447,6 +4478,7 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-out-amt').value = d.amount_out ?? '';
   document.getElementById('edit-del-out-cur').value = d.amount_out_cur || 'EUR';
   document.getElementById('edit-del-capa').value = d.capa ?? '';
+  document.getElementById('edit-del-gametype').value = d.game_type||'';
   document.getElementById('editDeliveryOverlay').classList.remove('hidden');
 }
 
@@ -4510,8 +4542,12 @@ async function updateDelivery() {
   }
   const data = {
     notes: document.getElementById('edit-del-notes').value.trim()||null,
+    geo: document.getElementById('edit-del-geo').value.trim().toUpperCase()||null,
+    brand: document.getElementById('edit-del-brand').value.trim()||null,
+    traffic_source: document.getElementById('edit-del-source').value.trim()||null,
     created_by: document.getElementById('edit-del-by').value.trim()||null,
     partner: document.getElementById('edit-del-partner').value.trim()||null,
+    game_type: document.getElementById('edit-del-gametype').value.trim()||null,
     status: document.getElementById('edit-del-status').value,
     remind_at: fromLocalDatetimeInput(document.getElementById('edit-del-remind').value),
     amount_src: parseFloat(document.getElementById('edit-del-src-amt').value) || null,
@@ -6173,8 +6209,13 @@ function showToast(msg,type='success') {
     <div class="modal-body">
       <input type="hidden" id="edit-del-id">
       <div class="form-group" style="margin-bottom:12px">
-        <label class="form-label">Оффер</label>
+        <label class="form-label">Текст оффера (полный, как прислали)</label>
         <input class="form-input" id="edit-del-notes" placeholder="например: RoyalFlush | SpinGranny | IT | FB | $190">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="form-group"><label class="form-label">GEO</label><input class="form-input" id="edit-del-geo" placeholder="IT" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="form-group"><label class="form-label">Бренд</label><input class="form-input" id="edit-del-brand" placeholder="RoyalFlush"></div>
+        <div class="form-group"><label class="form-label">Источник трафика</label><input class="form-input" id="edit-del-source" placeholder="FB"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group"><label class="form-label">Источник оффера</label><input class="form-input" id="edit-del-by" placeholder="Кто нам дал..."></div>
@@ -6200,6 +6241,10 @@ function showToast(msg,type='success') {
         <div class="form-group">
           <label class="form-label">Капа <span style="color:var(--red)">*</span></label>
           <input class="form-input" type="number" step="any" min="0" id="edit-del-capa" placeholder="Кол-во депозитов">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Подход</label>
+          <input class="form-input" id="edit-del-gametype" placeholder="Slots / Mix / Crash...">
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
