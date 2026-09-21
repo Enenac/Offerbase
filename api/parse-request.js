@@ -12,7 +12,7 @@ Return ONLY a JSON object with these keys:
   - "geo": ISO-2 country code, uppercase (e.g. "IT"). If a couple of GEOs belong to the very same single ask, join with "/" (e.g. "IT/ES").
   - "brand": the specific casino/brand name for this ask, if named. Null if this particular ask doesn't name one.
   - "traffic_source": the traffic source (e.g. "FB", "Google", "TikTok", "Push"), as written.
-  - "game_type": the game type/vertical (e.g. "Slots", "Mix", "Crash", "Casino", "Sports", "Poker"). "Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash".
+  - "game_type": the game type/vertical, written out exactly as the type actually named in the text — Slots, Mix and Crash are the most common ("Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash"), but this is NOT a fixed list: if the partner names something less common (Cross, Casino, Sports, Poker, Live, Bingo, or anything else), output that vertical as stated — never drop it just because it isn't one of the common three, and never coerce an unusual vertical into one of the common ones.
   - "rate_wish": the rate/price for THIS item, EXACTLY as implied by the text — do not add "до"/"от"/"up to"/"at least" or any other qualifier unless the source text itself actually says that (e.g. "до 200", "минимум 150", "not less than $150"). A bare number like "160€?" is just the rate being asked about — output "160€", not "до 160€". Null if not stated for this item.
   Use an empty array if there is no specific ask at all (e.g. the whole message is only a generic bundle request — see "bundle_geos" below).
 
