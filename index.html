@@ -1243,6 +1243,7 @@ let _appInited = false;
 function initApp() {
   if (_appInited) return;
   _appInited = true;
+  document.title = 'Офферы — OfferBase';
   loadOffers();
   loadPartners();
   loadRegions();
@@ -3859,6 +3860,7 @@ let mSection = 'offers';
 function mSwitchSection(sec) {
   if (sec === 'tasks' && hideTasks) return;
   mSection = sec;
+  document.title = (PAGE_TITLES[sec] ? PAGE_TITLES[sec] + ' — ' : '') + 'OfferBase';
   ['offers', 'requests', 'deliveries', 'tasks'].forEach(s => {
     document.getElementById('m-sec-' + s).classList.toggle('hidden', s !== sec);
     document.getElementById('m-tab-' + s).classList.toggle('active', s === sec);
@@ -5189,10 +5191,16 @@ function renderStatsPage() {
     </div>`;
 }
 
+const PAGE_TITLES = {
+  offers: 'Офферы', direct: 'Direct', partners: 'Партнёры', requests: 'Запросы',
+  deliveries: 'Выдачи', tasks: 'Таксы', stats: 'Стата', settings: 'Настройки',
+};
+
 function switchPage(page) {
   if (page === 'stats' && !isAdmin) return;
   if (page === 'tasks' && hideTasks) return;
   currentPage = page;
+  document.title = (PAGE_TITLES[page] ? PAGE_TITLES[page] + ' — ' : '') + 'OfferBase';
   ['offers','direct','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
     if (el) el.classList.toggle('active', x === page);
