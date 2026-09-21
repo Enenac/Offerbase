@@ -557,6 +557,8 @@ tr:hover .row-actions{opacity:1}
     <div id="mReqAddForm" class="hidden" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
       <input class="m-search-inp" id="mReqTitleInput" placeholder="Партнёр — от кого запрос…" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px">
       <textarea id="mReqRawInput" placeholder="Текст запроса — вставьте как есть…" rows="5" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
+      <button class="btn btn-ghost" id="mReqParseBtn" style="justify-content:center;font-size:12px"><i class="ti ti-sparkles"></i>Распознать (ИИ)</button>
+      <div id="mReqParsePreview" class="hidden" style="font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--accent);background:var(--accent-bg);border:0.5px solid var(--accent-border);border-radius:8px;padding:8px 10px"></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mReqAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
         <button class="btn btn-primary" id="mReqAddSaveBtn" style="flex:1;justify-content:center"><i class="ti ti-check"></i>Сохранить</button>
@@ -1130,6 +1132,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   const mReqAddForm = document.getElementById('mReqAddForm');
   const mReqAddCancelBtn = document.getElementById('mReqAddCancelBtn');
   const mReqAddSaveBtn = document.getElementById('mReqAddSaveBtn');
+  const mReqParseBtn = document.getElementById('mReqParseBtn');
+  const mReqParsePreview = document.getElementById('mReqParsePreview');
+  let _mReqParsedLine = null; // last AI-formatted one-liner, saved into notes ("новый формат")
+  const clearMReqForm = () => {
+    document.getElementById('mReqTitleInput').value = '';
+    document.getElementById('mReqRawInput').value = '';
+    _mReqParsedLine = null;
+    mReqParsePreview.classList.add('hidden');
+    mReqParsePreview.textContent = '';
+  };
   if (mReqAddToggleBtn && mReqAddForm) {
     mReqAddToggleBtn.addEventListener('click', () => {
       mReqAddForm.classList.toggle('hidden');
@@ -1141,8 +1153,48 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (mReqAddCancelBtn) {
     mReqAddCancelBtn.addEventListener('click', () => {
       mReqAddForm.classList.add('hidden');
-      document.getElementById('mReqTitleInput').value = '';
-      document.getElementById('mReqRawInput').value = '';
+      clearMReqForm();
+    });
+  }
+  if (mReqParseBtn) {
+    mReqParseBtn.addEventListener('click', async () => {
+      const text = (document.getElementById('mReqRawInput').value || '').trim();
+      if (!text) { showToast('Сначала вставьте текст запроса', 'error'); return; }
+      mReqParseBtn.disabled = true;
+      mReqParseBtn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Распознаю…';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      try {
+        const resp = await fetch('/api/parse-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        const raw = await resp.text();
+        let result;
+        try { result = JSON.parse(raw); }
+        catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
+        if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
+        const f = result.fields || {};
+        const line = [
+          f.geo ? (f.geo.split('/').map(flagEmoji).join('') + ' ' + f.geo) : null,
+          f.traffic_source, f.game_type, f.rate_wish, f.extra
+        ].filter(Boolean).join(' • ');
+        _mReqParsedLine = line || null;
+        mReqParsePreview.textContent = line || 'Не удалось распознать поля — сохранится только исходный текст';
+        mReqParsePreview.classList.remove('hidden');
+        showToast('Запрос распознан', 'success');
+      } catch (e) {
+        clearTimeout(timeoutId);
+        const msg = e.name === 'AbortError' ? 'Сервер не ответил за 25 секунд' : e.message;
+        showToast('Не удалось распознать: ' + msg, 'error');
+        console.error('parse-request error:', e);
+      } finally {
+        mReqParseBtn.disabled = false;
+        mReqParseBtn.innerHTML = '<i class="ti ti-sparkles"></i>Распознать (ИИ)';
+      }
     });
   }
   if (mReqAddSaveBtn) {
@@ -1152,11 +1204,10 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!title) { showToast('Укажите партнёра', 'error'); return; }
       const { error } = await sb.from('requests').insert({
         title, received_at: new Date().toISOString().split('T')[0],
-        raw_text: raw_text || null, status: 'new', project: currentProject
+        raw_text: raw_text || null, notes: _mReqParsedLine, status: 'new', project: currentProject
       });
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
-      document.getElementById('mReqTitleInput').value = '';
-      document.getElementById('mReqRawInput').value = '';
+      clearMReqForm();
       mReqAddForm.classList.add('hidden');
       showToast('Запрос сохранён', 'success');
       await loadRequests();
