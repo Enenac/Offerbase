@@ -1,14 +1,15 @@
 // Parses a raw partner message (a request for an offer) into a compact, uniform
 // one-line summary for the "notes" ("новый формат") field on the Requests page.
-// Called from the mobile "new request" quick-add form.
+// Called from the desktop request-detail "Распознать (ИИ)" button.
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const SYSTEM_PROMPT = `You extract structured fields from a raw message where an affiliate partner is asking for an offer (Russian or English, often informal, sometimes with emoji flags, "•" or "/" separators, or just plain prose).
 
 Return ONLY a JSON object with these keys (use null for anything not present — never guess or invent a value):
-- "geo": ISO-2 country code, uppercase (e.g. "IT", "CA"). If multiple GEOs are requested, join them with "/" (e.g. "IT/ES"). Infer from a country name, flag emoji, or explicit code.
-- "brand": the specific casino/brand name being asked about, if the partner names one (e.g. "Corsaza", "RoyalFlush"). Null if they're asking generally, not about a specific brand.
+- "bundle_geos": if the partner is asking for a BULK/BATCH selection across several GEOs at once (a "подборка") — as opposed to asking about one specific offer/brand — list the requested GEOs as comma-separated ISO-2 codes (e.g. "IT, ES, DE"). Null for a normal single-offer ask, even if that offer happens to mention one GEO.
+- "geo": ISO-2 country code, uppercase (e.g. "IT", "CA"). Only for a normal (non-bundle) request. If a couple of GEOs are named for the SAME single ask, join them with "/" (e.g. "IT/ES"). Infer from a country name, flag emoji, or explicit code.
+- "brand": the specific casino/brand name being asked about, if the partner names one (e.g. "Corsaza", "RoyalFlush"). Null if they're asking generally, not about a specific brand, or if this is a bundle request.
 - "traffic_source": the traffic source mentioned (e.g. "FB", "Google", "TikTok", "Push"). Keep it short, as written.
 - "game_type": the game type/vertical (e.g. "Slots", "Mix", "Crash", "Casino", "Sports", "Poker"). "Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash".
 - "rate_wish": the desired payout/rate or range, as a short phrase exactly reflecting what was asked, in Russian if the source text is Russian (e.g. "до $200", "от 150 EUR", "150-200 USD"). Null if no rate is mentioned.
@@ -67,12 +68,12 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "Could not parse model output", raw });
     }
 
-    const ALLOWED = ["geo", "brand", "traffic_source", "game_type", "rate_wish", "extra"];
+    const ALLOWED = ["bundle_geos", "geo", "brand", "traffic_source", "game_type", "rate_wish", "extra"];
     const clean = {};
     for (const k of ALLOWED) {
       let v = fields[k];
       if (v === undefined || v === "" || v === "null") v = null;
-      if (k === "geo" && typeof v === "string") v = v.trim().toUpperCase();
+      if ((k === "geo" || k === "bundle_geos") && typeof v === "string") v = v.trim().toUpperCase();
       clean[k] = v;
     }
 
