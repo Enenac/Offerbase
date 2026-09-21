@@ -573,6 +573,7 @@ tr:hover .row-actions{opacity:1}
     </div>
     <div id="mDelAddForm" class="hidden" style="display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
       <textarea id="mDelOfferInput" placeholder="Вставьте оффер целиком, например: RoyalFlush | SpinGranny | IT | FB | $190" rows="4" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text1);font-size:13px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
+      <input class="m-search-inp" id="mDelPartnerInput" placeholder="Кому выдаём — партнёр..." style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px">
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mDelAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
         <button class="btn btn-primary" id="mDelAddSaveBtn" style="flex:1;justify-content:center"><i class="ti ti-check"></i>Сохранить</button>
@@ -1176,6 +1177,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   const clearMDelForm = () => {
     const el = document.getElementById('mDelOfferInput');
     if (el) el.value = '';
+    const p = document.getElementById('mDelPartnerInput');
+    if (p) p.value = '';
   };
   if (mDelAddToggleBtn && mDelAddForm) {
     mDelAddToggleBtn.addEventListener('click', () => {
@@ -1195,10 +1198,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     mDelAddSaveBtn.addEventListener('click', async () => {
       const offer = (document.getElementById('mDelOfferInput').value || '').trim();
       if (!offer) { showToast('Вставьте текст оффера', 'error'); document.getElementById('mDelOfferInput').focus(); return; }
+      const partner = (document.getElementById('mDelPartnerInput').value || '').trim();
       const data = {
         project: currentProject,
         notes: offer,
-        partner: null,
+        partner: partner || null,
         created_by: null,
         status: 'waiting_link',
         remind_at: null,
@@ -1212,7 +1216,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
       clearMDelForm();
       mDelAddForm.classList.add('hidden');
-      showToast('Выдача добавлена — доработаешь детали с компьютера', 'success');
+      showToast('Выдача добавлена', 'success');
       await loadDeliveries();
       if (typeof mSection !== 'undefined' && mSection === 'deliveries') renderMobileDeliveries();
     });
