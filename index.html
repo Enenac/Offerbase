@@ -622,6 +622,9 @@ tr:hover .row-actions{opacity:1}
       <div class="leftnav-item active" id="lnav-offers" onclick="switchPage('offers')" title="База офферов">
         <i class="ti ti-table"></i><span>Офферы</span>
       </div>
+      <div class="leftnav-item" id="lnav-direct" onclick="switchPage('direct')" title="База офферов Direct-партнёров">
+        <i class="ti ti-building"></i><span>Direct</span>
+      </div>
       <div class="leftnav-item" id="lnav-deliveries" onclick="switchPage('deliveries')" title="Выдачи">
         <i class="ti ti-link"></i><span>Выдачи</span>
       </div>
@@ -661,7 +664,7 @@ tr:hover .row-actions{opacity:1}
 
 <div id="offersView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
   <div class="topbar">
-    <span class="logo"><i class="ti ti-table"></i>База офферов</span>
+    <span class="logo" id="offersViewTitle"><i class="ti ti-table"></i>База офферов</span>
     <div class="topbar-right">
       <div class="search-box" id="topbarSearch">
         <i class="ti ti-search"></i>
@@ -764,16 +767,7 @@ tr:hover .row-actions{opacity:1}
       </div>
     </div>
 
-    <!-- Partner type -->
-    <div class="filter-dropdown">
-      <div class="chip" id="chip-ptype" onclick="toggleFilterMenu('ptype')"><i class="ti ti-building"></i>Тип партнёра</div>
-      <div class="filter-menu hidden" id="menu-ptype">
-        <div class="filter-menu-list">
-          <div class="filter-option" onclick="setFilter('ptype','Direct')">Direct</div>
-          <div class="filter-option" onclick="setFilter('ptype','Network')">Network</div>
-        </div>
-      </div>
-    </div>
+    <!-- Partner type filter removed — split into separate Офферы (Network) / Direct pages instead -->
 
     <!-- Status -->
     <div class="filter-dropdown">
@@ -1332,7 +1326,7 @@ async function runBackgroundSyncs() {
   try {
     const changed = await syncPlatforms();
     const changed2 = await syncMinDeposits();
-    if ((changed || changed2) && currentPage === 'offers') {
+    if ((changed || changed2) && (currentPage === 'offers' || currentPage === 'direct')) {
       currentPage_offers = 0;
       invalidateOfferVersions();
       await fetchOffers();
@@ -1376,6 +1370,10 @@ function buildSupabaseQuery(countOnly = false) {
   if (!searchAllProjects) q = q.eq('project', currentProject);
   else q = q.in('project', ['smerch', 'phantom']);
 
+  // Scope by page: "Офферы" shows Network (non-Direct) only, "Direct" shows Direct-partner offers only
+  if (currentPage === 'direct') q = q.eq('partner_type', 'Direct');
+  else q = q.or('partner_type.neq.Direct,partner_type.is.null');
+
   // Filters
   if (filters.geo)      q = q.eq('geo', filters.geo);
   if (filters.status)   q = q.eq('status', filters.status);
@@ -1395,7 +1393,6 @@ function buildSupabaseQuery(countOnly = false) {
   if (filters.platform) q = q.eq('platform', filters.platform);
   if (filters.partner)  q = q.eq('partner', filters.partner);
   if (filters.exclude_partner) q = q.neq('partner', filters.exclude_partner);
-  if (filters.ptype)    q = q.eq('partner_type', filters.ptype);
   if (filters.region) {
     const regionGeos = allRegionGeos.filter(g => {
       const r = allRegions.find(r => r.id === g.region_id);
@@ -1636,7 +1633,7 @@ function switchProject(p) {
   ['smerch','phantom'].forEach(x => document.getElementById('tab-'+x)?.classList.toggle('active', x===p));
   currentPage_offers = 0;
   updateRequestsBadge();
-  if (currentPage === 'offers') {
+  if (currentPage === 'offers' || currentPage === 'direct') {
     buildDynamicFilters();
     fetchOffers();
   } else if (currentPage === 'partners') {
@@ -1796,7 +1793,6 @@ function updateChips() {
     platform: {icon:'ti-layout-grid',    label:'Платформа'},
     partner:  {icon:'ti-users',          label:'Партнёр'},
     exclude_partner: {icon:'ti-user-off', label:'Исключить'},
-    ptype:    {icon:'ti-building',       label:'Тип партнёра'},
     region:   {icon:'ti-map-pin',        label:'Регион'},
     status:   {icon:'ti-circle-dot',     label:'Статус', vals:{active:'Активен',stop:'На стопе',capped:'Закончился кап',outdated:'Нужно актуализировать'}},
   };
@@ -5178,7 +5174,7 @@ function switchPage(page) {
   if (page === 'stats' && !isAdmin) return;
   if (page === 'tasks' && hideTasks) return;
   currentPage = page;
-  ['offers','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
+  ['offers','direct','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
     if (el) el.classList.toggle('active', x === page);
   });
@@ -5192,8 +5188,17 @@ function switchPage(page) {
   if (tasksSec) tasksSec.style.display = 'none';
   const statsSec = document.getElementById('statsPage');
   if (statsSec) statsSec.style.display = 'none';
-  if (page === 'offers') {
+  if (page === 'offers' || page === 'direct') {
+    // Direct reuses the same offers view/table — buildSupabaseQuery scopes it by currentPage
     document.getElementById('offersView').style.display = 'flex';
+    const titleEl = document.getElementById('offersViewTitle');
+    if (titleEl) titleEl.innerHTML = page === 'direct'
+      ? '<i class="ti ti-building"></i>База офферов Direct'
+      : '<i class="ti ti-table"></i>База офферов';
+    const addBtnLabel = document.getElementById('topbarAddBtn');
+    if (addBtnLabel) addBtnLabel.innerHTML = page === 'direct'
+      ? '<i class="ti ti-plus"></i>Добавить Direct-офферы'
+      : '<i class="ti ti-plus"></i>Добавить офферы';
     currentPage_offers = 0;
     buildDynamicFilters();
     fetchOffers();
@@ -5337,7 +5342,7 @@ async function runPartnerSync() {
   document.getElementById('partnerSyncOverlay').classList.add('hidden');
   showToast(`Добавлено партнёров: ${rows.length}`, 'success');
   await loadPartners();
-  if (currentPage === 'offers') fetchOffers();
+  if (currentPage === 'offers' || currentPage === 'direct') fetchOffers();
 }
 
 // Re-apply partner_type from the partners table onto all offers of this project
@@ -5353,7 +5358,7 @@ async function resyncPartnerTypes() {
   }
   showToast(`Типы обновлены (${n} партнёров)`, 'success');
   await loadPartners();
-  if (currentPage === 'offers') fetchOffers();
+  if (currentPage === 'offers' || currentPage === 'direct') fetchOffers();
 }
 
 function renderPartnersGrid() {
