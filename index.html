@@ -2330,7 +2330,7 @@ function applyHashRoute() {
     if (mobilePages.includes(hash) && !(hash === 'tasks' && hideTasks)) mSwitchSection(hash);
   } else {
     const desktopPages = ['offers', 'direct', 'partners', 'requests', 'settings', 'deliveries', 'tasks', 'stats'];
-    if (desktopPages.includes(hash) && !(hash === 'stats' && !isAdmin) && !(hash === 'tasks' && hideTasks)) switchPage(hash);
+    if (desktopPages.includes(hash) && !(hash === 'stats' && !isAdmin) && !(hash === 'direct' && !isAdmin) && !(hash === 'tasks' && hideTasks)) switchPage(hash);
   }
 }
 
@@ -2349,6 +2349,8 @@ function applyAdminUI() {
   if (mtb) mtb.style.display = hideTasks ? 'none' : '';
   const ls = document.getElementById('lnav-stats');
   if (ls) ls.style.display = isAdmin ? '' : 'none';
+  const ld = document.getElementById('lnav-direct');
+  if (ld) ld.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
     const snf = document.getElementById('showNotFound'); if (snf) snf.checked = false;
     const sk = document.getElementById('showKultra'); if (sk) sk.checked = false;
@@ -5370,6 +5372,7 @@ const PAGE_TITLES = {
 
 function switchPage(page) {
   if (page === 'stats' && !isAdmin) return;
+  if (page === 'direct' && !isAdmin) return;
   if (page === 'tasks' && hideTasks) return;
   currentPage = page;
   document.title = PAGE_TITLES[page] || 'OfferBase';
