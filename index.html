@@ -7,6 +7,7 @@
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OfferBase</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23818cf8'/><text x='50%25' y='54%25' font-size='18' font-family='system-ui,sans-serif' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'>O</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -1243,7 +1244,7 @@ let _appInited = false;
 function initApp() {
   if (_appInited) return;
   _appInited = true;
-  document.title = 'Офферы — OfferBase';
+  document.title = 'Офферы';
   loadOffers();
   loadPartners();
   loadRegions();
@@ -3874,7 +3875,7 @@ let mSection = 'offers';
 function mSwitchSection(sec) {
   if (sec === 'tasks' && hideTasks) return;
   mSection = sec;
-  document.title = (PAGE_TITLES[sec] ? PAGE_TITLES[sec] + ' — ' : '') + 'OfferBase';
+  document.title = PAGE_TITLES[sec] || 'OfferBase';
   history.replaceState(null, '', '#' + sec); // remembers the tab across a page refresh
   ['offers', 'requests', 'deliveries', 'tasks'].forEach(s => {
     document.getElementById('m-sec-' + s).classList.toggle('hidden', s !== sec);
@@ -5215,7 +5216,7 @@ function switchPage(page) {
   if (page === 'stats' && !isAdmin) return;
   if (page === 'tasks' && hideTasks) return;
   currentPage = page;
-  document.title = (PAGE_TITLES[page] ? PAGE_TITLES[page] + ' — ' : '') + 'OfferBase';
+  document.title = PAGE_TITLES[page] || 'OfferBase';
   history.replaceState(null, '', '#' + page); // remembers the tab across a page refresh
   ['offers','direct','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
