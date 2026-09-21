@@ -573,7 +573,6 @@ tr:hover .row-actions{opacity:1}
     </div>
     <div id="mDelAddForm" class="hidden" style="display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
       <textarea id="mDelOfferInput" placeholder="Вставьте оффер целиком, например: RoyalFlush | SpinGranny | IT | FB | $190" rows="4" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text1);font-size:13px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
-      <div style="font-size:10.5px;color:var(--text3);line-height:1.4">Остальные детали (суммы, капа, статус) потом донастроятся с компьютера</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mDelAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
         <button class="btn btn-primary" id="mDelAddSaveBtn" style="flex:1;justify-content:center"><i class="ti ti-check"></i>Сохранить</button>
@@ -3914,13 +3913,11 @@ function renderMobileDeliveries() {
       ? { value: d.amount_src - d.amount_out, cur: d.amount_src_cur || 'EUR' } : null;
     const tm = (m && d.capa != null && !isNaN(+d.capa)) ? { value: m.value * (+d.capa), cur: m.cur } : null;
     const counts = d.status !== 'problem' && d.status !== 'stopped';
-    const needsDetails = !d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null;
     return `<div class="m-req-card">
       <div class="m-req-top">
         <span class="m-req-partner">${flagEmojiToImg(esc(d.notes || d.brand || 'Без названия'))}</span>
         <span class="m-req-status" onclick="event.stopPropagation();toggleDelStatusMenu('${d.id}')" style="cursor:pointer;background:rgba(129,140,248,0.08);color:${meta.dot};border:0.5px solid ${meta.dot}44"><span style="width:5px;height:5px;border-radius:50%;background:${meta.dot};display:inline-block"></span>${meta.label}</span>
       </div>
-      ${needsDetails ? `<div style="font-size:10.5px;color:#f59e0b;display:flex;align-items:center;gap:4px"><i class="ti ti-alert-triangle" style="font-size:11px"></i>Нужно доработать детали с компьютера</div>` : ''}
       <div class="m-req-notes" style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--text3)">
         ${d.partner ? `<span>→ ${esc(d.partner)}</span>` : ''}
         ${d.amount_src != null ? `<span>${curSym(d.amount_src_cur)}${d.amount_src} → ${d.amount_out != null ? curSym(d.amount_out_cur)+d.amount_out : '—'}</span>` : ''}
