@@ -3324,9 +3324,13 @@ async function parseReqWithAI(reqId) {
       ].filter(Boolean).join(' • ');
       if (itemLine) lines.push(itemLine);
     });
-    if (f.bundle_geos) {
-      // a generic "подборка" (bulk multi-GEO ask with no specific brands) gets its own line
-      lines.push(`Подборка: ${f.bundle_geos}`);
+    if (f.bundle) {
+      // a generic "подборка" (bulk multi-GEO ask with no specific brands) — GEOs plus whatever shared context was given
+      const bundleLine = [
+        `Подборка: ${f.bundle.geos}`,
+        f.bundle.traffic_source, f.bundle.game_type, f.bundle.note
+      ].filter(Boolean).join(' • ');
+      lines.push(bundleLine);
     }
     if (f.extra) lines.push(f.extra);
     const line = lines.join('\n');
