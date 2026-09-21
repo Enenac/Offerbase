@@ -8,6 +8,7 @@ const SYSTEM_PROMPT = `You extract structured fields from a raw message where an
 
 Return ONLY a JSON object with these keys (use null for anything not present — never guess or invent a value):
 - "geo": ISO-2 country code, uppercase (e.g. "IT", "CA"). If multiple GEOs are requested, join them with "/" (e.g. "IT/ES"). Infer from a country name, flag emoji, or explicit code.
+- "brand": the specific casino/brand name being asked about, if the partner names one (e.g. "Corsaza", "RoyalFlush"). Null if they're asking generally, not about a specific brand.
 - "traffic_source": the traffic source mentioned (e.g. "FB", "Google", "TikTok", "Push"). Keep it short, as written.
 - "game_type": the game type/vertical (e.g. "Slots", "Mix", "Crash", "Casino", "Sports", "Poker"). "Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash".
 - "rate_wish": the desired payout/rate or range, as a short phrase exactly reflecting what was asked, in Russian if the source text is Russian (e.g. "до $200", "от 150 EUR", "150-200 USD"). Null if no rate is mentioned.
@@ -66,7 +67,7 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "Could not parse model output", raw });
     }
 
-    const ALLOWED = ["geo", "traffic_source", "game_type", "rate_wish", "extra"];
+    const ALLOWED = ["geo", "brand", "traffic_source", "game_type", "rate_wish", "extra"];
     const clean = {};
     for (const k of ALLOWED) {
       let v = fields[k];
