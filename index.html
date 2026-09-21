@@ -573,6 +573,8 @@ tr:hover .row-actions{opacity:1}
     </div>
     <div id="mDelAddForm" class="hidden" style="display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
       <textarea id="mDelOfferInput" placeholder="Вставьте оффер целиком, например: RoyalFlush | SpinGranny | IT | FB | $190" rows="4" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text1);font-size:13px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
+      <button class="btn btn-ghost" id="mDelParseBtn" style="justify-content:center;font-size:12px"><i class="ti ti-sparkles"></i>Распознать оффер (ИИ)</button>
+      <div id="mDelParsePreview" class="hidden" style="display:flex;flex-wrap:wrap;gap:5px;font-size:11px"></div>
       <input class="m-search-inp" id="mDelPartnerInput" placeholder="Кому выдаём — партнёр..." style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px">
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mDelAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
@@ -1163,16 +1165,23 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // inline mobile "new delivery" form — quick-add: the manager on the phone only fills the offer text;
-  // capa/amounts/status get filled in later from desktop. capa is NOT NULL in the DB, so default it to 0.
+  // an AI parse step (below) can auto-fill geo/brand/source/rate/capa; anything left blank
+  // still defaults sanely (capa NOT NULL in the DB, so 0 unless parsed) and gets finished from desktop.
   const mDelAddToggleBtn = document.getElementById('mDelAddToggleBtn');
   const mDelAddForm = document.getElementById('mDelAddForm');
   const mDelAddCancelBtn = document.getElementById('mDelAddCancelBtn');
   const mDelAddSaveBtn = document.getElementById('mDelAddSaveBtn');
+  const mDelParseBtn = document.getElementById('mDelParseBtn');
+  const mDelParsePreview = document.getElementById('mDelParsePreview');
+  let _mDelParsed = null; // last AI-parsed fields, applied on save
   const clearMDelForm = () => {
     const el = document.getElementById('mDelOfferInput');
     if (el) el.value = '';
     const p = document.getElementById('mDelPartnerInput');
     if (p) p.value = '';
+    _mDelParsed = null;
+    mDelParsePreview.classList.add('hidden');
+    mDelParsePreview.innerHTML = '';
   };
   if (mDelAddToggleBtn && mDelAddForm) {
     mDelAddToggleBtn.addEventListener('click', () => {
@@ -1188,23 +1197,63 @@ window.addEventListener('DOMContentLoaded', async () => {
       clearMDelForm();
     });
   }
+  if (mDelParseBtn) {
+    mDelParseBtn.addEventListener('click', async () => {
+      const text = (document.getElementById('mDelOfferInput').value || '').trim();
+      if (!text) { showToast('Сначала вставьте текст оффера', 'error'); return; }
+      mDelParseBtn.disabled = true;
+      mDelParseBtn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Распознаю…';
+      try {
+        const resp = await fetch('/api/parse-offer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const result = await resp.json();
+        if (!resp.ok || !result.ok) throw new Error(result.error || 'Ошибка распознавания');
+        _mDelParsed = result.fields;
+        const chip = (label, val) => val ? `<span style="padding:3px 8px;border-radius:5px;background:var(--accent-bg);color:var(--accent);border:0.5px solid var(--accent-border);font-family:'IBM Plex Mono',monospace">${label}: ${esc(String(val))}</span>` : '';
+        const chips = [
+          chip('GEO', _mDelParsed.geo), chip('Бренд', _mDelParsed.brand),
+          chip('Источник', _mDelParsed.traffic_source), chip('Ставка', _mDelParsed.rate),
+          chip('Капа', _mDelParsed.capa), chip('Партнёр', _mDelParsed.partner),
+        ].filter(Boolean).join('');
+        mDelParsePreview.innerHTML = chips || `<span style="color:var(--text3)">Не удалось распознать поля — сохранится как есть</span>`;
+        mDelParsePreview.classList.remove('hidden');
+        if (_mDelParsed.partner && !document.getElementById('mDelPartnerInput').value.trim()) {
+          document.getElementById('mDelPartnerInput').value = _mDelParsed.partner;
+        }
+        showToast('Оффер распознан', 'success');
+      } catch (e) {
+        showToast('Не удалось распознать: ' + e.message, 'error');
+      } finally {
+        mDelParseBtn.disabled = false;
+        mDelParseBtn.innerHTML = '<i class="ti ti-sparkles"></i>Распознать оффер (ИИ)';
+      }
+    });
+  }
   if (mDelAddSaveBtn) {
     mDelAddSaveBtn.addEventListener('click', async () => {
       const offer = (document.getElementById('mDelOfferInput').value || '').trim();
       if (!offer) { showToast('Вставьте текст оффера', 'error'); document.getElementById('mDelOfferInput').focus(); return; }
       const partner = (document.getElementById('mDelPartnerInput').value || '').trim();
+      const p = _mDelParsed || {};
       const data = {
         project: currentProject,
         notes: offer,
-        partner: partner || null,
+        partner: partner || p.partner || null,
         created_by: null,
+        brand: p.brand || null,
+        geo: p.geo || null,
+        traffic_source: p.traffic_source || null,
+        rate: p.rate || null,
         status: 'waiting_link',
         remind_at: null,
         amount_src: null,
         amount_src_cur: 'EUR',
         amount_out: null,
         amount_out_cur: 'EUR',
-        capa: 0, // placeholder — filled in properly from desktop later
+        capa: (p.capa != null ? p.capa : 0), // filled by AI parse when available, else finished from desktop later
       };
       const { error } = await sb.from('deliveries').insert(data);
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
