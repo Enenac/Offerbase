@@ -16,9 +16,14 @@ Return ONLY a JSON object with these keys:
   - "rate_wish": the rate/price for THIS item, EXACTLY as implied by the text — do not add "до"/"от"/"up to"/"at least" or any other qualifier unless the source text itself actually says that (e.g. "до 200", "минимум 150", "not less than $150"). A bare number like "160€?" is just the rate being asked about — output "160€", not "до 160€". Null if not stated for this item.
   Use an empty array if there is no specific ask at all (e.g. the whole message is only a generic bundle request — see "bundle_geos" below).
 
-- "bundle_geos": ONLY when the partner is asking generically for "whatever you have" / "подборка" across a list of GEOs WITHOUT naming specific brands for each — list the GEOs as comma-separated ISO-2 codes (e.g. "IT, ES, DE"). Null whenever "items" already captures the ask (i.e. don't duplicate GEOs into both). A message can have both if it names some specific brands AND separately asks for a generic bundle in other GEOs — in that case fill both.
+- "bundle": ONLY when the partner is asking generically for "whatever you have" / "подборка" across a list of GEOs WITHOUT naming specific brands for each. An object with:
+  - "geos": the requested GEOs as comma-separated ISO-2 codes (e.g. "IT, ES, DE").
+  - "traffic_source": the traffic source that applies to the whole bundle ask (e.g. "FB"), if stated. Null if not stated.
+  - "game_type": the game type/vertical that applies to the whole bundle ask, same rules as above (not limited to Slots/Mix/Crash). Null if not stated.
+  - "note": any remark about the bundle itself — e.g. the partner saying they'll consider/negotiate on your proposed rates ("рассмотрим ваши ставки" → "рассмотрим ваши ставки"), urgency, etc. Null if nothing notable.
+  Set the whole "bundle" object to null whenever "items" already captures the ask (i.e. don't duplicate GEOs into both). A message can have both if it names some specific brands AND separately asks for a generic bundle in other GEOs — in that case fill both "items" and "bundle".
 
-- "extra": any overarching note that applies to the whole message and isn't tied to one item — KPI, wagering requirement, urgency, a general remark like "currently very interested in these brands". Short phrase, or null.
+- "extra": any overarching note that applies to the whole message and isn't tied to one item or already captured in "bundle.note" — KPI, wagering requirement, urgency, a general remark like "currently very interested in these brands". Short phrase, or null.
 
 Be conservative — only fill what's clearly present, never invent values. Output JSON only, no explanation, no markdown fences.`;
 
@@ -81,10 +86,18 @@ export default async function handler(req, res) {
       rate_wish: it?.rate_wish || null,
     });
     const items = Array.isArray(fields.items) ? fields.items.map(cleanItem).filter(it => it.geo || it.brand) : [];
-    const bundle_geos = typeof fields.bundle_geos === "string" && fields.bundle_geos.trim() ? fields.bundle_geos.trim().toUpperCase() : null;
+    const b = fields.bundle;
+    const bundle = (b && typeof b === "object" && typeof b.geos === "string" && b.geos.trim())
+      ? {
+          geos: b.geos.trim().toUpperCase(),
+          traffic_source: b.traffic_source || null,
+          game_type: b.game_type || null,
+          note: b.note || null,
+        }
+      : null;
     const extra = fields.extra || null;
 
-    return res.status(200).json({ ok: true, fields: { items, bundle_geos, extra } });
+    return res.status(200).json({ ok: true, fields: { items, bundle, extra } });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
