@@ -1153,16 +1153,17 @@ window.addEventListener('DOMContentLoaded', async () => {
       const title = (document.getElementById('mReqTitleInput').value || '').trim();
       const raw_text = document.getElementById('mReqRawInput').value || '';
       if (!title) { showToast('Укажите партнёра', 'error'); return; }
-      const { error } = await sb.from('requests').insert({
+      const { data, error } = await sb.from('requests').insert({
         title, received_at: new Date().toISOString().split('T')[0],
         raw_text: raw_text || null, status: 'new', project: currentProject
-      });
+      }).select('id').single();
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
       clearMReqForm();
       mReqAddForm.classList.add('hidden');
       showToast('Запрос сохранён', 'success');
       await loadRequests();
       if (typeof mSection !== 'undefined' && mSection === 'requests') renderMobileRequests();
+      if (data?.id) autoParseRequestOnCreate(data.id, raw_text); // fire-and-forget — fills "Новый формат" in the background
     });
   }
 
@@ -3295,6 +3296,64 @@ async function saveReqField(reqId, field, value) {
 
 // AI-parses the raw request text and writes the compact template into "Новый формат",
 // saving it straight away (same as manually editing the field and blurring it).
+function buildParsedRequestLine(f) {
+  const lines = [];
+  (f.items || []).forEach(it => {
+    const itemLine = [
+      it.geo ? (it.geo.split('/').map(flagEmoji).join('') + ' ' + it.geo) : null,
+      it.brand, it.traffic_source, it.game_type, it.rate_wish
+    ].filter(Boolean).join(' • ');
+    if (itemLine) lines.push(itemLine);
+  });
+  if (f.bundle) {
+    // a generic "подборка" (bulk multi-GEO ask with no specific brands) — GEOs plus whatever shared context was given
+    const bundleLine = [
+      `Подборка: ${f.bundle.geos}`,
+      f.bundle.traffic_source, f.bundle.game_type, f.bundle.note
+    ].filter(Boolean).join(' • ');
+    lines.push(bundleLine);
+  }
+  if (f.extra) lines.push(f.extra);
+  return lines.join('\n');
+}
+
+async function fetchParsedRequestLine(text, signal) {
+  const resp = await fetch('/api/parse-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal
+  });
+  const raw = await resp.text();
+  let result;
+  try { result = JSON.parse(raw); }
+  catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
+  if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
+  return buildParsedRequestLine(result.fields || {});
+}
+
+// Silent background parse right after a request is created — by the time someone opens
+// it, "Новый формат" is already filled in. No UI feedback on failure (logs only);
+// the manual "Распознать (ИИ)" button in the request detail stays available as a fallback/redo.
+async function autoParseRequestOnCreate(reqId, rawText) {
+  const text = (rawText || '').trim();
+  if (!text) return;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const line = await fetchParsedRequestLine(text, controller.signal);
+    clearTimeout(timeoutId);
+    if (!line) return;
+    const { error } = await sb.from('requests').update({ notes: line }).eq('id', reqId);
+    if (error) { console.error('autoParseRequestOnCreate save error:', error); return; }
+    const req = allRequests.find(r => r.id === reqId);
+    if (req) req.notes = line;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    console.error('autoParseRequestOnCreate error:', e);
+  }
+}
+
 async function parseReqWithAI(reqId) {
   const req = allRequests.find(r => r.id === reqId);
   const text = (req?.raw_text || '').trim();
@@ -3305,37 +3364,8 @@ async function parseReqWithAI(reqId) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25000);
   try {
-    const resp = await fetch('/api/parse-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-      signal: controller.signal
-    });
+    const line = await fetchParsedRequestLine(text, controller.signal);
     clearTimeout(timeoutId);
-    const raw = await resp.text();
-    let result;
-    try { result = JSON.parse(raw); }
-    catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
-    if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
-    const f = result.fields || {};
-    const lines = [];
-    (f.items || []).forEach(it => {
-      const itemLine = [
-        it.geo ? (it.geo.split('/').map(flagEmoji).join('') + ' ' + it.geo) : null,
-        it.brand, it.traffic_source, it.game_type, it.rate_wish
-      ].filter(Boolean).join(' • ');
-      if (itemLine) lines.push(itemLine);
-    });
-    if (f.bundle) {
-      // a generic "подборка" (bulk multi-GEO ask with no specific brands) — GEOs plus whatever shared context was given
-      const bundleLine = [
-        `Подборка: ${f.bundle.geos}`,
-        f.bundle.traffic_source, f.bundle.game_type, f.bundle.note
-      ].filter(Boolean).join(' • ');
-      lines.push(bundleLine);
-    }
-    if (f.extra) lines.push(f.extra);
-    const line = lines.join('\n');
     if (!line) { showToast('Не удалось распознать поля', 'error'); return; }
     if (field) field.value = line;
     await saveReqField(reqId, 'notes', line);
@@ -3514,14 +3544,16 @@ async function saveNewRequest() {
   const raw_text = document.getElementById('reqRaw').value;
   if (!title) { showToast('Укажите партнёра', 'error'); return; }
 
-  const { error } = await sb.from('requests')
-    .insert({ title, received_at, raw_text: raw_text || null, status: 'new', project: reqProject });
+  const { data, error } = await sb.from('requests')
+    .insert({ title, received_at, raw_text: raw_text || null, status: 'new', project: reqProject })
+    .select('id').single();
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
 
   document.getElementById('newReqOverlay').classList.add('hidden');
   showToast('Запрос сохранён', 'success');
   await loadRequests();
   if (typeof mSection !== 'undefined' && mSection === 'requests') renderMobileRequests();
+  if (data?.id) autoParseRequestOnCreate(data.id, raw_text); // fire-and-forget — fills "Новый формат" in the background
 }
 
 
