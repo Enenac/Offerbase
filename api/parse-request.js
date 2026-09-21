@@ -13,7 +13,7 @@ Return ONLY a JSON object with these keys:
   - "brand": the specific casino/brand name for this ask, if named. Null if this particular ask doesn't name one.
   - "traffic_source": the traffic source (e.g. "FB", "Google", "TikTok", "Push"), as written.
   - "game_type": the game type/vertical (e.g. "Slots", "Mix", "Crash", "Casino", "Sports", "Poker"). "Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash".
-  - "rate_wish": the desired payout/rate for THIS item, as a short phrase (e.g. "до $200", "160€", "265$"). Null if not stated for this item.
+  - "rate_wish": the rate/price for THIS item, EXACTLY as implied by the text — do not add "до"/"от"/"up to"/"at least" or any other qualifier unless the source text itself actually says that (e.g. "до 200", "минимум 150", "not less than $150"). A bare number like "160€?" is just the rate being asked about — output "160€", not "до 160€". Null if not stated for this item.
   Use an empty array if there is no specific ask at all (e.g. the whole message is only a generic bundle request — see "bundle_geos" below).
 
 - "bundle_geos": ONLY when the partner is asking generically for "whatever you have" / "подборка" across a list of GEOs WITHOUT naming specific brands for each — list the GEOs as comma-separated ISO-2 codes (e.g. "IT, ES, DE"). Null whenever "items" already captures the ask (i.e. don't duplicate GEOs into both). A message can have both if it names some specific brands AND separately asks for a generic bundle in other GEOs — in that case fill both.
