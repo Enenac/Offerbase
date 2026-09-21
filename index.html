@@ -571,28 +571,9 @@ tr:hover .row-actions{opacity:1}
       <div class="m-filter-row" id="mDelStatusRow" style="flex:1;padding:0;border-bottom:none"></div>
       <button class="m-add-btn" id="mDelAddToggleBtn" title="Добавить выдачу" style="flex-shrink:0"><i class="ti ti-plus"></i></button>
     </div>
-    <div id="mDelAddForm" class="hidden" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border);max-height:60vh;overflow-y:auto">
-      <input class="m-search-inp" id="mDelOfferInput" placeholder="Оффер — например: RoyalFlush | IT | FB | $190" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px">
-      <div style="display:flex;gap:6px">
-        <input class="m-search-inp" id="mDelByInput" placeholder="Источник оффера..." style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px">
-        <input class="m-search-inp" id="mDelPartnerInput" placeholder="Кому отдаём..." style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px">
-      </div>
-      <div style="display:flex;gap:6px">
-        <input class="m-search-inp" type="number" step="any" id="mDelSrcAmt" placeholder="Сумма от источника" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px">
-        <select id="mDelSrcCur" style="width:56px;flex-shrink:0;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;color:var(--text1);font-size:12.5px"><option value="EUR">€</option><option value="USD">$</option></select>
-      </div>
-      <div style="display:flex;gap:6px">
-        <input class="m-search-inp" type="number" step="any" id="mDelOutAmt" placeholder="Сумма партнёру" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px">
-        <select id="mDelOutCur" style="width:56px;flex-shrink:0;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;color:var(--text1);font-size:12.5px"><option value="EUR">€</option><option value="USD">$</option></select>
-      </div>
-      <input class="m-search-inp" type="number" step="any" min="0" id="mDelCapa" placeholder="Капа (обязательно) — кол-во депозитов" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px">
-      <select id="mDelStatus" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px">
-        <option value="waiting_link">🔗 Ожидаем ссылку</option>
-        <option value="waiting_launch">⏳ Ожидаем запуска</option>
-        <option value="launched">✅ Запущен</option>
-        <option value="problem">⚠️ Проблема</option>
-        <option value="stopped">🛑 На стопе</option>
-      </select>
+    <div id="mDelAddForm" class="hidden" style="display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
+      <textarea id="mDelOfferInput" placeholder="Вставьте оффер целиком, например: RoyalFlush | SpinGranny | IT | FB | $190" rows="4" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text1);font-size:13px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
+      <div style="font-size:10.5px;color:var(--text3);line-height:1.4">Остальные детали (суммы, капа, статус) потом донастроятся с компьютера</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mDelAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
         <button class="btn btn-primary" id="mDelAddSaveBtn" style="flex:1;justify-content:center"><i class="ti ti-check"></i>Сохранить</button>
@@ -1187,17 +1168,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // inline mobile "new delivery" form — same addEventListener pattern as requests, no modal
+  // inline mobile "new delivery" form — quick-add: the manager on the phone only fills the offer text;
+  // capa/amounts/status get filled in later from desktop. capa is NOT NULL in the DB, so default it to 0.
   const mDelAddToggleBtn = document.getElementById('mDelAddToggleBtn');
   const mDelAddForm = document.getElementById('mDelAddForm');
   const mDelAddCancelBtn = document.getElementById('mDelAddCancelBtn');
   const mDelAddSaveBtn = document.getElementById('mDelAddSaveBtn');
-  const mDelFields = ['mDelOfferInput','mDelByInput','mDelPartnerInput','mDelSrcAmt','mDelOutAmt','mDelCapa'];
   const clearMDelForm = () => {
-    mDelFields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    document.getElementById('mDelSrcCur').value = 'EUR';
-    document.getElementById('mDelOutCur').value = 'EUR';
-    document.getElementById('mDelStatus').value = 'waiting_link';
+    const el = document.getElementById('mDelOfferInput');
+    if (el) el.value = '';
   };
   if (mDelAddToggleBtn && mDelAddForm) {
     mDelAddToggleBtn.addEventListener('click', () => {
@@ -1216,32 +1195,25 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (mDelAddSaveBtn) {
     mDelAddSaveBtn.addEventListener('click', async () => {
       const offer = (document.getElementById('mDelOfferInput').value || '').trim();
-      if (!offer) { showToast('Укажите оффер', 'error'); document.getElementById('mDelOfferInput').focus(); return; }
-      const capaRaw = (document.getElementById('mDelCapa').value || '').trim();
-      const capa = parseFloat(capaRaw);
-      if (capaRaw === '' || isNaN(capa) || capa < 0) {
-        showToast('Укажите капу — это обязательное условие выдачи', 'error');
-        document.getElementById('mDelCapa').focus();
-        return;
-      }
+      if (!offer) { showToast('Вставьте текст оффера', 'error'); document.getElementById('mDelOfferInput').focus(); return; }
       const data = {
         project: currentProject,
         notes: offer,
-        partner: (document.getElementById('mDelPartnerInput').value || '').trim() || null,
-        created_by: (document.getElementById('mDelByInput').value || '').trim() || null,
-        status: document.getElementById('mDelStatus').value,
+        partner: null,
+        created_by: null,
+        status: 'waiting_link',
         remind_at: null,
-        amount_src: parseFloat(document.getElementById('mDelSrcAmt').value) || null,
-        amount_src_cur: document.getElementById('mDelSrcCur').value,
-        amount_out: parseFloat(document.getElementById('mDelOutAmt').value) || null,
-        amount_out_cur: document.getElementById('mDelOutCur').value,
-        capa,
+        amount_src: null,
+        amount_src_cur: 'EUR',
+        amount_out: null,
+        amount_out_cur: 'EUR',
+        capa: 0, // placeholder — filled in properly from desktop later
       };
       const { error } = await sb.from('deliveries').insert(data);
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
       clearMDelForm();
       mDelAddForm.classList.add('hidden');
-      showToast('Выдача добавлена', 'success');
+      showToast('Выдача добавлена — доработаешь детали с компьютера', 'success');
       await loadDeliveries();
       if (typeof mSection !== 'undefined' && mSection === 'deliveries') renderMobileDeliveries();
     });
@@ -3942,11 +3914,13 @@ function renderMobileDeliveries() {
       ? { value: d.amount_src - d.amount_out, cur: d.amount_src_cur || 'EUR' } : null;
     const tm = (m && d.capa != null && !isNaN(+d.capa)) ? { value: m.value * (+d.capa), cur: m.cur } : null;
     const counts = d.status !== 'problem' && d.status !== 'stopped';
+    const needsDetails = !d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null;
     return `<div class="m-req-card">
       <div class="m-req-top">
         <span class="m-req-partner">${flagEmojiToImg(esc(d.notes || d.brand || 'Без названия'))}</span>
         <span class="m-req-status" onclick="event.stopPropagation();toggleDelStatusMenu('${d.id}')" style="cursor:pointer;background:rgba(129,140,248,0.08);color:${meta.dot};border:0.5px solid ${meta.dot}44"><span style="width:5px;height:5px;border-radius:50%;background:${meta.dot};display:inline-block"></span>${meta.label}</span>
       </div>
+      ${needsDetails ? `<div style="font-size:10.5px;color:#f59e0b;display:flex;align-items:center;gap:4px"><i class="ti ti-alert-triangle" style="font-size:11px"></i>Нужно доработать детали с компьютера</div>` : ''}
       <div class="m-req-notes" style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--text3)">
         ${d.partner ? `<span>→ ${esc(d.partner)}</span>` : ''}
         ${d.amount_src != null ? `<span>${curSym(d.amount_src_cur)}${d.amount_src} → ${d.amount_out != null ? curSym(d.amount_out_cur)+d.amount_out : '—'}</span>` : ''}
@@ -4325,8 +4299,8 @@ function renderDeliveries() {
             : 'Без даты';
           sep = `<tr class="del-month-sep"><td colspan="12"><div class="del-month-sep-inner"><span>${monthLabel}</span></div></td></tr>`;
         }
-        return `${sep}<tr>
-          <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</div></td>
+        return `${sep}<tr${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? ' style="background:rgba(245,158,11,0.05)"' : ''}>
+          <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? '<i class="ti ti-alert-triangle" style="color:#f59e0b;margin-right:5px;font-size:13px" title="Добавлено с телефона — нужно доработать детали"></i>' : ''}${flagEmojiToImg(esc(d.notes||d.brand||'—'))}</div></td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${srcStr}</td>
