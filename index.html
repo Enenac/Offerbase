@@ -557,8 +557,6 @@ tr:hover .row-actions{opacity:1}
     <div id="mReqAddForm" class="hidden" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
       <input class="m-search-inp" id="mReqTitleInput" placeholder="Партнёр — от кого запрос…" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px">
       <textarea id="mReqRawInput" placeholder="Текст запроса — вставьте как есть…" rows="5" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:12.5px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
-      <button class="btn btn-ghost" id="mReqParseBtn" style="justify-content:center;font-size:12px"><i class="ti ti-sparkles"></i>Распознать (ИИ)</button>
-      <div id="mReqParsePreview" class="hidden" style="font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--accent);background:var(--accent-bg);border:0.5px solid var(--accent-border);border-radius:8px;padding:8px 10px"></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mReqAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
         <button class="btn btn-primary" id="mReqAddSaveBtn" style="flex:1;justify-content:center"><i class="ti ti-check"></i>Сохранить</button>
@@ -1132,15 +1130,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   const mReqAddForm = document.getElementById('mReqAddForm');
   const mReqAddCancelBtn = document.getElementById('mReqAddCancelBtn');
   const mReqAddSaveBtn = document.getElementById('mReqAddSaveBtn');
-  const mReqParseBtn = document.getElementById('mReqParseBtn');
-  const mReqParsePreview = document.getElementById('mReqParsePreview');
-  let _mReqParsedLine = null; // last AI-formatted one-liner, saved into notes ("новый формат")
   const clearMReqForm = () => {
     document.getElementById('mReqTitleInput').value = '';
     document.getElementById('mReqRawInput').value = '';
-    _mReqParsedLine = null;
-    mReqParsePreview.classList.add('hidden');
-    mReqParsePreview.textContent = '';
   };
   if (mReqAddToggleBtn && mReqAddForm) {
     mReqAddToggleBtn.addEventListener('click', () => {
@@ -1156,47 +1148,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       clearMReqForm();
     });
   }
-  if (mReqParseBtn) {
-    mReqParseBtn.addEventListener('click', async () => {
-      const text = (document.getElementById('mReqRawInput').value || '').trim();
-      if (!text) { showToast('Сначала вставьте текст запроса', 'error'); return; }
-      mReqParseBtn.disabled = true;
-      mReqParseBtn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Распознаю…';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-      try {
-        const resp = await fetch('/api/parse-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        const raw = await resp.text();
-        let result;
-        try { result = JSON.parse(raw); }
-        catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
-        if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
-        const f = result.fields || {};
-        const line = [
-          f.geo ? (f.geo.split('/').map(flagEmoji).join('') + ' ' + f.geo) : null,
-          f.brand, f.traffic_source, f.game_type, f.rate_wish, f.extra
-        ].filter(Boolean).join(' • ');
-        _mReqParsedLine = line || null;
-        mReqParsePreview.textContent = line || 'Не удалось распознать поля — сохранится только исходный текст';
-        mReqParsePreview.classList.remove('hidden');
-        showToast('Запрос распознан', 'success');
-      } catch (e) {
-        clearTimeout(timeoutId);
-        const msg = e.name === 'AbortError' ? 'Сервер не ответил за 25 секунд' : e.message;
-        showToast('Не удалось распознать: ' + msg, 'error');
-        console.error('parse-request error:', e);
-      } finally {
-        mReqParseBtn.disabled = false;
-        mReqParseBtn.innerHTML = '<i class="ti ti-sparkles"></i>Распознать (ИИ)';
-      }
-    });
-  }
   if (mReqAddSaveBtn) {
     mReqAddSaveBtn.addEventListener('click', async () => {
       const title = (document.getElementById('mReqTitleInput').value || '').trim();
@@ -1204,7 +1155,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!title) { showToast('Укажите партнёра', 'error'); return; }
       const { error } = await sb.from('requests').insert({
         title, received_at: new Date().toISOString().split('T')[0],
-        raw_text: raw_text || null, notes: _mReqParsedLine, status: 'new', project: currentProject
+        raw_text: raw_text || null, status: 'new', project: currentProject
       });
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
       clearMReqForm();
@@ -3200,8 +3151,11 @@ async function openReqDetail(reqId) {
       </div>
 
       <div>
-        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Новый формат</div>
-        <textarea class="form-input" style="width:100%;min-height:150px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" placeholder="Преобразуй запрос в удобный формат..." onchange="saveReqField('${reqId}','notes',this.value)">${esc(req.notes)}</textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Новый формат</div>
+          <button class="btn btn-ghost" id="reqParseBtn-${reqId}" style="font-size:10.5px;padding:4px 9px" onclick="parseReqWithAI('${reqId}')"><i class="ti ti-sparkles"></i>Распознать (ИИ)</button>
+        </div>
+        <textarea class="form-input" id="reqNotesField-${reqId}" style="width:100%;min-height:150px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" placeholder="Преобразуй запрос в удобный формат..." onchange="saveReqField('${reqId}','notes',this.value)">${esc(req.notes)}</textarea>
       </div>
 
       ${(req.proposed_offer || req.status === 'proposed' || req.status === 'closed') ? `
@@ -3335,6 +3289,55 @@ async function saveReqField(reqId, field, value) {
   if (error) { showToast('Ошибка сохранения: ' + error.message, 'error'); return; }
   const req = allRequests.find(r => r.id === reqId);
   if (req) req[field] = value;
+}
+
+// AI-parses the raw request text and writes the compact template into "Новый формат",
+// saving it straight away (same as manually editing the field and blurring it).
+async function parseReqWithAI(reqId) {
+  const req = allRequests.find(r => r.id === reqId);
+  const text = (req?.raw_text || '').trim();
+  if (!text) { showToast('Нет текста запроса для распознавания', 'error'); return; }
+  const btn = document.getElementById('reqParseBtn-' + reqId);
+  const field = document.getElementById('reqNotesField-' + reqId);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Распознаю…'; }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const resp = await fetch('/api/parse-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    const raw = await resp.text();
+    let result;
+    try { result = JSON.parse(raw); }
+    catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
+    if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
+    const f = result.fields || {};
+    let line;
+    if (f.bundle_geos) {
+      // a "подборка" (bulk multi-GEO ask) gets its own sentence instead of the single-offer template
+      line = `Подборка: ${f.bundle_geos}` + (f.extra ? ` • ${f.extra}` : '');
+    } else {
+      line = [
+        f.geo ? (f.geo.split('/').map(flagEmoji).join('') + ' ' + f.geo) : null,
+        f.brand, f.traffic_source, f.game_type, f.rate_wish, f.extra
+      ].filter(Boolean).join(' • ');
+    }
+    if (!line) { showToast('Не удалось распознать поля', 'error'); return; }
+    if (field) field.value = line;
+    await saveReqField(reqId, 'notes', line);
+    showToast('Запрос распознан', 'success');
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const msg = e.name === 'AbortError' ? 'Сервер не ответил за 25 секунд' : e.message;
+    showToast('Не удалось распознать: ' + msg, 'error');
+    console.error('parse-request error:', e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-sparkles"></i>Распознать (ИИ)'; }
+  }
 }
 
 function filterDispatchPartners(reqId) {
