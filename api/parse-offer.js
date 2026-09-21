@@ -10,7 +10,7 @@ Return ONLY a JSON object with these keys (use null for anything not present —
 - "geo": ISO-2 country code, uppercase (e.g. "IT", "CA"). Infer from a country name, flag emoji, or explicit code.
 - "brand": the casino/brand name.
 - "traffic_source": the traffic source mentioned (e.g. "FB", "Google", "TikTok", "Push"). Keep it short, as written.
-- "game_type": the game type/vertical (e.g. "Slots", "Casino", "Sports", "Poker").
+- "game_type": the game type/vertical (e.g. "Slots", "Mix", "Crash", "Casino", "Sports", "Poker"). "Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash".
 - "rate": the payout/rate as a short string exactly as it appears, including currency symbol if present (e.g. "$190", "150 EUR", "200 USD"). Do not do currency conversion.
 - "min_deposit": minimum deposit, as a short string with currency if present (e.g. "20 EUR").
 - "capa": the cap/capa — a NUMBER only (count of deposits/FTDs), e.g. 20. If it says "20 FTD" or "cap 20" or "капа 20", return 20. Null if absent.
