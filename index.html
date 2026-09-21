@@ -1827,10 +1827,10 @@ function sortBy(field) {
   fetchOffers();
 }
 
-function getFiltered() {
+function getFiltered(source) {
   // With server-side pagination, allOffers is already filtered/sorted
   // Only apply client-side rate filter (can't be done server-side easily)
-  let rows = allOffers;
+  let rows = source || allOffers;
   if (hideSuperseded) {
     rows = rows.filter(o => {
       const v = offerVersionInfo(o);
@@ -1856,6 +1856,22 @@ function getFiltered() {
     });
   }
   return rows;
+}
+
+// Fetches EVERY offer matching the current filters (not just the currently-loaded
+// page), for use by Export — infinite scroll only loads PAGE_SIZE at a time, but
+// export needs the full filtered set regardless of how much the user has scrolled.
+async function fetchAllFilteredOffers() {
+  const acc = [];
+  const PAGE = 1000;
+  for (let i = 0; i < 20; i++) {
+    const { data: chunk, error } = await buildSupabaseQuery()
+      .range(i * PAGE, i * PAGE + PAGE - 1);
+    if (error || !chunk || !chunk.length) break;
+    acc.push(...chunk);
+    if (chunk.length < PAGE) break;
+  }
+  return acc;
 }
 
 function renderTable() {
@@ -3588,8 +3604,12 @@ let exportFieldsEnabled = JSON.parse(localStorage.getItem('exportFields') || 'nu
 
 let _exportRows = [];
 
-function openExport() {
-  _exportRows = getFiltered();
+async function openExport() {
+  document.getElementById('exportOverlay').classList.remove('hidden');
+  document.getElementById('exportCount').textContent = 'Загрузка всех офферов по фильтрам…';
+  document.getElementById('exportText').textContent = '';
+  const allMatching = await fetchAllFilteredOffers();
+  _exportRows = getFiltered(allMatching);
   // Build toggles
   const wrap = document.getElementById('exportFieldToggles');
   wrap.innerHTML = EXPORT_FIELDS.map(f => `
@@ -3605,7 +3625,6 @@ function openExport() {
     </label>
   `).join('');
   refreshExportText();
-  document.getElementById('exportOverlay').classList.remove('hidden');
 }
 
 function toggleExportField(key, val) {
