@@ -1180,7 +1180,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const f = result.fields || {};
         const line = [
           f.geo ? (f.geo.split('/').map(flagEmoji).join('') + ' ' + f.geo) : null,
-          f.traffic_source, f.game_type, f.rate_wish, f.extra
+          f.brand, f.traffic_source, f.game_type, f.rate_wish, f.extra
         ].filter(Boolean).join(' • ');
         _mReqParsedLine = line || null;
         mReqParsePreview.textContent = line || 'Не удалось распознать поля — сохранится только исходный текст';
