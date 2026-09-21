@@ -3316,16 +3316,20 @@ async function parseReqWithAI(reqId) {
     catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
     if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
     const f = result.fields || {};
-    let line;
-    if (f.bundle_geos) {
-      // a "подборка" (bulk multi-GEO ask) gets its own sentence instead of the single-offer template
-      line = `Подборка: ${f.bundle_geos}` + (f.extra ? ` • ${f.extra}` : '');
-    } else {
-      line = [
-        f.geo ? (f.geo.split('/').map(flagEmoji).join('') + ' ' + f.geo) : null,
-        f.brand, f.traffic_source, f.game_type, f.rate_wish, f.extra
+    const lines = [];
+    (f.items || []).forEach(it => {
+      const itemLine = [
+        it.geo ? (it.geo.split('/').map(flagEmoji).join('') + ' ' + it.geo) : null,
+        it.brand, it.traffic_source, it.game_type, it.rate_wish
       ].filter(Boolean).join(' • ');
+      if (itemLine) lines.push(itemLine);
+    });
+    if (f.bundle_geos) {
+      // a generic "подборка" (bulk multi-GEO ask with no specific brands) gets its own line
+      lines.push(`Подборка: ${f.bundle_geos}`);
     }
+    if (f.extra) lines.push(f.extra);
+    const line = lines.join('\n');
     if (!line) { showToast('Не удалось распознать поля', 'error'); return; }
     if (field) field.value = line;
     await saveReqField(reqId, 'notes', line);
