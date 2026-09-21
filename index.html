@@ -1203,14 +1203,21 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!text) { showToast('Сначала вставьте текст оффера', 'error'); return; }
       mDelParseBtn.disabled = true;
       mDelParseBtn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Распознаю…';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // hard cap — never hang forever
       try {
         const resp = await fetch('/api/parse-offer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
+          body: JSON.stringify({ text }),
+          signal: controller.signal
         });
-        const result = await resp.json();
-        if (!resp.ok || !result.ok) throw new Error(result.error || 'Ошибка распознавания');
+        clearTimeout(timeoutId);
+        const raw = await resp.text();
+        let result;
+        try { result = JSON.parse(raw); }
+        catch { throw new Error(`Сервер вернул не JSON (код ${resp.status}): ${raw.slice(0, 150)}`); }
+        if (!resp.ok || !result.ok) throw new Error(result.error || `Ошибка распознавания (код ${resp.status})`);
         _mDelParsed = result.fields;
         const chip = (label, val) => val ? `<span style="padding:3px 8px;border-radius:5px;background:var(--accent-bg);color:var(--accent);border:0.5px solid var(--accent-border);font-family:'IBM Plex Mono',monospace">${label}: ${esc(String(val))}</span>` : '';
         const chips = [
@@ -1225,7 +1232,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
         showToast('Оффер распознан', 'success');
       } catch (e) {
-        showToast('Не удалось распознать: ' + e.message, 'error');
+        clearTimeout(timeoutId);
+        const msg = e.name === 'AbortError' ? 'Сервер не ответил за 25 секунд' : e.message;
+        showToast('Не удалось распознать: ' + msg, 'error');
+        console.error('parse-offer error:', e);
       } finally {
         mDelParseBtn.disabled = false;
         mDelParseBtn.innerHTML = '<i class="ti ti-sparkles"></i>Распознать оффер (ИИ)';
