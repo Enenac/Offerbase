@@ -2240,6 +2240,20 @@ async function onSignedIn(user) {
   document.getElementById('authGate').style.display = 'none';
   applyAdminUI();
   initApp();
+  applyHashRoute();
+}
+
+// Reopens whichever page/tab the URL hash points to (set on refresh reload) — desktop and mobile have different tab sets
+function applyHashRoute() {
+  const hash = (location.hash || '').replace('#', '');
+  if (!hash) return;
+  if (isMobile()) {
+    const mobilePages = ['offers', 'requests', 'deliveries', 'tasks'];
+    if (mobilePages.includes(hash) && !(hash === 'tasks' && hideTasks)) mSwitchSection(hash);
+  } else {
+    const desktopPages = ['offers', 'direct', 'partners', 'requests', 'settings', 'deliveries', 'tasks', 'stats'];
+    if (desktopPages.includes(hash) && !(hash === 'stats' && !isAdmin) && !(hash === 'tasks' && hideTasks)) switchPage(hash);
+  }
 }
 
 async function doLogout() {
@@ -3861,6 +3875,7 @@ function mSwitchSection(sec) {
   if (sec === 'tasks' && hideTasks) return;
   mSection = sec;
   document.title = (PAGE_TITLES[sec] ? PAGE_TITLES[sec] + ' — ' : '') + 'OfferBase';
+  history.replaceState(null, '', '#' + sec); // remembers the tab across a page refresh
   ['offers', 'requests', 'deliveries', 'tasks'].forEach(s => {
     document.getElementById('m-sec-' + s).classList.toggle('hidden', s !== sec);
     document.getElementById('m-tab-' + s).classList.toggle('active', s === sec);
@@ -5201,6 +5216,7 @@ function switchPage(page) {
   if (page === 'tasks' && hideTasks) return;
   currentPage = page;
   document.title = (PAGE_TITLES[page] ? PAGE_TITLES[page] + ' — ' : '') + 'OfferBase';
+  history.replaceState(null, '', '#' + page); // remembers the tab across a page refresh
   ['offers','direct','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
     if (el) el.classList.toggle('active', x === page);
