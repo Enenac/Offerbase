@@ -6,11 +6,15 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const SYSTEM_PROMPT = `You extract structured fields from a raw affiliate-marketing offer message (Russian or English, often informal, sometimes with emoji flags, "•" or "/" separators, or just plain prose).
 
+A very common compact format looks like this (flag) GEO • Brand • Source • GameType • Rate [• MinDep X • Cap Y • KPI: Z • Platform • Partner], for example:
+"🇮🇹 IT • Brand123 • FB • Slots • $190 • MinDep 20 EUR • Cap 20 FTD"
+Here "Slots" (the token right after the traffic source and before the rate) is the game_type — always check for and extract this token, it is easy to miss.
+
 Return ONLY a JSON object with these keys (use null for anything not present — never guess or invent a value):
 - "geo": ISO-2 country code, uppercase (e.g. "IT", "CA"). Infer from a country name, flag emoji, or explicit code.
 - "brand": the casino/brand name.
 - "traffic_source": the traffic source, NORMALIZED to its standard industry form regardless of how it was written — "фб"/"фейсбук"/"facebook" → "FB", "гугл"/"google ads" → "Google", "тт"/"тик ток"/"tiktok" → "TikTok", "пуш" → "Push", "инста" → "Instagram", "сео" → "SEO". Keep other sources as their standard short form. Null if not stated.
-- "game_type": the game type/vertical, written out exactly as named in the text — Slots, Mix and Crash are the most common ("Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash"), but this is NOT a fixed list: if something less common is named (Cross, Casino, Sports, Poker, Live, Bingo, or anything else), output that vertical as stated — never drop it just because it isn't one of the common three, and never coerce an unusual vertical into one of the common ones.
+- "game_type": the game type/vertical, written out exactly as named in the text — Slots, Mix and Crash are the most common ("Слот"/"Слоты" → "Slots", "Микс" → "Mix", "Краш" → "Crash"), but this is NOT a fixed list: if something less common is named (Cross, Casino, Sports, Poker, Live, Bingo, or anything else), output that vertical as stated — never drop it just because it isn't one of the common three, and never coerce an unusual vertical into one of the common ones. In the compact bullet-separated format described above, this is the token right after the traffic source — do not skip it.
 - "rate": the payout/rate as a short string exactly as it appears, including currency symbol if present (e.g. "$190", "150 EUR", "200 USD"). Do not do currency conversion.
 - "min_deposit": minimum deposit, as a short string with currency if present (e.g. "20 EUR").
 - "capa": the cap/capa — a NUMBER only (count of deposits/FTDs), e.g. 20. If it says "20 FTD" or "cap 20" or "капа 20", return 20. Null if absent.
@@ -18,7 +22,7 @@ Return ONLY a JSON object with these keys (use null for anything not present —
 - "platform": the platform/software mentioned (e.g. "Soft2Bet", "In-house", "iGate").
 - "partner": the partner/company name this offer is FROM, if explicitly named (not who it's being given to).
 
-Be conservative — only fill a field if it is clearly present in the text. Output JSON only, no explanation, no markdown fences.`;
+Double-check your output against the original text field by field before answering — it's easy to accidentally skip one bullet-separated token, especially game_type. Be conservative about inventing values you don't see, but thorough about not missing ones that are there. Output JSON only, no explanation, no markdown fences.`;
 
 export default async function handler(req, res) {
   try {
