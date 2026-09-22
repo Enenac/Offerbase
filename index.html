@@ -3343,13 +3343,15 @@ async function autoParseRequestOnCreate(reqId, rawText) {
   try {
     const line = await fetchParsedRequestLine(text, controller.signal);
     clearTimeout(timeoutId);
-    if (!line) return;
+    if (!line) { showToast('Автораспознавание: ИИ не нашёл полей в тексте', 'error'); return; }
     const { error } = await sb.from('requests').update({ notes: line }).eq('id', reqId);
-    if (error) { console.error('autoParseRequestOnCreate save error:', error); return; }
+    if (error) { showToast('Автораспознавание: ошибка сохранения — ' + error.message, 'error'); console.error('autoParseRequestOnCreate save error:', error); return; }
     const req = allRequests.find(r => r.id === reqId);
     if (req) req.notes = line;
   } catch (e) {
     clearTimeout(timeoutId);
+    const msg = e.name === 'AbortError' ? 'сервер не ответил за 25с' : e.message;
+    showToast('Автораспознавание не удалось: ' + msg, 'error');
     console.error('autoParseRequestOnCreate error:', e);
   }
 }
