@@ -28,6 +28,7 @@ function buildMessage(row) {
 
   let text = `📝 <b>Новая такса</b>\n`;
   if (tags.length) text += `${escapeHtml(tags.join(" · "))}\n`;
+  if (row.partner) text += `От: ${escapeHtml(row.partner)}\n`;
   if (body) text += `\n${escapeHtml(body)}`;
   return text;
 }
