@@ -994,8 +994,17 @@ tr:hover .row-actions{opacity:1}
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Поля в экспорте</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px" id="exportFieldToggles"></div>
       </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px;border:0.5px solid var(--accent-border);border-radius:8px;background:var(--accent-bg)">
+        <i class="ti ti-stack-2" style="color:var(--accent);flex-shrink:0"></i>
+        <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+        <button class="btn btn-primary" id="bundleGeoBtn" onclick="buildGeoBundle()" style="flex-shrink:0;font-size:12px;padding:6px 12px">Собрать</button>
+      </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <p class="export-count" id="exportCount" style="flex:1;margin:0"></p>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3);white-space:nowrap">
+          <input type="checkbox" id="sortRateToggle" onchange="refreshExportText()" style="accent-color:var(--accent)">
+          <span>Сортировать по ставке ↓</span>
+        </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text3);white-space:nowrap">
           <input type="checkbox" id="dedupToggle" onchange="refreshExportText()" style="accent-color:var(--accent)" checked>
           <span>Убирать дубли (оставлять макс. ставку)</span>
@@ -3855,6 +3864,10 @@ async function openExport() {
   document.getElementById('exportOverlay').classList.remove('hidden');
   document.getElementById('exportCount').textContent = 'Загрузка всех офферов по фильтрам…';
   document.getElementById('exportText').textContent = '';
+  const bundleInput = document.getElementById('bundleGeoInput');
+  if (bundleInput) bundleInput.value = '';
+  const sortToggle = document.getElementById('sortRateToggle');
+  if (sortToggle) sortToggle.checked = false;
   const allMatching = await fetchAllFilteredOffers();
   _exportRows = getFiltered(allMatching);
   // Build toggles
@@ -3922,9 +3935,46 @@ function deduplicateOffers(rows) {
   return Array.from(map.values());
 }
 
+async function buildGeoBundle() {
+  const raw = (document.getElementById('bundleGeoInput').value || '').trim();
+  if (!raw) { showToast('Укажите гео через пробел, например: CA PT DE', 'error'); return; }
+  const geos = [...new Set(raw.split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
+  if (!geos.length) return;
+
+  const btn = document.getElementById('bundleGeoBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>';
+  document.getElementById('exportCount').textContent = `Собираю подборку по ${geos.length} гео…`;
+  document.getElementById('exportText').textContent = '';
+  try {
+    await buildOfferVersionIndex(); // needed to know which offers are the current (non-superseded) ones
+    const ptype = currentPage === 'direct' ? 'Direct' : null;
+    let q = sb.from('offers').select('*').eq('project', currentProject).in('geo', geos).eq('status', 'active');
+    q = ptype ? q.eq('partner_type', ptype) : q.or('partner_type.neq.Direct,partner_type.is.null');
+    const { data, error } = await q;
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+    // keep only the current (non-superseded) version of each partner+geo+brand+source+type group
+    const current = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
+    // sort by rate descending (USD-equivalent) across all selected GEOs combined
+    current.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
+    _exportRows = current;
+    document.getElementById('sortRateToggle').checked = true;
+    refreshExportText();
+    const missing = geos.filter(g => !current.some(o => (o.geo || '').toUpperCase() === g));
+    showToast(missing.length ? `Собрано. Нет активных офферов по: ${missing.join(', ')}` : 'Подборка собрана', missing.length ? 'error' : 'success');
+  } catch (e) {
+    showToast('Ошибка сборки подборки: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Собрать';
+  }
+}
+
 function refreshExportText() {
   const dedup = document.getElementById('dedupToggle').checked;
-  let rows = dedup ? deduplicateOffers(_exportRows) : _exportRows;
+  const sortByRate = document.getElementById('sortRateToggle')?.checked;
+  let rows = dedup ? deduplicateOffers(_exportRows) : _exportRows.slice();
+  if (sortByRate) rows.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
   const val = v => (v && v.trim() !== '-') ? v.trim() : null;
   const isPhantom = currentProject === 'phantom';
 
