@@ -593,7 +593,6 @@ tr:hover .row-actions{opacity:1}
     <div id="mTaskAddForm" class="hidden" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg2);border-bottom:0.5px solid var(--border)">
       <textarea id="mTaskTextInput" placeholder="Текст задачи…" rows="3" style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px;font-family:'IBM Plex Mono',monospace;line-height:1.5;resize:vertical"></textarea>
       <input class="m-search-inp" id="mTaskPartnerInput" placeholder="От кого — партнёр..." style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px">
-      <button class="m-chip" id="mTaskUrgent" onclick="mToggleTaskUrgent()" style="align-self:flex-start"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно</button>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" id="mTaskAddCancelBtn" style="flex:1;justify-content:center">Отмена</button>
         <button class="btn btn-primary" id="mTaskAddSaveBtn" style="flex:1;justify-content:center"><i class="ti ti-check"></i>Сохранить</button>
@@ -1297,7 +1296,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // inline mobile "new task" form — matches the deliveries/requests pattern: "+" reveals a
-  // panel with the task text, who it's from (partner), and an urgent toggle
+  // panel with the task text and who it's from (partner)
   const mTaskAddToggleBtn = document.getElementById('mTaskAddToggleBtn');
   const mTaskAddForm = document.getElementById('mTaskAddForm');
   const mTaskAddCancelBtn = document.getElementById('mTaskAddCancelBtn');
@@ -1305,8 +1304,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   const clearMTaskForm = () => {
     document.getElementById('mTaskTextInput').value = '';
     document.getElementById('mTaskPartnerInput').value = '';
-    mTaskUrgent = false;
-    document.getElementById('mTaskUrgent')?.classList.remove('active');
   };
   if (mTaskAddToggleBtn && mTaskAddForm) {
     mTaskAddToggleBtn.addEventListener('click', () => {
@@ -1329,7 +1326,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const partner = (document.getElementById('mTaskPartnerInput').value || '').trim() || null;
       const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
       const { error } = await sb.from('tasks').insert({
-        title, partner, project: currentProject, priority: mTaskUrgent ? 'urgent' : 'medium',
+        title, partner, project: currentProject,
         task_category: 'other', done: false, sort_order: maxOrder + 1000
       });
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
@@ -2431,11 +2428,6 @@ function updateAccessUI() {
 
 // ── TASKS ─────────────────────────────────────────────
 
-// urgency is a simple flag now: urgent or not
-const TASK_PRIORITY = {
-  urgent: { color: '#ef4444', label: 'Срочно' },
-  medium: { color: 'transparent', label: 'Обычная' },
-};
 const TASK_CATEGORY = { request: 'Запрос', delivery: 'Выдача', clarify: 'Уточнение', other: 'Другое' };
 const TASK_PROJECT = { smerch: '🌪 Смерч', phantom: '👻 Фантом' };
 
@@ -2472,7 +2464,6 @@ function visibleTasks() {
 function renderTasks() {
   const list = document.getElementById('tasksList');
   if (!list) return;
-  const listDelivery = document.getElementById('tasksListDelivery');
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const items = visibleTasks();
 
@@ -2490,22 +2481,18 @@ function renderTasks() {
   if (lbl) lbl.textContent = showDoneTasks ? 'Скрыть выполненные' : `Выполненные${doneCount ? ` (${doneCount})` : ''}`;
 
   const emptyHtml = `<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Пока пусто</div>`;
-  // draggable: only the right "all tasks" column carries drag/sort_order
-  const rowHtml = (t, draggable) => {
-    const isUrgent = t.priority === 'urgent';
+  const rowHtml = (t) => {
     const cat = TASK_CATEGORY[t.task_category] || '';
-    const drag = draggable && !t.done;
+    const drag = !t.done;
     return `
       <div class="task-row" data-id="${t.id}" draggable="${drag ? 'true' : 'false'}">
-        ${draggable ? `<i class="ti ti-grip-vertical task-grip" title="Перетащить"></i>` : `<span style="width:14px;flex-shrink:0"></span>`}
-        <span class="task-dot" onclick="toggleTaskUrgent('${t.id}')" title="${isUrgent ? 'Снять срочность' : 'Пометить срочной'}" style="cursor:pointer;background:${isUrgent ? '#ef4444' : 'transparent'};border:1.5px solid ${isUrgent ? '#ef4444' : 'var(--border)'}"></span>
+        <i class="ti ti-grip-vertical task-grip" title="Перетащить"></i>
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" style="accent-color:var(--accent);cursor:pointer;flex-shrink:0;width:14px;height:14px">
         <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
           <span class="task-text" onclick="openTaskDetail('${t.id}')" title="Открыть задачу" style="font-size:12.5px;color:${t.done ? 'var(--text3)' : 'var(--text1)'};${t.done ? 'text-decoration:line-through' : ''};word-break:break-word;white-space:pre-wrap;line-height:1.4;cursor:pointer">${esc(t.title)}</span>
           ${t.partner ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">от: ${esc(t.partner)}</span>` : ''}
         </div>
         ${t.notes ? `<i class="ti ti-note" onclick="openTaskDetail('${t.id}')" title="Есть заметка: ${esc(t.notes).slice(0,140)}" style="color:#facc15;flex-shrink:0;cursor:pointer;font-size:14px"></i>` : ''}
-        <span class="task-badge-col" style="${isUrgent && !t.done ? 'color:#ef4444;border-color:#ef4444' : 'visibility:hidden'}">Срочно</span>
         <span class="task-badge-col" style="${cat ? '' : 'visibility:hidden'}">${cat || '—'}</span>
         <button class="icon-btn" onclick="openTaskDetail('${t.id}', true)" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
@@ -2523,7 +2510,7 @@ function renderTasks() {
     if (diffDays === 1) return 'Вчера';
     return dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
   };
-  const rowsWithDateSep = (arr, draggable) => {
+  const rowsWithDateSep = (arr) => {
     let lastKey = null;
     return arr.map(t => {
       const d = t.created_at ? new Date(t.created_at) : null;
@@ -2533,23 +2520,14 @@ function renderTasks() {
         lastKey = key;
         sep = `<div class="task-date-sep"><span>${dayLabel(d)}</span></div>`;
       }
-      return sep + rowHtml(t, draggable);
+      return sep + rowHtml(t);
     }).join('');
   };
 
-  // Right column: all tasks (draggable)
-  list.innerHTML = shown.length ? rowsWithDateSep(shown, true) : emptyHtml;
-
-  // Left column: only delivery-category tasks (mirror, not draggable)
-  if (listDelivery) {
-    const deliveryItems = shown.filter(t => t.task_category === 'delivery');
-    listDelivery.innerHTML = deliveryItems.length ? rowsWithDateSep(deliveryItems, false) : emptyHtml;
-  }
-
+  list.innerHTML = shown.length ? rowsWithDateSep(shown) : emptyHtml;
   if (shown.length) initTaskDnd(list);
 }
 
-let newTaskUrgent = false;
 let newTaskCat = 'other';
 let showDoneTasks = false;
 
@@ -2582,23 +2560,6 @@ function autoGrowTask(ta) {
   ta.style.height = Math.min(ta.scrollHeight, 180) + 'px';
 }
 
-function toggleNewTaskUrgent() {
-  newTaskUrgent = !newTaskUrgent;
-  const btn = document.getElementById('taskUrgentToggle');
-  if (btn) btn.classList.toggle('active', newTaskUrgent);
-}
-
-// flip urgency on an existing task by clicking its dot
-async function toggleTaskUrgent(id) {
-  const t = allTasks.find(x => x.id === id);
-  if (!t) return;
-  const priority = t.priority === 'urgent' ? 'medium' : 'urgent';
-  const { error } = await sb.from('tasks').update({ priority }).eq('id', id);
-  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
-  t.priority = priority;
-  renderTasks();
-}
-
 // ── task detail modal (view + edit in one place) ─────
 let _detailTaskId = null;
 let _detailEditing = false;
@@ -2618,7 +2579,6 @@ function renderTaskDetail() {
   if (!t) return;
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const isUrgent = t.priority === 'urgent';
   const cat = TASK_CATEGORY[t.task_category] || '';
   const proj = TASK_PROJECT[t.project] || '';
   const created = t.created_at
@@ -2633,11 +2593,8 @@ function renderTaskDetail() {
   const footer = document.getElementById('taskDetailFooter');
 
   if (_detailEditing) {
-    // editable meta: urgency + category
+    // editable meta: category + who it's from
     meta.innerHTML = `
-      <button class="rq-chip ${isUrgent ? 'active' : ''}" id="taskDetailUrgent" onclick="toggleDetailUrgent()" style="padding:5px 11px">
-        <span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
-      </button>
       <select class="form-select" id="taskDetailCat" style="width:auto;font-size:12px;padding:5px 10px">
         <option value="request">Запрос</option>
         <option value="delivery">Выдача</option>
@@ -2681,7 +2638,6 @@ function renderTaskDetail() {
 
   // view mode
   meta.innerHTML = `
-    ${isUrgent ? `<span class="task-badge" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : ''}
     ${cat ? `<span class="task-badge">${cat}</span>` : ''}
     ${t.partner ? `<span class="task-badge"><i class="ti ti-user" style="margin-right:3px;font-size:10px"></i>${esc(t.partner)}</span>` : ''}
     ${proj ? `<span class="task-badge">${proj}</span>` : ''}
@@ -2699,11 +2655,6 @@ function renderTaskDetail() {
     <button class="btn btn-ghost" onclick="toggleTaskFromDetail()">${t.done ? '<i class="ti ti-arrow-back-up"></i>Вернуть в работу' : '<i class="ti ti-check"></i>Выполнено'}</button>`;
 }
 
-function toggleDetailUrgent() {
-  const btn = document.getElementById('taskDetailUrgent');
-  if (btn) btn.classList.toggle('active');
-}
-
 async function toggleTaskFromDetail() {
   const t = allTasks.find(x => x.id === _detailTaskId);
   if (!t) return;
@@ -2718,14 +2669,13 @@ async function saveTaskDetail() {
   const title = (ta.value || '').trim();
   if (!title) { showToast('Текст задачи не может быть пустым', 'error'); return; }
   const task_category = document.getElementById('taskDetailCat')?.value || 'other';
-  const priority = document.getElementById('taskDetailUrgent')?.classList.contains('active') ? 'urgent' : 'medium';
   const partner = (document.getElementById('taskDetailPartner')?.value || '').trim() || null;
   const notes = (document.getElementById('taskDetailNotes')?.value || '').trim() || null;
 
-  const { error } = await sb.from('tasks').update({ title, task_category, priority, partner, notes }).eq('id', id);
+  const { error } = await sb.from('tasks').update({ title, task_category, partner, notes }).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   const t = allTasks.find(x => x.id === id);
-  if (t) { t.title = title; t.task_category = task_category; t.priority = priority; t.partner = partner; t.notes = notes; }
+  if (t) { t.title = title; t.task_category = task_category; t.partner = partner; t.notes = notes; }
   _detailEditing = false;
   showToast('Задача обновлена', 'success');
   renderTasks();
@@ -2749,19 +2699,16 @@ function copyTaskText() {
 async function addTask() {
   const title = (document.getElementById('taskTitle').value || '').trim();
   const project = currentProject; // follows the global project tabs
-  const priority = newTaskUrgent ? 'urgent' : 'medium';
   const task_category = newTaskCat;
   if (!title) return;
   const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
   const { error } = await sb.from('tasks').insert({
-    title, project, priority, task_category, done: false, sort_order: maxOrder + 1000
+    title, project, task_category, done: false, sort_order: maxOrder + 1000
   });
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   const ta = document.getElementById('taskTitle');
   ta.value = '';
   ta.style.height = 'auto';
-  newTaskUrgent = false;
-  document.getElementById('taskUrgentToggle')?.classList.remove('active');
   loadTasks();
 }
 
@@ -4301,11 +4248,6 @@ function renderMobileDeliveries() {
 }
 
 // ── mobile tasks ─────────────────────────────────────
-let mTaskUrgent = false;
-function mToggleTaskUrgent() {
-  mTaskUrgent = !mTaskUrgent;
-  document.getElementById('mTaskUrgent').classList.toggle('active', mTaskUrgent);
-}
 function renderMobileTasks() {
   const list = document.getElementById('mTaskList');
   if (!list) return;
@@ -4317,7 +4259,6 @@ function renderMobileTasks() {
   if (!active.length) { list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Нет активных задач</div>'; return; }
 
   list.innerHTML = active.map(t => {
-    const urgent = t.priority === 'urgent';
     const cat = TASK_CATEGORY[t.task_category] || '';
     return `<div class="m-task-card">
       <span onclick="mToggleTaskDone('${t.id}',true)" style="width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;flex-shrink:0;margin-top:1px;cursor:pointer"></span>
@@ -4325,7 +4266,6 @@ function renderMobileTasks() {
         <span class="m-task-txt">${esc(t.title)}</span>
         ${t.partner ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">от: ${esc(t.partner)}</span>` : ''}
       </div>
-      ${urgent ? `<span class="task-badge-col" style="color:#ef4444;border-color:#ef4444">Срочно</span>` : `<span class="task-badge-col" style="visibility:hidden">Срочно</span>`}
       ${cat ? `<span class="task-badge-col">${cat}</span>` : `<span class="task-badge-col" style="visibility:hidden">—</span>`}
     </div>`;
   }).join('');
@@ -6159,9 +6099,6 @@ function showToast(msg,type='success') {
           style="flex:1;font-size:12.5px;resize:none;line-height:1.45;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;min-height:32px;max-height:180px;padding:7px 10px;overflow-y:auto"
           oninput="autoGrowTask(this)"
           onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();addTask();}"></textarea>
-        <button class="rq-chip" id="taskUrgentToggle" onclick="toggleNewTaskUrgent()" title="Срочная задача" style="padding:6px 9px;flex-shrink:0;height:32px">
-          <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block"></span>Срочно
-        </button>
         <div class="filter-dropdown" id="taskCatDd" style="flex-shrink:0">
           <button class="rq-chip" onclick="event.stopPropagation();toggleTaskCatMenu()" style="padding:6px 9px;height:32px">
             <span id="taskCatLabel">Другое</span>
@@ -6181,19 +6118,8 @@ function showToast(msg,type='success') {
       <div style="display:flex;align-items:center;gap:8px;padding:0 2px">
         <span id="tasksCount" style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace"></span>
       </div>
-      <div style="display:flex;gap:14px;align-items:flex-start">
-        <!-- Left: Выдачи -->
-        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:10.5px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace;padding:0 2px 2px;display:flex;align-items:center;gap:5px"><i class="ti ti-link" style="font-size:13px"></i>Выдачи</div>
-          <div id="tasksListDelivery" style="display:flex;flex-direction:column;gap:4px"></div>
-        </div>
-        <!-- Divider -->
-        <div style="width:1px;align-self:stretch;background:var(--border);flex-shrink:0"></div>
-        <!-- Right: Все задачи -->
-        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:10.5px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;font-family:'IBM Plex Mono',monospace;padding:0 2px 2px;display:flex;align-items:center;gap:5px"><i class="ti ti-checklist" style="font-size:13px"></i>Все задачи</div>
-          <div id="tasksList" style="display:flex;flex-direction:column;gap:4px"></div>
-        </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div id="tasksList" style="display:flex;flex-direction:column;gap:4px"></div>
       </div>
 
     </div>
