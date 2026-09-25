@@ -1327,7 +1327,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
       const { error } = await sb.from('tasks').insert({
         title, partner, project: currentProject,
-        task_category: 'other', done: false, sort_order: maxOrder + 1000
+        done: false, sort_order: maxOrder + 1000
       });
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
       clearMTaskForm();
@@ -2428,7 +2428,6 @@ function updateAccessUI() {
 
 // ── TASKS ─────────────────────────────────────────────
 
-const TASK_CATEGORY = { request: 'Запрос', delivery: 'Выдача', clarify: 'Уточнение', other: 'Другое' };
 const TASK_PROJECT = { smerch: '🌪 Смерч', phantom: '👻 Фантом' };
 
 async function loadTasks() {
@@ -2482,7 +2481,6 @@ function renderTasks() {
 
   const emptyHtml = `<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Пока пусто</div>`;
   const rowHtml = (t) => {
-    const cat = TASK_CATEGORY[t.task_category] || '';
     const drag = !t.done;
     return `
       <div class="task-row" data-id="${t.id}" draggable="${drag ? 'true' : 'false'}">
@@ -2493,7 +2491,6 @@ function renderTasks() {
           ${t.partner ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">от: ${esc(t.partner)}</span>` : ''}
         </div>
         ${t.notes ? `<i class="ti ti-note" onclick="openTaskDetail('${t.id}')" title="Есть заметка: ${esc(t.notes).slice(0,140)}" style="color:#facc15;flex-shrink:0;cursor:pointer;font-size:14px"></i>` : ''}
-        <span class="task-badge-col" style="${cat ? '' : 'visibility:hidden'}">${cat || '—'}</span>
         <button class="icon-btn" onclick="openTaskDetail('${t.id}', true)" style="color:var(--text3);flex-shrink:0" title="Редактировать"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" onclick="deleteTask('${t.id}')" style="color:var(--text3);flex-shrink:0" title="Удалить"><i class="ti ti-x"></i></button>
       </div>`;
@@ -2528,22 +2525,7 @@ function renderTasks() {
   if (shown.length) initTaskDnd(list);
 }
 
-let newTaskCat = 'other';
 let showDoneTasks = false;
-
-function toggleTaskCatMenu() {
-  const m = document.getElementById('taskCatMenu');
-  if (m) m.classList.toggle('hidden');
-}
-
-function pickTaskCat(cat) {
-  newTaskCat = cat;
-  document.getElementById('taskCatLabel').textContent = TASK_CATEGORY[cat] || 'Другое';
-  document.querySelectorAll('#taskCatMenu .filter-option').forEach(o => {
-    o.classList.toggle('selected', o.getAttribute('onclick') === `pickTaskCat('${cat}')`);
-  });
-  document.getElementById('taskCatMenu')?.classList.add('hidden');
-}
 
 function toggleShowDoneTasks() {
   showDoneTasks = !showDoneTasks;
@@ -2579,7 +2561,6 @@ function renderTaskDetail() {
   if (!t) return;
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const cat = TASK_CATEGORY[t.task_category] || '';
   const proj = TASK_PROJECT[t.project] || '';
   const created = t.created_at
     ? new Date(t.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -2593,14 +2574,8 @@ function renderTaskDetail() {
   const footer = document.getElementById('taskDetailFooter');
 
   if (_detailEditing) {
-    // editable meta: category + who it's from
+    // editable meta: who it's from
     meta.innerHTML = `
-      <select class="form-select" id="taskDetailCat" style="width:auto;font-size:12px;padding:5px 10px">
-        <option value="request">Запрос</option>
-        <option value="delivery">Выдача</option>
-        <option value="clarify">Уточнение</option>
-        <option value="other">Другое</option>
-      </select>
       <input class="form-input" id="taskDetailPartner" placeholder="От кого (партнёр)..." style="width:auto;flex:1;min-width:140px;font-size:12px;padding:5px 10px">
       ${proj ? `<span class="task-badge" style="align-self:center">${proj}</span>` : ''}`;
 
@@ -2613,7 +2588,6 @@ function renderTaskDetail() {
       </div>`;
     const ta = document.getElementById('taskDetailText');
     ta.value = t.title || '';
-    document.getElementById('taskDetailCat').value = t.task_category || 'other';
     document.getElementById('taskDetailPartner').value = t.partner || '';
     document.getElementById('taskDetailNotes').value = t.notes || '';
     ta.addEventListener('keydown', e => {
@@ -2638,7 +2612,6 @@ function renderTaskDetail() {
 
   // view mode
   meta.innerHTML = `
-    ${cat ? `<span class="task-badge">${cat}</span>` : ''}
     ${t.partner ? `<span class="task-badge"><i class="ti ti-user" style="margin-right:3px;font-size:10px"></i>${esc(t.partner)}</span>` : ''}
     ${proj ? `<span class="task-badge">${proj}</span>` : ''}
     ${created ? `<span class="task-badge" style="opacity:0.7">${created}</span>` : ''}`;
@@ -2668,14 +2641,13 @@ async function saveTaskDetail() {
   if (!ta) return;
   const title = (ta.value || '').trim();
   if (!title) { showToast('Текст задачи не может быть пустым', 'error'); return; }
-  const task_category = document.getElementById('taskDetailCat')?.value || 'other';
   const partner = (document.getElementById('taskDetailPartner')?.value || '').trim() || null;
   const notes = (document.getElementById('taskDetailNotes')?.value || '').trim() || null;
 
-  const { error } = await sb.from('tasks').update({ title, task_category, partner, notes }).eq('id', id);
+  const { error } = await sb.from('tasks').update({ title, partner, notes }).eq('id', id);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   const t = allTasks.find(x => x.id === id);
-  if (t) { t.title = title; t.task_category = task_category; t.partner = partner; t.notes = notes; }
+  if (t) { t.title = title; t.partner = partner; t.notes = notes; }
   _detailEditing = false;
   showToast('Задача обновлена', 'success');
   renderTasks();
@@ -2699,11 +2671,10 @@ function copyTaskText() {
 async function addTask() {
   const title = (document.getElementById('taskTitle').value || '').trim();
   const project = currentProject; // follows the global project tabs
-  const task_category = newTaskCat;
   if (!title) return;
   const maxOrder = allTasks.reduce((m, t) => Math.max(m, t.sort_order || 0), 0);
   const { error } = await sb.from('tasks').insert({
-    title, project, task_category, done: false, sort_order: maxOrder + 1000
+    title, project, done: false, sort_order: maxOrder + 1000
   });
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   const ta = document.getElementById('taskTitle');
@@ -4259,14 +4230,12 @@ function renderMobileTasks() {
   if (!active.length) { list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Нет активных задач</div>'; return; }
 
   list.innerHTML = active.map(t => {
-    const cat = TASK_CATEGORY[t.task_category] || '';
     return `<div class="m-task-card">
       <span onclick="mToggleTaskDone('${t.id}',true)" style="width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;flex-shrink:0;margin-top:1px;cursor:pointer"></span>
       <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px" onclick="openTaskDetail('${t.id}')">
         <span class="m-task-txt">${esc(t.title)}</span>
         ${t.partner ? `<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">от: ${esc(t.partner)}</span>` : ''}
       </div>
-      ${cat ? `<span class="task-badge-col">${cat}</span>` : `<span class="task-badge-col" style="visibility:hidden">—</span>`}
     </div>`;
   }).join('');
 }
@@ -6099,18 +6068,6 @@ function showToast(msg,type='success') {
           style="flex:1;font-size:12.5px;resize:none;line-height:1.45;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;min-height:32px;max-height:180px;padding:7px 10px;overflow-y:auto"
           oninput="autoGrowTask(this)"
           onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();addTask();}"></textarea>
-        <div class="filter-dropdown" id="taskCatDd" style="flex-shrink:0">
-          <button class="rq-chip" onclick="event.stopPropagation();toggleTaskCatMenu()" style="padding:6px 9px;height:32px">
-            <span id="taskCatLabel">Другое</span>
-            <i class="ti ti-chevron-down" style="font-size:10px;opacity:0.6"></i>
-          </button>
-          <div class="filter-menu hidden" id="taskCatMenu" style="min-width:140px;right:0;left:auto">
-            <div class="filter-option" onclick="pickTaskCat('request')">Запрос</div>
-            <div class="filter-option" onclick="pickTaskCat('delivery')">Выдача</div>
-            <div class="filter-option" onclick="pickTaskCat('clarify')">Уточнение</div>
-            <div class="filter-option selected" onclick="pickTaskCat('other')">Другое</div>
-          </div>
-        </div>
         <button class="btn btn-primary" onclick="addTask()" style="font-size:12px;padding:7px 12px;flex-shrink:0;height:32px"><i class="ti ti-plus"></i>Добавить</button>
       </div>
 
