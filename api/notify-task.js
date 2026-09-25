@@ -22,7 +22,6 @@ function buildMessage(row) {
   const body = raw.length > 3500 ? raw.slice(0, 3500) + "\n…(обрезано)" : raw;
 
   const tags = [];
-  if (row.priority === "urgent") tags.push("🔴 Срочно");
   if (PROJECT_LABEL[row.project]) tags.push(PROJECT_LABEL[row.project]);
   if (CATEGORY_LABEL[row.task_category]) tags.push(CATEGORY_LABEL[row.task_category]);
 
