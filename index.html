@@ -3859,6 +3859,7 @@ let exportFieldsEnabled = JSON.parse(localStorage.getItem('exportFields') || 'nu
   || Object.fromEntries(EXPORT_FIELDS.map(f => [f.key, f.key !== 'notes' && f.key !== 'partner']));
 
 let _exportRows = [];
+let _bundleGeoOrder = null; // set by buildGeoBundle() — groups + blank-line-separates export text by GEO, in this order
 
 async function openExport() {
   document.getElementById('exportOverlay').classList.remove('hidden');
@@ -3868,6 +3869,7 @@ async function openExport() {
   if (bundleInput) bundleInput.value = '';
   const sortToggle = document.getElementById('sortRateToggle');
   if (sortToggle) sortToggle.checked = false;
+  _bundleGeoOrder = null;
   const allMatching = await fetchAllFilteredOffers();
   _exportRows = getFiltered(allMatching);
   // Build toggles
@@ -3958,6 +3960,7 @@ async function buildGeoBundle() {
     // sort by rate descending (USD-equivalent) across all selected GEOs combined
     current.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
     _exportRows = current;
+    _bundleGeoOrder = geos; // group + blank-line-separate the export text by GEO, in the order typed
     document.getElementById('sortRateToggle').checked = true;
     refreshExportText();
     const missing = geos.filter(g => !current.some(o => (o.geo || '').toUpperCase() === g));
@@ -3974,7 +3977,18 @@ function refreshExportText() {
   const dedup = document.getElementById('dedupToggle').checked;
   const sortByRate = document.getElementById('sortRateToggle')?.checked;
   let rows = dedup ? deduplicateOffers(_exportRows) : _exportRows.slice();
-  if (sortByRate) rows.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
+  if (_bundleGeoOrder) {
+    // group by GEO in the order typed into the bundle box; unlisted geos sink to the end
+    const orderIndex = new Map(_bundleGeoOrder.map((g, i) => [g, i]));
+    rows.sort((a, b) => {
+      const ai = orderIndex.has((a.geo || '').toUpperCase()) ? orderIndex.get((a.geo || '').toUpperCase()) : 999;
+      const bi = orderIndex.has((b.geo || '').toUpperCase()) ? orderIndex.get((b.geo || '').toUpperCase()) : 999;
+      if (ai !== bi) return ai - bi;
+      return sortByRate ? (parseRateToUsd(b.rate) - parseRateToUsd(a.rate)) : 0;
+    });
+  } else if (sortByRate) {
+    rows.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
+  }
   const val = v => (v && v.trim() !== '-') ? v.trim() : null;
   const isPhantom = currentProject === 'phantom';
 
@@ -3990,7 +4004,7 @@ function refreshExportText() {
   const fieldByKey = k => EXPORT_FIELDS.find(f => f.key === k);
   const on = k => exportFieldsEnabled[k];
 
-  const lines = rows.map(o => {
+  const entries = rows.map(o => {
     const parts = [];
 
     if (isPhantom) {
@@ -4008,7 +4022,7 @@ function refreshExportText() {
         const p = fieldPart(f, o);
         if (p) parts.push(p);
       }
-      return parts.join(' / ');
+      return { geo: (o.geo || '').toUpperCase(), line: parts.join(' / ') };
     }
 
     // Smerch: как было — GEO • Бренд • Источник • Тип игры • ...
@@ -4018,11 +4032,26 @@ function refreshExportText() {
       if (!p) continue;
       parts.push(f.key === 'kpi' ? ('KPI: ' + p) : p);
     }
-    return parts.join(' • ');
-  }).filter(Boolean);
+    return { geo: (o.geo || '').toUpperCase(), line: parts.join(' • ') };
+  }).filter(e => e.line);
+  const lines = entries.map(e => e.line);
   const dedupNote = dedup ? ` (после дедупликации: ${rows.length} из ${_exportRows.length})` : ` (${rows.length})`;
   document.getElementById('exportCount').textContent = `${_exportRows.length} оффер(ов)${dedupNote}`;
-  document.getElementById('exportText').textContent = lines.join('\n');
+  let text;
+  if (_bundleGeoOrder) {
+    // blank line between GEO blocks so the bundle reads cleanly in Telegram
+    let out = '';
+    let lastGeo = null;
+    entries.forEach((e, i) => {
+      if (i > 0 && e.geo !== lastGeo) out += '\n';
+      out += e.line + '\n';
+      lastGeo = e.geo;
+    });
+    text = out.trimEnd();
+  } else {
+    text = lines.join('\n');
+  }
+  document.getElementById('exportText').textContent = text;
 }
 
 function closeExport() { document.getElementById('exportOverlay').classList.add('hidden'); }
