@@ -8,7 +8,6 @@ const TG_OWNER_CHAT_ID = process.env.TG_OWNER_CHAT_ID || "1309935213";
 const HOOK_SECRET = process.env.HOOK_SECRET;
 
 const PROJECT_LABEL = { smerch: "🌪 Smerch", phantom: "👻 Phantom" };
-const CATEGORY_LABEL = { request: "Запрос", delivery: "Выдача", clarify: "Уточнение", other: "Другое" };
 
 function escapeHtml(s) {
   return String(s || "")
@@ -21,12 +20,8 @@ function buildMessage(row) {
   const raw = (row.title || "").trim();
   const body = raw.length > 3500 ? raw.slice(0, 3500) + "\n…(обрезано)" : raw;
 
-  const tags = [];
-  if (PROJECT_LABEL[row.project]) tags.push(PROJECT_LABEL[row.project]);
-  if (CATEGORY_LABEL[row.task_category]) tags.push(CATEGORY_LABEL[row.task_category]);
-
   let text = `📝 <b>Новая такса</b>\n`;
-  if (tags.length) text += `${escapeHtml(tags.join(" · "))}\n`;
+  if (PROJECT_LABEL[row.project]) text += `${escapeHtml(PROJECT_LABEL[row.project])}\n`;
   if (row.partner) text += `От: ${escapeHtml(row.partner)}\n`;
   if (body) text += `\n${escapeHtml(body)}`;
   return text;
