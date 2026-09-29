@@ -995,28 +995,61 @@ tr:hover .row-actions{opacity:1}
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Поля в экспорте</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px" id="exportFieldToggles"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:0.5px solid var(--accent-border);border-radius:8px;background:var(--accent-bg)">
+      <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px;padding:12px;border:0.5px solid var(--accent-border);border-radius:10px;background:var(--accent-bg)">
         <div style="display:flex;align-items:center;gap:8px">
           <i class="ti ti-stack-2" style="color:var(--accent);flex-shrink:0"></i>
           <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
           <button class="btn btn-primary" id="bundleGeoBtn" onclick="buildGeoBundle()" style="flex-shrink:0;font-size:12px;padding:6px 12px">Собрать</button>
         </div>
-        <div onclick="toggleBundleFilters()" id="bundleFiltersToggle" style="display:flex;align-items:center;gap:5px;padding-left:22px;cursor:pointer;font-size:10.5px;color:var(--text3);user-select:none">
-          <i class="ti ti-chevron-right" id="bundleFiltersChevron" style="font-size:11px;transition:transform 0.15s"></i>
-          <span>Ещё фильтры (источник, тип игры, ставка)</span>
-        </div>
-        <div id="bundleFiltersRow" class="hidden" style="display:flex;align-items:center;gap:8px;padding-left:22px">
-          <select id="bundleSourceInput" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace">
-            <option value="">Источник: любой</option>
-          </select>
-          <select id="bundleGameTypeInput" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace">
-            <option value="">Тип игры: любой</option>
-          </select>
-          <input type="number" id="bundleMinRateInput" placeholder="Мин. ставка" class="no-spin" style="width:100px;flex-shrink:0;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
-          <select id="bundleMinRateCur" style="width:68px;flex-shrink:0;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 8px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace">
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-          </select>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:22px">
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-source" onclick="toggleFilterMenu('bundle-source')"><i class="ti ti-arrow-up-right"></i>Источник</div>
+            <div class="filter-menu hidden" id="menu-bundle-source">
+              <div class="filter-menu-list" id="bundleSourceList"></div>
+            </div>
+          </div>
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-gametype" onclick="toggleFilterMenu('bundle-gametype')"><i class="ti ti-device-gamepad-2"></i>Тип игры</div>
+            <div class="filter-menu hidden" id="menu-bundle-gametype">
+              <div class="filter-menu-list" id="bundleGameTypeList"></div>
+            </div>
+          </div>
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-rate" onclick="toggleFilterMenu('bundle-rate')"><i class="ti ti-currency-dollar"></i>Ставка</div>
+            <div class="filter-menu hidden" id="menu-bundle-rate" style="min-width:210px">
+              <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Мин. ставка</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="number" id="bundleMinRateInput" class="no-spin" placeholder="0" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace;outline:none" onchange="applyBundleRateFilter()">
+                  <select id="bundleMinRateCur" class="form-select" style="width:76px;font-size:11px" onchange="applyBundleRateFilter()">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </div>
+                <button class="btn btn-ghost" onclick="clearBundleRateFilter();toggleFilterMenu('bundle-rate')" style="font-size:11px;padding:4px">Сбросить</button>
+              </div>
+            </div>
+          </div>
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-date" onclick="toggleFilterMenu('bundle-date')"><i class="ti ti-calendar"></i>Дата</div>
+            <div class="filter-menu hidden" id="menu-bundle-date" style="min-width:220px">
+              <div class="filter-menu-list">
+                <div class="filter-option" onclick="setBundleDatePreset('today')">Сегодня</div>
+                <div class="filter-option" onclick="setBundleDatePreset('yesterday')">Вчера</div>
+                <div class="filter-option" onclick="setBundleDatePreset('week')">Эта неделя (пн–вс)</div>
+                <div class="filter-option" onclick="setBundleDatePreset('month')">Этот месяц</div>
+                <div class="filter-option" onclick="setBundleDatePreset('lastmonth')">Прошлый месяц</div>
+              </div>
+              <div style="border-top:0.5px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace">Диапазон</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="date" id="bundle-date-from" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;color-scheme:dark" onchange="applyBundleDateRange()">
+                  <span style="color:var(--text3);font-size:11px">—</span>
+                  <input type="date" id="bundle-date-to" style="flex:1;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:5px 7px;font-size:11px;color:var(--text1);font-family:'IBM Plex Sans',sans-serif;outline:none;color-scheme:dark" onchange="applyBundleDateRange()">
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -3822,21 +3855,15 @@ let exportFieldsEnabled = JSON.parse(localStorage.getItem('exportFields') || 'nu
 let _exportRows = [];
 let _bundleGeoOrder = null; // set by buildGeoBundle() — groups + blank-line-separates export text by GEO, in this order
 let _bundleFilterOptionsLoaded = false;
-
-function toggleBundleFilters() {
-  const row = document.getElementById('bundleFiltersRow');
-  const chevron = document.getElementById('bundleFiltersChevron');
-  const opening = row.classList.contains('hidden');
-  row.classList.toggle('hidden');
-  chevron.style.transform = opening ? 'rotate(90deg)' : 'rotate(0deg)';
-  if (opening && !_bundleFilterOptionsLoaded) populateBundleFilterOptions();
-}
+let bundleSourceFilter = null;
+let bundleGameTypeFilter = null;
+let bundleRateFilter = { min: null, cur: 'USD' };
+let bundleDateFilter = null;
 
 // fills the Источник / Тип игры dropdowns with the distinct values actually used
 // across the current project's active offers, so nothing needs to be typed by hand
 async function populateBundleFilterOptions() {
-  const srcSel = document.getElementById('bundleSourceInput');
-  const gtSel = document.getElementById('bundleGameTypeInput');
+  if (_bundleFilterOptionsLoaded) return;
   try {
     const { data, error } = await sb.from('offers')
       .select('traffic_source, game_type')
@@ -3845,11 +3872,125 @@ async function populateBundleFilterOptions() {
     if (error) throw error;
     const sources = [...new Set((data || []).map(o => (o.traffic_source || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const types = [...new Set((data || []).map(o => (o.game_type || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    sources.forEach(s => srcSel.insertAdjacentHTML('beforeend', `<option value="${esc(s)}">${esc(s)}</option>`));
-    types.forEach(t => gtSel.insertAdjacentHTML('beforeend', `<option value="${esc(t)}">${esc(t)}</option>`));
+    document.getElementById('bundleSourceList').innerHTML = sources.length
+      ? sources.map(s => `<div class="filter-option" onclick="setBundleFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`).join('')
+      : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
+    document.getElementById('bundleGameTypeList').innerHTML = types.length
+      ? types.map(t => `<div class="filter-option" onclick="setBundleFilter('gametype','${esc(t).replace(/'/g,"\\'")}')">${esc(t)}</div>`).join('')
+      : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
     _bundleFilterOptionsLoaded = true;
   } catch (e) {
     showToast('Не удалось загрузить список источников/типов: ' + e.message, 'error');
+  }
+}
+
+function setBundleFilter(kind, value) {
+  if (kind === 'source') bundleSourceFilter = (bundleSourceFilter === value) ? null : value;
+  else bundleGameTypeFilter = (bundleGameTypeFilter === value) ? null : value;
+  closeAllMenus();
+  updateBundleFilterChips();
+}
+
+function updateBundleFilterChips() {
+  const srcChip = document.getElementById('chip-bundle-source');
+  if (srcChip) {
+    srcChip.classList.toggle('active', !!bundleSourceFilter);
+    srcChip.innerHTML = bundleSourceFilter
+      ? `<i class="ti ti-x" style="font-size:10px" onclick="event.stopPropagation();setBundleFilter('source', bundleSourceFilter)"></i>${esc(bundleSourceFilter)}`
+      : `<i class="ti ti-arrow-up-right"></i>Источник`;
+  }
+  const gtChip = document.getElementById('chip-bundle-gametype');
+  if (gtChip) {
+    gtChip.classList.toggle('active', !!bundleGameTypeFilter);
+    gtChip.innerHTML = bundleGameTypeFilter
+      ? `<i class="ti ti-x" style="font-size:10px" onclick="event.stopPropagation();setBundleFilter('gametype', bundleGameTypeFilter)"></i>${esc(bundleGameTypeFilter)}`
+      : `<i class="ti ti-device-gamepad-2"></i>Тип игры`;
+  }
+  document.querySelectorAll('#bundleSourceList .filter-option').forEach(o => o.classList.toggle('selected', o.textContent === bundleSourceFilter));
+  document.querySelectorAll('#bundleGameTypeList .filter-option').forEach(o => o.classList.toggle('selected', o.textContent === bundleGameTypeFilter));
+}
+
+function applyBundleRateFilter() {
+  const min = document.getElementById('bundleMinRateInput')?.value;
+  const cur = document.getElementById('bundleMinRateCur')?.value || 'USD';
+  bundleRateFilter = { min: min ? parseFloat(min) : null, cur };
+  updateBundleRateChip();
+}
+
+function clearBundleRateFilter() {
+  bundleRateFilter = { min: null, cur: 'USD' };
+  const mn = document.getElementById('bundleMinRateInput');
+  if (mn) mn.value = '';
+  const cur = document.getElementById('bundleMinRateCur');
+  if (cur) cur.value = 'USD';
+  updateBundleRateChip();
+}
+
+function updateBundleRateChip() {
+  const chip = document.getElementById('chip-bundle-rate');
+  if (!chip) return;
+  if (bundleRateFilter.min != null) {
+    chip.classList.add('active');
+    const sym = bundleRateFilter.cur === 'EUR' ? '€' : '$';
+    chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearBundleRateFilter();event.stopPropagation()"></i>от ${sym}${bundleRateFilter.min}`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-currency-dollar"></i>Ставка`;
+  }
+}
+
+function setBundleDatePreset(preset) {
+  const now = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  let from, to;
+  if (preset === 'today') { from = to = fmt(now); }
+  else if (preset === 'yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); from = to = fmt(y); }
+  else if (preset === 'week') {
+    const day = now.getDay();
+    const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    from = fmt(mon); to = fmt(sun);
+  } else if (preset === 'month') {
+    from = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+    to = fmt(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  } else if (preset === 'lastmonth') {
+    from = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    to = fmt(new Date(now.getFullYear(), now.getMonth(), 0));
+  }
+  bundleDateFilter = { from, to };
+  document.getElementById('bundle-date-from').value = from;
+  document.getElementById('bundle-date-to').value = to;
+  closeAllMenus();
+  updateBundleDateChip();
+}
+
+function applyBundleDateRange() {
+  const from = document.getElementById('bundle-date-from').value;
+  const to = document.getElementById('bundle-date-to').value;
+  bundleDateFilter = (from || to) ? { from: from || null, to: to || null } : null;
+  updateBundleDateChip();
+}
+
+function clearBundleDateFilter(e) {
+  if (e) e.stopPropagation();
+  bundleDateFilter = null;
+  const df = document.getElementById('bundle-date-from');
+  const dt = document.getElementById('bundle-date-to');
+  if (df) df.value = '';
+  if (dt) dt.value = '';
+  updateBundleDateChip();
+}
+
+function updateBundleDateChip() {
+  const chip = document.getElementById('chip-bundle-date');
+  if (!chip) return;
+  if (bundleDateFilter && (bundleDateFilter.from || bundleDateFilter.to)) {
+    chip.classList.add('active');
+    const lbl = bundleDateFilter.from === bundleDateFilter.to ? bundleDateFilter.from : `${bundleDateFilter.from||'…'}—${bundleDateFilter.to||'…'}`;
+    chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="clearBundleDateFilter(event)"></i>${lbl}`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-calendar"></i>Дата`;
   }
 }
 
@@ -3859,18 +4000,12 @@ async function openExport() {
   document.getElementById('exportText').textContent = '';
   const bundleInput = document.getElementById('bundleGeoInput');
   if (bundleInput) bundleInput.value = '';
-  const srcSel = document.getElementById('bundleSourceInput');
-  if (srcSel) srcSel.value = '';
-  const gtSel = document.getElementById('bundleGameTypeInput');
-  if (gtSel) gtSel.value = '';
-  const mrInput = document.getElementById('bundleMinRateInput');
-  if (mrInput) mrInput.value = '';
-  const mrCur = document.getElementById('bundleMinRateCur');
-  if (mrCur) mrCur.value = 'USD';
-  const filtersRow = document.getElementById('bundleFiltersRow');
-  if (filtersRow) filtersRow.classList.add('hidden');
-  const chevron = document.getElementById('bundleFiltersChevron');
-  if (chevron) chevron.style.transform = 'rotate(0deg)';
+  bundleSourceFilter = null;
+  bundleGameTypeFilter = null;
+  clearBundleRateFilter();
+  clearBundleDateFilter();
+  updateBundleFilterChips();
+  populateBundleFilterOptions();
   const sortToggle = document.getElementById('sortRateToggle');
   if (sortToggle) sortToggle.checked = false;
   _bundleGeoOrder = null;
@@ -3946,12 +4081,8 @@ async function buildGeoBundle() {
   if (!raw) { showToast('Укажите гео через пробел, например: CA PT DE', 'error'); return; }
   const geos = [...new Set(raw.split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
   if (!geos.length) return;
-  const sourceFilter = (document.getElementById('bundleSourceInput').value || '').trim();
-  const gameTypeFilter = (document.getElementById('bundleGameTypeInput').value || '').trim();
-  const minRateRaw = (document.getElementById('bundleMinRateInput').value || '').trim();
-  const minRateCur = document.getElementById('bundleMinRateCur').value || 'USD';
-  let minRate = minRateRaw ? parseFloat(minRateRaw) : null;
-  if (minRate != null && !isNaN(minRate) && minRateCur === 'EUR') minRate = minRate * (eurUsd || 1.08); // convert threshold to USD-equivalent to match parseRateToUsd
+  let minRate = bundleRateFilter.min;
+  if (minRate != null && !isNaN(minRate) && bundleRateFilter.cur === 'EUR') minRate = minRate * (eurUsd || 1.08); // convert threshold to USD-equivalent to match parseRateToUsd
 
   const btn = document.getElementById('bundleGeoBtn');
   btn.disabled = true;
@@ -3963,8 +4094,10 @@ async function buildGeoBundle() {
     const ptype = currentPage === 'direct' ? 'Direct' : null;
     let q = sb.from('offers').select('*').eq('project', currentProject).in('geo', geos).eq('status', 'active');
     q = ptype ? q.eq('partner_type', ptype) : q.or('partner_type.neq.Direct,partner_type.is.null');
-    if (sourceFilter) q = q.eq('traffic_source', sourceFilter);
-    if (gameTypeFilter) q = q.eq('game_type', gameTypeFilter);
+    if (bundleSourceFilter) q = q.eq('traffic_source', bundleSourceFilter);
+    if (bundleGameTypeFilter) q = q.eq('game_type', bundleGameTypeFilter);
+    if (bundleDateFilter?.from) q = q.gte('received_at', bundleDateFilter.from);
+    if (bundleDateFilter?.to) q = q.lte('received_at', bundleDateFilter.to);
     const { data, error } = await q;
     if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
     // keep only the current (non-superseded) version of each partner+geo+brand+source+type group
