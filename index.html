@@ -993,10 +993,17 @@ tr:hover .row-actions{opacity:1}
         <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px">Поля в экспорте</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px" id="exportFieldToggles"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px;border:0.5px solid var(--accent-border);border-radius:8px;background:var(--accent-bg)">
-        <i class="ti ti-stack-2" style="color:var(--accent);flex-shrink:0"></i>
-        <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
-        <button class="btn btn-primary" id="bundleGeoBtn" onclick="buildGeoBundle()" style="flex-shrink:0;font-size:12px;padding:6px 12px">Собрать</button>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;border:0.5px solid var(--accent-border);border-radius:8px;background:var(--accent-bg)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-stack-2" style="color:var(--accent);flex-shrink:0"></i>
+          <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+          <button class="btn btn-primary" id="bundleGeoBtn" onclick="buildGeoBundle()" style="flex-shrink:0;font-size:12px;padding:6px 12px">Собрать</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding-left:22px">
+          <input type="text" id="bundleSourceInput" placeholder="Источник (напр. FB)" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+          <input type="text" id="bundleGameTypeInput" placeholder="Тип игры (напр. Slots)" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+          <input type="number" id="bundleMinRateInput" placeholder="Мин. ставка $" style="width:120px;flex-shrink:0;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:11.5px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+        </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <p class="export-count" id="exportCount" style="flex:1;margin:0"></p>
@@ -3807,6 +3814,10 @@ async function openExport() {
   document.getElementById('exportText').textContent = '';
   const bundleInput = document.getElementById('bundleGeoInput');
   if (bundleInput) bundleInput.value = '';
+  ['bundleSourceInput', 'bundleGameTypeInput', 'bundleMinRateInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   const sortToggle = document.getElementById('sortRateToggle');
   if (sortToggle) sortToggle.checked = false;
   _bundleGeoOrder = null;
@@ -3882,6 +3893,10 @@ async function buildGeoBundle() {
   if (!raw) { showToast('Укажите гео через пробел, например: CA PT DE', 'error'); return; }
   const geos = [...new Set(raw.split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
   if (!geos.length) return;
+  const sourceFilter = (document.getElementById('bundleSourceInput').value || '').trim();
+  const gameTypeFilter = (document.getElementById('bundleGameTypeInput').value || '').trim();
+  const minRateRaw = (document.getElementById('bundleMinRateInput').value || '').trim();
+  const minRate = minRateRaw ? parseFloat(minRateRaw) : null;
 
   const btn = document.getElementById('bundleGeoBtn');
   btn.disabled = true;
@@ -3893,10 +3908,13 @@ async function buildGeoBundle() {
     const ptype = currentPage === 'direct' ? 'Direct' : null;
     let q = sb.from('offers').select('*').eq('project', currentProject).in('geo', geos).eq('status', 'active');
     q = ptype ? q.eq('partner_type', ptype) : q.or('partner_type.neq.Direct,partner_type.is.null');
+    if (sourceFilter) q = q.ilike('traffic_source', sourceFilter);
+    if (gameTypeFilter) q = q.ilike('game_type', gameTypeFilter);
     const { data, error } = await q;
     if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
     // keep only the current (non-superseded) version of each partner+geo+brand+source+type group
-    const current = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
+    let current = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
+    if (minRate != null && !isNaN(minRate)) current = current.filter(o => parseRateToUsd(o.rate) >= minRate);
     // sort by rate descending (USD-equivalent) across all selected GEOs combined
     current.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
     _exportRows = current;
@@ -3904,7 +3922,7 @@ async function buildGeoBundle() {
     document.getElementById('sortRateToggle').checked = true;
     refreshExportText();
     const missing = geos.filter(g => !current.some(o => (o.geo || '').toUpperCase() === g));
-    showToast(missing.length ? `Собрано. Нет активных офферов по: ${missing.join(', ')}` : 'Подборка собрана', missing.length ? 'error' : 'success');
+    showToast(missing.length ? `Собрано. Нет офферов по фильтру для: ${missing.join(', ')}` : 'Подборка собрана', missing.length ? 'error' : 'success');
   } catch (e) {
     showToast('Ошибка сборки подборки: ' + e.message, 'error');
   } finally {
