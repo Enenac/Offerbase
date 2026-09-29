@@ -2821,20 +2821,22 @@ async function loadRequests() {
 }
 
 const REQ_STATUS_LABELS = {
-  new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', wishlist: 'Вишлист', kultra: 'KULTRA', closed: 'Закрыт'
+  new: 'Новый', sent: 'В работе', proposed: 'Предложен', proposed_alt: 'Предложена альтернатива', rejected: 'Отклонён', not_found: 'Не найдено', wishlist: 'Вишлист', kultra: 'KULTRA', closed: 'Закрыт'
 };
 
 const KB_COLUMNS = [
-  { key: 'new',      label: 'Новый',      dot: '#818cf8', countCls: 'cnt-new' },
-  { key: 'sent',     label: 'В работе',  dot: '#f59e0b', countCls: 'cnt-sent' },
-  { key: 'proposed', label: 'Предложен',  dot: '#10b981', countCls: 'cnt-prop' },
-  { key: 'closed',   label: 'Закрыт',     dot: '#6b7280', countCls: 'cnt-cls' },
+  { key: 'new',          label: 'Новый',                  dot: '#818cf8', countCls: 'cnt-new' },
+  { key: 'sent',         label: 'В работе',               dot: '#f59e0b', countCls: 'cnt-sent' },
+  { key: 'proposed',     label: 'Предложен',              dot: '#10b981', countCls: 'cnt-prop' },
+  { key: 'proposed_alt', label: 'Предложена альтернатива', dot: '#14b8a6', countCls: 'cnt-alt' },
+  { key: 'closed',       label: 'Закрыт',                 dot: '#6b7280', countCls: 'cnt-cls' },
 ];
 
 const KB_COUNT_STYLES = {
   'cnt-new':  'background:#1a1a3a;color:#818cf8;border:0.5px solid #3a3a7a',
   'cnt-sent': 'background:#2a1f0a;color:#f59e0b;border:0.5px solid #5a3f0a',
   'cnt-prop': 'background:#0a2a1a;color:#10b981;border:0.5px solid #0a5a2a',
+  'cnt-alt':  'background:#0a2624;color:#14b8a6;border:0.5px solid #0a5a52',
   'cnt-rej':  'background:#2a0a0a;color:#ef4444;border:0.5px solid #5a1a1a',
   'cnt-nf':   'background:#0a2030;color:#0ea5e9;border:0.5px solid #0a4a6a',
   'cnt-wish': 'background:#1e0a2e;color:#a855f7;border:0.5px solid #3a1a5a',
@@ -2844,14 +2846,15 @@ const KB_COUNT_STYLES = {
 
 // status -> {dot, countCls} for all six statuses (list view)
 const REQ_STATUS_META = {
-  new:       { dot: '#818cf8', countCls: 'cnt-new' },
-  sent:      { dot: '#f59e0b', countCls: 'cnt-sent' },
-  proposed:  { dot: '#10b981', countCls: 'cnt-prop' },
-  rejected:  { dot: '#ef4444', countCls: 'cnt-rej' },
-  not_found: { dot: '#0ea5e9', countCls: 'cnt-nf' },
-  wishlist:  { dot: '#a855f7', countCls: 'cnt-wish' },
-  kultra:    { dot: '#fb7185', countCls: 'cnt-kul' },
-  closed:    { dot: '#6b7280', countCls: 'cnt-cls' },
+  new:          { dot: '#818cf8', countCls: 'cnt-new' },
+  sent:         { dot: '#f59e0b', countCls: 'cnt-sent' },
+  proposed:     { dot: '#10b981', countCls: 'cnt-prop' },
+  proposed_alt: { dot: '#14b8a6', countCls: 'cnt-alt' },
+  rejected:     { dot: '#ef4444', countCls: 'cnt-rej' },
+  not_found:    { dot: '#0ea5e9', countCls: 'cnt-nf' },
+  wishlist:     { dot: '#a855f7', countCls: 'cnt-wish' },
+  kultra:       { dot: '#fb7185', countCls: 'cnt-kul' },
+  closed:       { dot: '#6b7280', countCls: 'cnt-cls' },
 };
 
 let reqView = 'list';         // 'cards' | 'list' — list is the default view
@@ -2883,7 +2886,7 @@ function renderRequestsList() {
   const showNotFound = document.getElementById('showNotFound')?.checked;
   const showWishlist = document.getElementById('showWishlist')?.checked;
   const showKultra = isAdmin && document.getElementById('showKultra')?.checked;
-  const allowed = ['new', 'sent', 'proposed', 'closed'];
+  const allowed = ['new', 'sent', 'proposed', 'proposed_alt', 'closed'];
   if (showWishlist) allowed.push('wishlist');
   if (showRejected) allowed.push('rejected');
   if (showNotFound) allowed.push('not_found');
@@ -2939,12 +2942,12 @@ function renderRequests() {
   const showWishlist = document.getElementById('showWishlist')?.checked;
   const showKultra = isAdmin && document.getElementById('showKultra')?.checked;
 
-  const cols = [...KB_COLUMNS.slice(0, 3)]; // Новый, Отправлен, Предложен
+  const cols = [...KB_COLUMNS.slice(0, 4)]; // Новый, Отправлен, Предложен, Предложена альтернатива
   if (showWishlist) cols.push({ key: 'wishlist',  label: 'Вишлист',   dot: '#a855f7', countCls: 'cnt-wish' });
   if (showRejected) cols.push({ key: 'rejected',  label: 'Отклонён',  dot: '#ef4444', countCls: 'cnt-rej' });
   if (showNotFound) cols.push({ key: 'not_found', label: 'Не найдено', dot: '#0ea5e9', countCls: 'cnt-nf' });
   if (showKultra) cols.push({ key: 'kultra', label: 'KULTRA', dot: '#fb7185', countCls: 'cnt-kul' });
-  cols.push(KB_COLUMNS[3]); // Закрыт
+  cols.push(KB_COLUMNS[4]); // Закрыт
 
   board.style.gridTemplateColumns = `repeat(${cols.length}, minmax(0, 1fr))`;
 
@@ -3143,7 +3146,7 @@ async function openReqDetail(reqId) {
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text3)">Статус:</span>
           <select class="form-select" style="font-size:11px;padding:4px 8px;width:auto" onchange="updateReqStatus('${reqId}', this.value)">
-            ${['new', 'sent', 'proposed', 'rejected', 'not_found', 'wishlist', ...(isAdmin ? ['kultra'] : []), 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
+            ${['new', 'sent', 'proposed', 'proposed_alt', 'rejected', 'not_found', 'wishlist', ...(isAdmin ? ['kultra'] : []), 'closed'].map(s => `<option value="${s}" ${req.status === s ? 'selected' : ''}>${REQ_STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -3161,7 +3164,7 @@ async function openReqDetail(reqId) {
         <textarea class="form-input" id="reqNotesField-${reqId}" style="width:100%;min-height:150px;resize:vertical;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace" placeholder="Преобразуй запрос в удобный формат..." onchange="saveReqField('${reqId}','notes',this.value)">${esc(req.notes)}</textarea>
       </div>
 
-      ${(req.proposed_offer || req.status === 'proposed' || req.status === 'closed') ? `
+      ${(req.proposed_offer || req.status === 'proposed' || req.status === 'proposed_alt' || req.status === 'closed') ? `
       <div>
         <div style="font-size:10px;color:#10b981;text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:flex;align-items:center;gap:6px">
           <i class="ti ti-target-arrow" style="font-size:12px"></i>Предложенный оффер
@@ -3448,12 +3451,16 @@ function closeReqStatusMenu() {
 }
 
 // ── proposed offer prompt ────────────────────────────
-let _proposePending = null; // { reqId, prevStatus }
+let _proposePending = null; // { reqId, prevStatus, targetStatus }
 
-function openProposeModal(reqId) {
+function openProposeModal(reqId, targetStatus) {
+  targetStatus = targetStatus || 'proposed';
   const req = allRequests.find(r => r.id === reqId);
   if (!req) return;
-  _proposePending = { reqId, prevStatus: req.status };
+  _proposePending = { reqId, prevStatus: req.status, targetStatus };
+  document.getElementById('proposeModalTitle').innerHTML = targetStatus === 'proposed_alt'
+    ? '<i class="ti ti-target-arrow"></i>Какая альтернатива предложена?'
+    : '<i class="ti ti-target-arrow"></i>Какой оффер предложили?';
   document.getElementById('proposePartner').textContent = `Партнёр: ${req.title || '—'}`;
   const ta = document.getElementById('proposeText');
   ta.value = req.proposed_offer || '';
@@ -3473,19 +3480,19 @@ function closeProposeModal() {
 
 async function confirmPropose() {
   if (!_proposePending) return;
-  const { reqId } = _proposePending;
+  const { reqId, targetStatus } = _proposePending;
   const text = (document.getElementById('proposeText').value || '').trim();
   if (!text) { showToast('Укажите предложенный оффер', 'error'); return; }
 
   const { error } = await sb.from('requests')
-    .update({ status: 'proposed', proposed_offer: text }).eq('id', reqId);
+    .update({ status: targetStatus, proposed_offer: text }).eq('id', reqId);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
 
   const req = allRequests.find(r => r.id === reqId);
-  if (req) { req.status = 'proposed'; req.proposed_offer = text; }
+  if (req) { req.status = targetStatus; req.proposed_offer = text; }
   _proposePending = null;
   document.getElementById('proposeOverlay')?.classList.add('hidden');
-  showToast('Оффер записан · статус «Предложен»', 'success');
+  showToast(`Оффер записан · статус «${REQ_STATUS_LABELS[targetStatus]}»`, 'success');
   renderRequests();
   updateRequestsBadge();
   // keep the open detail view in sync
@@ -3497,8 +3504,8 @@ async function confirmPropose() {
 
 async function setReqStatusQuick(reqId, status) {
   closeReqStatusMenu();
-  // moving to "proposed" always asks which offer was proposed
-  if (status === 'proposed') { openProposeModal(reqId); return; }
+  // moving to "proposed" or "proposed_alt" always asks which offer was proposed
+  if (status === 'proposed' || status === 'proposed_alt') { openProposeModal(reqId, status); return; }
   const req = allRequests.find(r => r.id === reqId);
   if (req) req.status = status; // optimistic: repaint immediately
   renderRequests();
@@ -3509,7 +3516,7 @@ async function setReqStatusQuick(reqId, status) {
 }
 
 async function updateReqStatus(reqId, status) {
-  if (status === 'proposed') { openProposeModal(reqId); return; }
+  if (status === 'proposed' || status === 'proposed_alt') { openProposeModal(reqId, status); return; }
   await sb.from('requests').update({ status }).eq('id', reqId);
   await loadRequests();
 }
@@ -4148,7 +4155,7 @@ function renderMobileRequests() {
   if (!list || !chips) return;
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const allowed = ['new', 'sent', 'proposed', 'closed'];
+  const allowed = ['new', 'sent', 'proposed', 'proposed_alt', 'closed'];
   const pool = allRequests.filter(r => allowed.includes(r.status));
 
   chips.innerHTML = [['all', 'Все'], ...allowed.map(k => [k, REQ_STATUS_LABELS[k]])].map(([k, label]) => {
@@ -5101,12 +5108,12 @@ function renderStatsPage() {
     return true;
   });
 
-  const RSL = { new: 'Новый', sent: 'В работе', proposed: 'Предложен', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт' };
+  const RSL = { new: 'Новый', sent: 'В работе', proposed: 'Предложен', proposed_alt: 'Предложена альтернатива', rejected: 'Отклонён', not_found: 'Не найдено', closed: 'Закрыт' };
   const reqStatusCounts = {};
   reqRows.forEach(r => { reqStatusCounts[r.status] = (reqStatusCounts[r.status] || 0) + 1; });
 
   const nReq = reqRows.length;
-  const nProposed = (reqStatusCounts.proposed || 0) + (reqStatusCounts.closed || 0);
+  const nProposed = (reqStatusCounts.proposed || 0) + (reqStatusCounts.proposed_alt || 0) + (reqStatusCounts.closed || 0);
   const nClosed = reqStatusCounts.closed || 0;
   const nNotFound = reqStatusCounts.not_found || 0;
   const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
@@ -6021,7 +6028,7 @@ function showToast(msg,type='success') {
 <div class="modal-overlay hidden" id="proposeOverlay" onclick="if(event.target===this)closeProposeModal()">
   <div class="modal" style="max-width:560px">
     <div class="modal-header">
-      <span class="modal-title"><i class="ti ti-target-arrow"></i>Какой оффер предложили?</span>
+      <span class="modal-title" id="proposeModalTitle"><i class="ti ti-target-arrow"></i>Какой оффер предложили?</span>
       <button class="icon-btn" onclick="closeProposeModal()" style="color:var(--text3)"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
