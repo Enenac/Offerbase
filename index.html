@@ -2455,9 +2455,10 @@ function initTasksRealtime() {
 function visibleTasks() {
   // tasks follow the global project tabs at the top
   let items = allTasks.filter(t => t.project === currentProject);
-  // manual order first (sort_order), completed sink to bottom keeping their relative order
-  items.sort((a, b) => (a.done - b.done) || ((a.sort_order ?? 0) - (b.sort_order ?? 0)));
-  return items;
+  const active = items.filter(t => !t.done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  // completed tasks: most recently created first (nearest date to furthest)
+  const done = items.filter(t => t.done).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  return [...active, ...done];
 }
 
 function renderTasks() {
