@@ -1149,6 +1149,7 @@ let usdEur = null; // USD→EUR rate
 let currentProject = 'smerch';
 let currentMode = 'template';
 let editingId = null;
+let _editingOriginalBrand = null;
 let filters = {};
 let sortField = 'received_at';
 let sortDir = -1;
@@ -2205,10 +2206,62 @@ function dateBadge(dateStr) {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// normalizes brand casing on entry so the same brand never ends up split across
+// "Spinrollz" / "spinrollz" / "SpinRollz" variants — first letter capital, rest lowercase
+function capBrand(s) {
+  const t = (s || '').trim();
+  if (!t) return t;
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+}
+
+// strips spaces/dashes/underscores/dots and lowercases, so "Spin Rolls" / "spin-rolls" /
+// "SpinRolls" all collapse to the same key for comparison
+function skeletonOf(s) {
+  return (s || '').toLowerCase().replace(/[\s\-_.]+/g, '').trim();
+}
+
+// builds a skeleton -> canonical-spelling map from every brand already in the DB for this
+// project, so new/edited offers can be auto-corrected to match whatever spelling is already
+// established, instead of letting casing/spacing drift accumulate
+async function buildBrandCanonMap(project) {
+  const { data, error } = await sb.from('offers')
+    .select('brand').eq('project', project).not('brand', 'is', null).limit(100000);
+  if (error) { console.error('buildBrandCanonMap error:', error); return {}; }
+  const counts = {}; // skeleton -> { spelling -> count }
+  (data || []).forEach(o => {
+    const raw = (o.brand || '').trim();
+    if (!raw) return;
+    const sk = skeletonOf(raw);
+    if (!sk) return;
+    counts[sk] = counts[sk] || {};
+    counts[sk][raw] = (counts[sk][raw] || 0) + 1;
+  });
+  const map = {};
+  Object.entries(counts).forEach(([sk, spellings]) => {
+    // pick the most frequent spelling; ties broken alphabetically for stability
+    const best = Object.entries(spellings).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+    map[sk] = best;
+  });
+  return map;
+}
+
+// resolves what a brand should actually be saved as: the existing canonical spelling if one
+// is already established for this skeleton, otherwise just Title-cased
+function resolveBrand(raw, canonMap) {
+  const t = (raw || '').trim();
+  if (!t) return null;
+  const sk = skeletonOf(t);
+  return (canonMap && canonMap[sk]) || capBrand(t);
+}
+
 // ── TEMPLATE PARSING ──────────────────────────────────
-function parseTemplate() {
+async function parseTemplate() {
   const text = document.getElementById('templateText').value.trim();
   if (!text) return;
+  const parseBtn = document.querySelector('[onclick="parseTemplate()"]');
+  if (parseBtn) { parseBtn.disabled = true; parseBtn.style.opacity = '0.6'; }
+  const canonMap = await buildBrandCanonMap(currentProject);
+  if (parseBtn) { parseBtn.disabled = false; parseBtn.style.opacity = ''; }
   const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
   parsedOffers = [];
   const errors = [];
@@ -2227,7 +2280,7 @@ function parseTemplate() {
 
     parsedOffers.push({
       project: currentProject,
-      geo: geo||null, brand: brand||null,
+      geo: geo||null, brand: resolveBrand(brand, canonMap),
       traffic_source: source||null, game_type: game_type||null,
       rate: rate||null, min_deposit: min_deposit||null,
       capa: capa||null, kpi: kpi||null,
@@ -2272,6 +2325,7 @@ function parseTemplate() {
 // ── MODAL ─────────────────────────────────────────────
 function openAddModal() {
   editingId = null;
+  _editingOriginalBrand = null;
   document.getElementById('modalTitle').innerHTML = '<i class="ti ti-plus"></i>Добавить офферы';
   document.getElementById('modeSwitchRow').classList.remove('hidden');
   clearForm();
@@ -2286,6 +2340,7 @@ function editOffer(id) {
   const o = allOffers.find(x=>x.id===id);
   if (!o) return;
   editingId = id;
+  _editingOriginalBrand = o.brand || null;
   document.getElementById('modalTitle').innerHTML = '<i class="ti ti-edit"></i>Редактировать оффер';
   document.getElementById('modeSwitchRow').classList.add('hidden');
   setMode('manual');
@@ -2308,7 +2363,7 @@ function editOffer(id) {
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editingId=null; }
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editingId=null; _editingOriginalBrand=null; }
 function handleOverlayClick(e) { if(e.target===document.getElementById('modalOverlay')) closeModal(); }
 
 function clearForm() {
@@ -2349,10 +2404,26 @@ async function saveOffer() {
     closeModal(); loadOffers(); return;
   }
 
+  const rawBrand = document.getElementById('f-brand').value.trim() || null;
+  let resolvedBrand = rawBrand;
+  let brandRenamedFrom = null;
+  if (rawBrand) {
+    const canonMap = await buildBrandCanonMap(currentProject);
+    const sk = skeletonOf(rawBrand);
+    if (editingId && _editingOriginalBrand && skeletonOf(_editingOriginalBrand) === sk && _editingOriginalBrand !== rawBrand) {
+      // user deliberately retyped the brand on an existing offer — respect their new spelling,
+      // and offer to propagate it to every other offer that currently shares the old spelling
+      resolvedBrand = capBrand(rawBrand);
+      brandRenamedFrom = _editingOriginalBrand;
+    } else {
+      resolvedBrand = canonMap[sk] || capBrand(rawBrand);
+    }
+  }
+
   const payload = {
     project: currentProject,
     geo: document.getElementById('f-geo').value.trim().toUpperCase()||null,
-    brand: document.getElementById('f-brand').value.trim()||null,
+    brand: resolvedBrand,
     rate: document.getElementById('f-rate').value.trim()||null,
     traffic_source: document.getElementById('f-source').value||null,
     game_type: document.getElementById('f-game').value||null,
@@ -2380,6 +2451,22 @@ async function saveOffer() {
 
   btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить';
   if (error) { showToast('Ошибка: '+error.message,'error'); return; }
+
+  if (brandRenamedFrom && !error) {
+    const skOld = skeletonOf(brandRenamedFrom);
+    const { data: siblings } = await sb.from('offers')
+      .select('id, brand').eq('project', currentProject).neq('id', editingId).not('brand', 'is', null);
+    const matchIds = (siblings || []).filter(o => skeletonOf(o.brand) === skOld).map(o => o.id);
+    if (matchIds.length && confirm(`Переименовать «${brandRenamedFrom}» → «${resolvedBrand}» ещё у ${matchIds.length} оффер(ов) с этим брендом?`)) {
+      const BATCH = 500;
+      for (let i = 0; i < matchIds.length; i += BATCH) {
+        await sb.from('offers').update({ brand: resolvedBrand }).in('id', matchIds.slice(i, i + BATCH));
+      }
+      invalidateOfferVersions();
+      showToast(`Переименовано ещё ${matchIds.length} оффер(ов)`, 'success');
+    }
+  }
+
   showToast(editingId?'Оффер обновлён':'Оффер добавлен','success');
   closeModal(); loadOffers();
 }
