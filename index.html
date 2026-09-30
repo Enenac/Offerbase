@@ -1665,12 +1665,15 @@ async function syncPlatforms() {
     if (platforms.size > 1) conflicts.push({ brand: brandCanon[key] || key, platforms: [...platforms] });
   });
 
-  // Fill missing — group by platform, update server-side
+  // Fill missing — group by platform, update server-side.
+  // A literal "-" placeholder almost never means "genuinely no platform" in practice
+  // (it just means that particular offer message didn't mention it), so it's treated
+  // the same as a truly empty field here and gets filled in like any blank one.
   const byPlat = {};
   (data || []).forEach(o => {
     const key = (o.brand || '').toLowerCase().trim();
     const plat = (o.platform || '').trim();
-    if (plat) return; // has a value (incl. explicit "-") — don't overwrite
+    if (plat && plat !== '-' && plat !== '—') return; // already has a real value — don't overwrite
     const known = brandPlatforms[key];
     if (!known || known.size !== 1) return;
     const p = [...known][0];
