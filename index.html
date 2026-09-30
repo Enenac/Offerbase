@@ -2207,11 +2207,14 @@ function dateBadge(dateStr) {
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // normalizes brand casing on entry so the same brand never ends up split across
-// "Spinrollz" / "spinrollz" / "SpinRollz" variants — first letter capital, rest lowercase
+// "Spinrollz" / "spinrollz" / "SpinRollz" variants — but only forces the FIRST letter to
+// uppercase; the rest of the string is left exactly as typed, since many real brand names
+// are legitimately compound-without-space ("DragonSlots", "EuropeFortune") or acronyms
+// ("XON") — blindly lowercasing the rest would break those
 function capBrand(s) {
   const t = (s || '').trim();
   if (!t) return t;
-  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // strips spaces/dashes/underscores/dots and lowercases, so "Spin Rolls" / "spin-rolls" /
