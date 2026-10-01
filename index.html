@@ -1063,6 +1063,19 @@ tr:hover .row-actions{opacity:1}
               <div class="filter-menu-list" id="bundleExclList"></div>
             </div>
           </div>
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-margin" onclick="toggleFilterMenu('bundle-margin')"><i class="ti ti-discount-2"></i>Маржа</div>
+            <div class="filter-menu hidden" id="menu-bundle-margin" style="min-width:220px">
+              <div style="padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="bundleMarginToggle" onchange="toggleBundleApplyMargin()" style="accent-color:var(--accent)">
+                  <span>Применять маржу в подборке</span>
+                </label>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;font-family:'IBM Plex Mono',monospace;margin-top:4px">Уровни (от ставки → минус)</div>
+                <div id="bundleMarginList"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -3982,6 +3995,99 @@ let bundleExcludePartners = []; // partner names whose offers are left out of th
 let _settingBundleGeoProgrammatically = false;
 let _bundleAutoRebuildTimer = null;
 
+// margin deducted from the rate shown in the bundle export (what partners see) —
+// persisted in localStorage so it stays editable at any time, independent of any single
+// export session. Tiers are {min, deduct}; the highest-threshold tier the rate qualifies
+// for (rate >= min) wins. Defaults match what was asked for initially.
+let bundleMarginTiers = JSON.parse(localStorage.getItem('bundleMarginTiers') || 'null') || [
+  { min: 225, deduct: 20 },
+  { min: 195, deduct: 15 },
+  { min: 0,   deduct: 10 },
+];
+let bundleApplyMargin = localStorage.getItem('bundleApplyMargin') !== 'false'; // default on
+
+function sortMarginTiers() { bundleMarginTiers.sort((a, b) => b.min - a.min); }
+
+function saveMarginTiers() {
+  sortMarginTiers();
+  localStorage.setItem('bundleMarginTiers', JSON.stringify(bundleMarginTiers));
+  localStorage.setItem('bundleApplyMargin', String(bundleApplyMargin));
+  updateBundleMarginChip();
+  renderBundleMarginMenu();
+  scheduleBundleAutoRebuild();
+}
+
+function toggleBundleApplyMargin() {
+  bundleApplyMargin = !bundleApplyMargin;
+  saveMarginTiers();
+}
+
+function updateMarginTierMin(i, val) {
+  bundleMarginTiers[i].min = parseFloat(val) || 0;
+  saveMarginTiers();
+}
+function updateMarginTierDeduct(i, val) {
+  bundleMarginTiers[i].deduct = parseFloat(val) || 0;
+  saveMarginTiers();
+}
+function addMarginTier() {
+  bundleMarginTiers.push({ min: 0, deduct: 0 });
+  saveMarginTiers();
+}
+function removeMarginTier(i) {
+  bundleMarginTiers.splice(i, 1);
+  saveMarginTiers();
+}
+
+function renderBundleMarginMenu() {
+  const toggle = document.getElementById('bundleMarginToggle');
+  if (toggle) toggle.checked = bundleApplyMargin;
+  const el = document.getElementById('bundleMarginList');
+  if (!el) return;
+  sortMarginTiers();
+  const rows = bundleMarginTiers.map((t, i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:3px 0">
+      <span style="font-size:10px;color:var(--text3);flex-shrink:0">от</span>
+      <input type="number" class="no-spin" value="${t.min}" onchange="updateMarginTierMin(${i}, this.value)" style="width:58px;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace">
+      <span style="font-size:10px;color:var(--text3);flex-shrink:0">минус</span>
+      <input type="number" class="no-spin" value="${t.deduct}" onchange="updateMarginTierDeduct(${i}, this.value)" style="width:52px;background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace">
+      <button class="icon-btn" onclick="removeMarginTier(${i})" style="color:var(--text3);flex-shrink:0;margin-left:auto"><i class="ti ti-x" style="font-size:12px"></i></button>
+    </div>`).join('');
+  el.innerHTML = rows + `<button class="btn btn-ghost" onclick="addMarginTier()" style="font-size:11px;padding:5px;margin-top:6px;width:100%;justify-content:center"><i class="ti ti-plus"></i>Добавить уровень</button>`;
+}
+
+function updateBundleMarginChip() {
+  const chip = document.getElementById('chip-bundle-margin');
+  if (!chip) return;
+  if (bundleApplyMargin && bundleMarginTiers.length) {
+    chip.classList.add('active');
+    chip.innerHTML = `<i class="ti ti-discount-2"></i>Маржа вкл.`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-discount-2"></i>Маржа выкл.`;
+  }
+}
+
+function marginForRate(value) {
+  const tiers = [...bundleMarginTiers].sort((a, b) => b.min - a.min);
+  for (const t of tiers) if (value >= t.min) return t.deduct || 0;
+  return 0;
+}
+
+// subtracts the tier-matched margin from the numeric part of a rate string, preserving
+// whatever currency symbol/suffix formatting the original had — "225 USD" -> "205 USD"
+function marginAdjustedRateText(rateStr) {
+  if (!rateStr) return rateStr;
+  const m = rateStr.match(/-?\d+(\.\d+)?/);
+  if (!m) return rateStr;
+  const num = parseFloat(m[0]);
+  const deduct = marginForRate(num);
+  if (!deduct) return rateStr;
+  const newNum = Math.max(0, num - deduct);
+  const formatted = Number.isInteger(newNum) ? String(newNum) : String(parseFloat(newNum.toFixed(2)));
+  return rateStr.replace(m[0], formatted);
+}
+
 // ordered, deduped list of GEOs contributed by the currently selected regions —
 // regions in selection order, GEOs within each region alphabetically, no repeats
 function bundleRegionGeosOrdered() {
@@ -4317,6 +4423,8 @@ async function openExport() {
   renderBundleExclList();
   if (!allRegions.length) await loadRegions();
   renderBundleRegionList();
+  updateBundleMarginChip();
+  renderBundleMarginMenu(); // margin tiers/toggle persist across opens — just sync the UI
   populateBundleFilterOptions();
   const sortToggle = document.getElementById('sortRateToggle');
   if (sortToggle) sortToggle.checked = false;
@@ -4452,8 +4560,9 @@ function refreshExportText() {
   const isPhantom = currentProject === 'phantom';
 
   const fieldPart = (f, o) => {
-    const v = val(o[f.key]);
+    let v = val(o[f.key]);
     if (!v) return '';
+    if (f.key === 'rate' && _bundleGeoOrder && bundleApplyMargin) v = marginAdjustedRateText(v);
     if (f.key === 'geo') {
       const fe = flagEmoji(v);
       return (fe ? fe + ' ' : '') + (f.prefix || '') + v;
