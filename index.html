@@ -1056,6 +1056,13 @@ tr:hover .row-actions{opacity:1}
               </div>
             </div>
           </div>
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-excl" onclick="toggleFilterMenu('bundle-excl')" style="border-color:rgba(239,68,68,0.3)"><i class="ti ti-user-off"></i>Исключить</div>
+            <div class="filter-menu hidden" id="menu-bundle-excl">
+              <div class="filter-search"><input type="text" id="bundleExclSearch" placeholder="Поиск партнёра..." oninput="filterBundleExclList()"></div>
+              <div class="filter-menu-list" id="bundleExclList"></div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -3971,6 +3978,7 @@ let bundleRateFilter = { min: null, cur: 'USD' };
 let bundleDateFilter = null;
 let bundleRegionSelection = []; // region ids, in the order they were picked
 let bundleManualGeos = []; // GEOs typed by hand into the field, tracked separately from region-derived ones
+let bundleExcludePartners = []; // partner names whose offers are left out of the bundle
 let _settingBundleGeoProgrammatically = false;
 let _bundleAutoRebuildTimer = null;
 
@@ -4080,6 +4088,63 @@ async function clearBundleRegionFilter() {
   updateBundleRegionChip();
   recomputeBundleGeoInput();
   await bundleGeoInputChangedByRegion();
+}
+
+// partner names to offer for exclusion — reuses the same cached distinct-partner list
+// the main "Исключить" filter uses (built in buildDynamicFilters), with a fallback fetch
+async function bundleExcludePartnerSource() {
+  if (window._allPartners && window._allPartners.length) return window._allPartners;
+  const { data } = await sb.from('offers').select('partner').eq('project', currentProject).not('partner', 'is', null).limit(100000);
+  const partners = [...new Set((data || []).map(o => o.partner).filter(Boolean))].sort();
+  window._allPartners = partners;
+  return partners;
+}
+
+async function renderBundleExclList() {
+  const list = document.getElementById('bundleExclList');
+  if (!list) return;
+  const partners = await bundleExcludePartnerSource();
+  const q = (document.getElementById('bundleExclSearch')?.value || '').toLowerCase().trim();
+  const filtered = q ? partners.filter(p => p.toLowerCase().includes(q)) : partners;
+  list.innerHTML = filtered.length
+    ? filtered.map(p => {
+        const checked = bundleExcludePartners.includes(p);
+        return `<div class="filter-option ${checked ? 'selected' : ''}" onclick="toggleBundleExcludePartner('${esc(p).replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:8px">
+          <span style="width:14px;flex-shrink:0;text-align:center;color:var(--red)">${checked ? '<i class="ti ti-check"></i>' : ''}</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p)}</span>
+        </div>`;
+      }).join('')
+    : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Ничего не найдено</div>';
+}
+
+function filterBundleExclList() { renderBundleExclList(); }
+
+function updateBundleExclChip() {
+  const chip = document.getElementById('chip-bundle-excl');
+  if (!chip) return;
+  if (bundleExcludePartners.length) {
+    chip.classList.add('active');
+    chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="event.stopPropagation();clearBundleExcludeFilter()"></i>Искл: ${esc(bundleExcludePartners.join(' + '))}`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-user-off"></i>Исключить`;
+  }
+}
+
+async function toggleBundleExcludePartner(name) {
+  const idx = bundleExcludePartners.indexOf(name);
+  if (idx < 0) bundleExcludePartners.push(name);
+  else bundleExcludePartners.splice(idx, 1);
+  renderBundleExclList();
+  updateBundleExclChip();
+  scheduleBundleAutoRebuild();
+}
+
+function clearBundleExcludeFilter() {
+  bundleExcludePartners = [];
+  renderBundleExclList();
+  updateBundleExclChip();
+  scheduleBundleAutoRebuild();
 }
 
 // debounced auto-rebuild for Источник/Тип игры/Ставка/Дата — only kicks in while a
@@ -4241,10 +4306,15 @@ async function openExport() {
   bundleGameTypeFilter = null;
   bundleRegionSelection = [];
   bundleManualGeos = [];
+  bundleExcludePartners = [];
   clearBundleRateFilter();
   clearBundleDateFilter();
   updateBundleFilterChips();
   updateBundleRegionChip();
+  updateBundleExclChip();
+  const exclSearch = document.getElementById('bundleExclSearch');
+  if (exclSearch) exclSearch.value = '';
+  renderBundleExclList();
   if (!allRegions.length) await loadRegions();
   renderBundleRegionList();
   populateBundleFilterOptions();
@@ -4344,6 +4414,7 @@ async function buildGeoBundle() {
     if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
     // keep only the current (non-superseded) version of each partner+geo+brand+source+type group
     let current = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
+    if (bundleExcludePartners.length) current = current.filter(o => !bundleExcludePartners.includes(o.partner));
     if (minRate != null && !isNaN(minRate)) current = current.filter(o => parseRateToUsd(o.rate) >= minRate);
     // sort by rate descending (USD-equivalent) across all selected GEOs combined
     current.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
