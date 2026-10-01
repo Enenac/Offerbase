@@ -1576,7 +1576,8 @@ function buildSupabaseQuery(countOnly = false) {
   if (filters.status)   q = q.eq('status', filters.status);
   if (filters.source === SOURCE_NONE) q = q.or('traffic_source.is.null,traffic_source.eq.,traffic_source.eq.-,traffic_source.eq.–,traffic_source.eq.—');
   else if (filters.source) q = q.ilike('traffic_source', filters.source);
-  if (filters.game)     q = q.ilike('game_type', filters.game);
+  if (filters.game === SOURCE_NONE) q = q.or('game_type.is.null,game_type.eq.,game_type.eq.-,game_type.eq.–,game_type.eq.—');
+  else if (filters.game) q = q.ilike('game_type', filters.game);
   if (filters.kpi) {
     if (filters.kpi === 'KPI') {
       // "KPI" means any real value that isn't No KPI / Soft KPI / dash (incl. custom text)
@@ -1877,7 +1878,7 @@ async function buildDynamicFilters() {
     return q.limit(100000);
   };
   const [geoRes, platRes, partRes, srcRes, gameRes] = await Promise.all([
-    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source', true), scoped('game_type'),
+    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source', true), scoped('game_type', true),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
   window._allGeos = geos; // cache for filterGeoList
@@ -1889,7 +1890,14 @@ async function buildDynamicFilters() {
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
   const srcValues = (srcRes.data||[]).map(o=>o.traffic_source);
-  renderDynamicList('game-list', distinctSources((gameRes.data||[]).map(o=>o.game_type)), 'game');
+  const gameValues = (gameRes.data||[]).map(o=>o.game_type);
+  renderDynamicList('game-list', distinctSources(gameValues), 'game');
+  if (gameValues.some(isBlankSource) || filters.game === SOURCE_NONE) {
+    // "-" = game type not filled in; shown first, only if such offers exist on this page
+    const none = `<div class="filter-option ${filters.game===SOURCE_NONE?'selected':''}" onclick="setFilter('game','${SOURCE_NONE}')">-</div>`;
+    const gel = document.getElementById('game-list');
+    if (gel.querySelector('.filter-option')) gel.insertAdjacentHTML('afterbegin', none); else gel.innerHTML = none;
+  }
   window._allSources = distinctSources(srcValues);
   renderDynamicList('source-list', window._allSources, 'source');
   if (srcValues.some(isBlankSource) || filters.source === SOURCE_NONE) {
@@ -2037,7 +2045,7 @@ function updateChips() {
   const defs = {
     geo:      {icon:'ti-world',          label:'GEO'},
     source:   {icon:'ti-arrow-up-right', label:'Источник', vals:{[SOURCE_NONE]:'Пропуск'}},
-    game:     {icon:'ti-device-gamepad-2',label:'Тип игры'},
+    game:     {icon:'ti-device-gamepad-2',label:'Тип игры', vals:{[SOURCE_NONE]:'-'}},
     kpi:      {icon:'ti-target',         label:'KPI'},
     platform: {icon:'ti-layout-grid',    label:'Платформа'},
     partner:  {icon:'ti-users',          label:'Партнёр'},
@@ -4781,7 +4789,9 @@ function buildMobileMenuContent(key) {
     distinctSources(_srcVals).forEach(s =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`));
   } else if (key === 'gametype') {
-    distinctSources(allOffers.filter(o=>o.project===currentProject).map(o=>o.game_type)).forEach(g =>
+    const _gameVals = allOffers.filter(o=>o.project===currentProject).map(o=>o.game_type);
+    if (_gameVals.some(isBlankSource)) opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${SOURCE_NONE}')">-</div>`);
+    distinctSources(_gameVals).forEach(g =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${esc(g).replace(/'/g,"\\'")}')">${esc(g)}</div>`));
   } else if (key === 'status') {
     [['active','Активен'],['stop','На стопе'],['capped','Закончился кап'],['outdated','Нужно актуализировать']].forEach(([v,l]) =>
@@ -4818,7 +4828,7 @@ function updateMobileChips() {
     const el = document.getElementById('mchip-' + k);
     if (!el) return;
     if (mobileFilters[k]) {
-      const shown = (k === 'status' ? (valLabels[mobileFilters[k]] || mobileFilters[k]) : (k === 'source' && mobileFilters[k] === SOURCE_NONE ? 'Пропуск' : mobileFilters[k]));
+      const shown = (k === 'status' ? (valLabels[mobileFilters[k]] || mobileFilters[k]) : (k === 'source' && mobileFilters[k] === SOURCE_NONE ? 'Пропуск' : (k === 'gametype' && mobileFilters[k] === SOURCE_NONE ? '-' : mobileFilters[k])));
       el.classList.add('active');
       el.innerHTML = `<i class="ti ti-x" style="font-size:9px" onclick="event.stopPropagation();clearMobileFilter('${k}')"></i>${shown}`;
     } else {
@@ -4990,7 +5000,8 @@ function renderMobile() {
   if (mobileFilters.geo) rows = rows.filter(o => (o.geo||'').toUpperCase() === mobileFilters.geo.toUpperCase());
   if (mobileFilters.source === SOURCE_NONE) rows = rows.filter(o => isBlankSource(o.traffic_source));
   else if (mobileFilters.source) rows = rows.filter(o => (o.traffic_source || '').trim().toLowerCase() === mobileFilters.source.toLowerCase());
-  if (mobileFilters.gametype) rows = rows.filter(o => (o.game_type || '').trim().toLowerCase() === mobileFilters.gametype.toLowerCase());
+  if (mobileFilters.gametype === SOURCE_NONE) rows = rows.filter(o => isBlankSource(o.game_type));
+  else if (mobileFilters.gametype) rows = rows.filter(o => (o.game_type || '').trim().toLowerCase() === mobileFilters.gametype.toLowerCase());
   if (mobileFilters.partner) rows = rows.filter(o => o.partner === mobileFilters.partner);
 
   rows = rows.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
