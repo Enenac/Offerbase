@@ -4523,9 +4523,12 @@ async function buildGeoBundle() {
     // keep only the current (non-superseded) version of each partner+geo+brand+source+type group
     let current = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
     if (bundleExcludePartners.length) current = current.filter(o => !bundleExcludePartners.includes(o.partner));
-    if (minRate != null && !isNaN(minRate)) current = current.filter(o => parseRateToUsd(o.rate) >= minRate);
+    // the filter must compare the rate as it is DISPLAYED in the bundle (after margin deduction),
+    // converted to USD, against the threshold converted to USD
+    const bundleRateUsd = o => parseRateToUsd(bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
+    if (minRate != null && !isNaN(minRate)) current = current.filter(o => bundleRateUsd(o) >= minRate - 0.005);
     // sort by rate descending (USD-equivalent) across all selected GEOs combined
-    current.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
+    current.sort((a, b) => bundleRateUsd(b) - bundleRateUsd(a));
     _exportRows = current;
     _bundleGeoOrder = geos; // group + blank-line-separate the export text by GEO, in the order typed
     document.getElementById('sortRateToggle').checked = true;
@@ -4540,6 +4543,10 @@ async function buildGeoBundle() {
   }
 }
 
+function bundleSortUsd(o) {
+  return parseRateToUsd(_bundleGeoOrder && bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
+}
+
 function refreshExportText() {
   const dedup = document.getElementById('dedupToggle').checked;
   const sortByRate = document.getElementById('sortRateToggle')?.checked;
@@ -4551,7 +4558,7 @@ function refreshExportText() {
       const ai = orderIndex.has((a.geo || '').toUpperCase()) ? orderIndex.get((a.geo || '').toUpperCase()) : 999;
       const bi = orderIndex.has((b.geo || '').toUpperCase()) ? orderIndex.get((b.geo || '').toUpperCase()) : 999;
       if (ai !== bi) return ai - bi;
-      return sortByRate ? (parseRateToUsd(b.rate) - parseRateToUsd(a.rate)) : 0;
+      return sortByRate ? (bundleSortUsd(b) - bundleSortUsd(a)) : 0;
     });
   } else if (sortByRate) {
     rows.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
