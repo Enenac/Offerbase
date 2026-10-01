@@ -1582,7 +1582,15 @@ function buildSupabaseQuery(countOnly = false) {
   }
   if (dateFilter?.from) q = q.gte('received_at', dateFilter.from);
   if (dateFilter?.to)   q = q.lte('received_at', dateFilter.to);
-  if (searchQuery)      q = q.or(`brand.ilike.%${searchQuery}%,partner.ilike.%${searchQuery}%,platform.ilike.%${searchQuery}%`);
+  if (searchQuery) {
+    // split into words so spaces in the query don't have to match spaces (or their absence)
+    // in the stored brand/partner/platform — "Joka Casino" still finds "JokaCasino" and vice versa
+    const searchTokens = searchQuery.split(/\s+/).filter(Boolean);
+    searchTokens.forEach(tok => {
+      const esc = tok.replace(/[%_]/g, c => '\\' + c);
+      q = q.or(`brand.ilike.%${esc}%,partner.ilike.%${esc}%,platform.ilike.%${esc}%`);
+    });
+  }
 
   // Rate filter — can't do server-side easily, skip for now (applied client-side after fetch)
 
@@ -4321,10 +4329,15 @@ async function runMobileSearch() {
   const list = document.getElementById('mOffersList');
   if (list) list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Поиск…</div>';
   // search the whole base, current project only, brand/partner/platform like desktop
-  const { data, error } = await sb.from('offers')
+  let query = sb.from('offers')
     .select('*')
-    .eq('project', currentProject)
-    .or(`brand.ilike.%${q}%,partner.ilike.%${q}%,platform.ilike.%${q}%`)
+    .eq('project', currentProject);
+  // split into words so spaces don't have to match spaces (or their absence) in stored text
+  q.split(/\s+/).filter(Boolean).forEach(tok => {
+    const esc = tok.replace(/[%_]/g, c => '\\' + c);
+    query = query.or(`brand.ilike.%${esc}%,partner.ilike.%${esc}%,platform.ilike.%${esc}%`);
+  });
+  const { data, error } = await query
     .order('received_at', { ascending: false, nullsFirst: false })
     .limit(500);
   if (q !== mobileSearchQuery) return; // a newer keystroke superseded this one
