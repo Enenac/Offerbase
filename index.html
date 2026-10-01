@@ -998,10 +998,16 @@ tr:hover .row-actions{opacity:1}
       <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px;padding:12px;border:0.5px solid var(--accent-border);border-radius:10px;background:var(--accent-bg)">
         <div style="display:flex;align-items:center;gap:8px">
           <i class="ti ti-stack-2" style="color:var(--accent);flex-shrink:0"></i>
-          <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+          <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" oninput="onBundleGeoInputTyped()" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
           <button class="btn btn-primary" id="bundleGeoBtn" onclick="buildGeoBundle()" style="flex-shrink:0;font-size:12px;padding:6px 12px">Собрать</button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:22px">
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-region" onclick="toggleFilterMenu('bundle-region')"><i class="ti ti-map-pin"></i>Регион</div>
+            <div class="filter-menu hidden" id="menu-bundle-region" style="min-width:220px">
+              <div class="filter-menu-list" id="bundleRegionList"></div>
+            </div>
+          </div>
           <div class="filter-dropdown">
             <div class="chip" id="chip-bundle-source" onclick="toggleFilterMenu('bundle-source')"><i class="ti ti-arrow-up-right"></i>Источник</div>
             <div class="filter-menu hidden" id="menu-bundle-source">
@@ -3963,6 +3969,127 @@ let bundleSourceFilter = null;
 let bundleGameTypeFilter = null;
 let bundleRateFilter = { min: null, cur: 'USD' };
 let bundleDateFilter = null;
+let bundleRegionSelection = []; // region ids, in the order they were picked
+let bundleManualGeos = []; // GEOs typed by hand into the field, tracked separately from region-derived ones
+let _settingBundleGeoProgrammatically = false;
+let _bundleAutoRebuildTimer = null;
+
+// ordered, deduped list of GEOs contributed by the currently selected regions —
+// regions in selection order, GEOs within each region alphabetically, no repeats
+function bundleRegionGeosOrdered() {
+  const out = [];
+  bundleRegionSelection.forEach(rid => {
+    const geos = allRegionGeos
+      .filter(rg => rg.region_id === rid)
+      .map(rg => (rg.geo || '').toUpperCase())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    geos.forEach(g => { if (!out.includes(g)) out.push(g); });
+  });
+  return out;
+}
+
+// rebuilds the GEO input field from region GEOs (in selection order) + manually-typed
+// GEOs (deduped against region GEOs, always kept after them)
+function recomputeBundleGeoInput() {
+  const regionGeos = bundleRegionGeosOrdered();
+  const manual = bundleManualGeos.filter(g => !regionGeos.includes(g));
+  _settingBundleGeoProgrammatically = true;
+  document.getElementById('bundleGeoInput').value = [...regionGeos, ...manual].join(' ');
+  _settingBundleGeoProgrammatically = false;
+}
+
+// tracks GEOs the user actually typed by hand, separate from region-derived ones,
+// so toggling a region later doesn't wipe out what was typed (and vice versa)
+function onBundleGeoInputTyped() {
+  if (_settingBundleGeoProgrammatically) return;
+  const regionGeos = bundleRegionGeosOrdered();
+  const tokens = [...new Set((document.getElementById('bundleGeoInput').value || '')
+    .split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
+  bundleManualGeos = tokens.filter(g => !regionGeos.includes(g));
+}
+
+function renderBundleRegionList() {
+  const list = document.getElementById('bundleRegionList');
+  if (!list) return;
+  if (!allRegions.length) {
+    list.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет регионов — добавьте в Настройках</div>';
+    return;
+  }
+  list.innerHTML = allRegions.map(r => {
+    const idx = bundleRegionSelection.indexOf(r.id);
+    const checked = idx >= 0;
+    const geoCount = allRegionGeos.filter(rg => rg.region_id === r.id).length;
+    return `<div class="filter-option ${checked ? 'selected' : ''}" onclick="toggleBundleRegion('${r.id}')" style="display:flex;align-items:center;gap:8px">
+      <span style="width:14px;flex-shrink:0;text-align:center;color:var(--accent)">${checked ? '<i class="ti ti-check"></i>' : ''}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}</span>
+      ${checked ? `<span style="font-size:9px;color:var(--accent);background:var(--accent-bg);border:0.5px solid var(--accent-border);border-radius:4px;padding:1px 5px;flex-shrink:0">${idx + 1}</span>` : ''}
+      <span style="font-size:10px;color:var(--text3);flex-shrink:0">${geoCount} GEO</span>
+    </div>`;
+  }).join('');
+}
+
+function updateBundleRegionChip() {
+  const chip = document.getElementById('chip-bundle-region');
+  if (!chip) return;
+  if (bundleRegionSelection.length) {
+    chip.classList.add('active');
+    const names = bundleRegionSelection
+      .map(id => (allRegions.find(r => r.id === id) || {}).name)
+      .filter(Boolean);
+    chip.innerHTML = `<i class="ti ti-x" style="font-size:10px" onclick="event.stopPropagation();clearBundleRegionFilter()"></i>${esc(names.join(' + '))}`;
+  } else {
+    chip.classList.remove('active');
+    chip.innerHTML = `<i class="ti ti-map-pin"></i>Регион`;
+  }
+}
+
+// after any region change, either rebuild the bundle (GEOs present) or fall back to
+// the normal filtered export (field emptied out)
+async function bundleGeoInputChangedByRegion() {
+  const val = (document.getElementById('bundleGeoInput').value || '').trim();
+  if (val) {
+    await buildGeoBundle();
+  } else {
+    _bundleGeoOrder = null;
+    const allMatching = await fetchAllFilteredOffers();
+    _exportRows = getFiltered(allMatching);
+    refreshExportText();
+  }
+}
+
+async function toggleBundleRegion(regionId) {
+  if (!allRegions.length) await loadRegions();
+  const idx = bundleRegionSelection.indexOf(regionId);
+  if (idx < 0) {
+    const geoCount = allRegionGeos.filter(rg => rg.region_id === regionId).length;
+    if (!geoCount) { showToast('В регионе нет GEO — добавьте их в Настройках', 'error'); return; }
+    bundleRegionSelection.push(regionId);
+  } else {
+    bundleRegionSelection.splice(idx, 1);
+  }
+  renderBundleRegionList();
+  updateBundleRegionChip();
+  recomputeBundleGeoInput();
+  await bundleGeoInputChangedByRegion();
+}
+
+async function clearBundleRegionFilter() {
+  bundleRegionSelection = [];
+  renderBundleRegionList();
+  updateBundleRegionChip();
+  recomputeBundleGeoInput();
+  await bundleGeoInputChangedByRegion();
+}
+
+// debounced auto-rebuild for Источник/Тип игры/Ставка/Дата — only kicks in while a
+// bundle is actually populated; doesn't touch the normal (non-bundle) export
+function scheduleBundleAutoRebuild() {
+  const val = (document.getElementById('bundleGeoInput')?.value || '').trim();
+  if (!val) return;
+  clearTimeout(_bundleAutoRebuildTimer);
+  _bundleAutoRebuildTimer = setTimeout(() => { buildGeoBundle(); }, 250);
+}
 
 // fills the Источник / Тип игры dropdowns with the distinct values actually used
 // across the current project's active offers, so nothing needs to be typed by hand
@@ -3993,6 +4120,7 @@ function setBundleFilter(kind, value) {
   else bundleGameTypeFilter = (bundleGameTypeFilter === value) ? null : value;
   closeAllMenus();
   updateBundleFilterChips();
+  scheduleBundleAutoRebuild();
 }
 
 function updateBundleFilterChips() {
@@ -4019,6 +4147,7 @@ function applyBundleRateFilter() {
   const cur = document.getElementById('bundleMinRateCur')?.value || 'USD';
   bundleRateFilter = { min: min ? parseFloat(min) : null, cur };
   updateBundleRateChip();
+  scheduleBundleAutoRebuild();
 }
 
 function clearBundleRateFilter() {
@@ -4028,6 +4157,7 @@ function clearBundleRateFilter() {
   const cur = document.getElementById('bundleMinRateCur');
   if (cur) cur.value = 'USD';
   updateBundleRateChip();
+  scheduleBundleAutoRebuild();
 }
 
 function updateBundleRateChip() {
@@ -4066,6 +4196,7 @@ function setBundleDatePreset(preset) {
   document.getElementById('bundle-date-to').value = to;
   closeAllMenus();
   updateBundleDateChip();
+  scheduleBundleAutoRebuild();
 }
 
 function applyBundleDateRange() {
@@ -4073,6 +4204,7 @@ function applyBundleDateRange() {
   const to = document.getElementById('bundle-date-to').value;
   bundleDateFilter = (from || to) ? { from: from || null, to: to || null } : null;
   updateBundleDateChip();
+  scheduleBundleAutoRebuild();
 }
 
 function clearBundleDateFilter(e) {
@@ -4083,6 +4215,7 @@ function clearBundleDateFilter(e) {
   if (df) df.value = '';
   if (dt) dt.value = '';
   updateBundleDateChip();
+  scheduleBundleAutoRebuild();
 }
 
 function updateBundleDateChip() {
@@ -4106,9 +4239,14 @@ async function openExport() {
   if (bundleInput) bundleInput.value = '';
   bundleSourceFilter = null;
   bundleGameTypeFilter = null;
+  bundleRegionSelection = [];
+  bundleManualGeos = [];
   clearBundleRateFilter();
   clearBundleDateFilter();
   updateBundleFilterChips();
+  updateBundleRegionChip();
+  if (!allRegions.length) await loadRegions();
+  renderBundleRegionList();
   populateBundleFilterOptions();
   const sortToggle = document.getElementById('sortRateToggle');
   if (sortToggle) sortToggle.checked = false;
