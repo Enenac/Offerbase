@@ -711,17 +711,7 @@ tr:hover .row-actions{opacity:1}
     <div class="filter-dropdown">
       <div class="chip" id="chip-source" onclick="toggleFilterMenu('source')"><i class="ti ti-arrow-up-right"></i>Источник</div>
       <div class="filter-menu hidden" id="menu-source">
-        <div class="filter-menu-list">
-          <div class="filter-option" onclick="setFilter('source','FB')">FB</div>
-          <div class="filter-option" onclick="setFilter('source','In-App')">In-App</div>
-          <div class="filter-option" onclick="setFilter('source','ASO')">ASO</div>
-          <div class="filter-option" onclick="setFilter('source','SEO')">SEO</div>
-          <div class="filter-option" onclick="setFilter('source','UAC')">UAC</div>
-          <div class="filter-option" onclick="setFilter('source','PPC')">PPC</div>
-          <div class="filter-option" onclick="setFilter('source','Sms/Email')">Sms/Email</div>
-          <div class="filter-option" onclick="setFilter('source','Influence')">Influence</div>
-          <div class="filter-option" onclick="setFilter('source','Tik-Tok')">Tik-Tok</div>
-        </div>
+        <div class="filter-menu-list" id="source-list"></div>
       </div>
     </div>
 
@@ -1875,10 +1865,11 @@ function switchProject(p) {
 // ── DYNAMIC FILTERS (platform, partner, geo) ──────────
 async function buildDynamicFilters() {
   // Load distinct values from server for current project
-  const [geoRes, platRes, partRes] = await Promise.all([
+  const [geoRes, platRes, partRes, srcRes] = await Promise.all([
     sb.from('offers').select('geo').eq('project', currentProject).not('geo','is',null).limit(100000),
     sb.from('offers').select('platform').eq('project', currentProject).not('platform','is',null).limit(100000),
     sb.from('offers').select('partner').eq('project', currentProject).not('partner','is',null).limit(100000),
+    sb.from('offers').select('traffic_source').eq('project', currentProject).not('traffic_source','is',null).limit(100000),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
   window._allGeos = geos; // cache for filterGeoList
@@ -1889,6 +1880,7 @@ async function buildDynamicFilters() {
   renderDynamicList('geo-list', geos, 'geo');
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
+  renderDynamicList('source-list', distinctSources((srcRes.data||[]).map(o=>o.traffic_source)), 'source');
 
   // Exclude partner list
   const excEl = document.getElementById('exclude-partner-list');
@@ -1909,6 +1901,23 @@ async function buildDynamicFilters() {
       ).join('');
     }
   }
+}
+
+// Distinct traffic sources from real data. The source filter matches case-insensitively (ilike),
+// so spellings that differ only by case/spacing are merged — the most common spelling is shown.
+function distinctSources(values) {
+  const groups = new Map(); // lowercase key -> Map(spelling -> count)
+  (values || []).forEach(v => {
+    const t = (v || '').trim();
+    if (!t || t === '-' || t === '—') return;
+    const k = t.toLowerCase();
+    if (!groups.has(k)) groups.set(k, new Map());
+    const m = groups.get(k);
+    m.set(t, (m.get(t) || 0) + 1);
+  });
+  return [...groups.values()]
+    .map(m => [...m.entries()].sort((a, b) => b[1] - a[1])[0][0])
+    .sort((a, b) => a.localeCompare(b));
 }
 
 function renderDynamicList(listId, items, filterKey) {
@@ -4699,8 +4708,8 @@ function buildMobileMenuContent(key) {
     const geos = [...new Set(allOffers.filter(o=>o.project===currentProject).map(o=>o.geo).filter(Boolean))].sort();
     opts = geos.map(g => `<div class="m-menu-opt" onclick="setMobileFilter('geo','${g}')">${g}</div>`);
   } else if (key === 'source') {
-    ['FB','In-App','ASO','SEO','UAC','PPC','Sms/Email','Influence','Tik-Tok'].forEach(s =>
-      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${s}')">${s}</div>`));
+    distinctSources(allOffers.filter(o=>o.project===currentProject).map(o=>o.traffic_source)).forEach(s =>
+      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`));
   } else if (key === 'gametype') {
     ['Slots','Casino','Live','Sport','Poker','Bingo','Scratch'].forEach(g =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${g}')">${g}</div>`));
@@ -4909,7 +4918,7 @@ function renderMobile() {
 
   if (mobileFilters.status) rows = rows.filter(o => o.status === mobileFilters.status);
   if (mobileFilters.geo) rows = rows.filter(o => (o.geo||'').toUpperCase() === mobileFilters.geo.toUpperCase());
-  if (mobileFilters.source) rows = rows.filter(o => o.traffic_source === mobileFilters.source);
+  if (mobileFilters.source) rows = rows.filter(o => (o.traffic_source || '').trim().toLowerCase() === mobileFilters.source.toLowerCase());
   if (mobileFilters.gametype) rows = rows.filter(o => o.game_type === mobileFilters.gametype);
   if (mobileFilters.partner) rows = rows.filter(o => o.partner === mobileFilters.partner);
 
