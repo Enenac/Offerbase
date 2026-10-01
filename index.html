@@ -852,6 +852,12 @@ tr:hover .row-actions{opacity:1}
           <div class="filter-menu-list" id="bulk-source-list"></div>
         </div>
       </div>
+      <div class="filter-dropdown">
+        <button class="btn btn-ghost" onclick="event.stopPropagation();openBulkGameMenu()" style="font-size:11px;padding:4px 10px"><i class="ti ti-device-gamepad-2"></i>Сменить тип игры<i class="ti ti-chevron-down" style="font-size:10px;opacity:0.6;margin-left:3px"></i></button>
+        <div class="filter-menu hidden" id="menu-bulkGame" style="right:0;left:auto;min-width:190px">
+          <div class="filter-menu-list" id="bulk-game-list"></div>
+        </div>
+      </div>
       <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
     </div>
   </div>
@@ -1891,7 +1897,8 @@ async function buildDynamicFilters() {
   renderDynamicList('partner-list', partners, 'partner');
   const srcValues = (srcRes.data||[]).map(o=>o.traffic_source);
   const gameValues = (gameRes.data||[]).map(o=>o.game_type);
-  renderDynamicList('game-list', distinctSources(gameValues), 'game');
+  window._allGameTypes = distinctSources(gameValues);
+  renderDynamicList('game-list', window._allGameTypes, 'game');
   if (gameValues.some(isBlankSource) || filters.game === SOURCE_NONE) {
     // "-" = game type not filled in; shown first, only if such offers exist on this page
     const none = `<div class="filter-option ${filters.game===SOURCE_NONE?'selected':''}" onclick="setFilter('game','${SOURCE_NONE}')">-</div>`;
@@ -3891,6 +3898,42 @@ async function setSelectedSource(source) {
   }
   invalidateOfferVersions();
   showToast(value ? `Источник «${value}» → ${ids.length} оффер(ов)` : `Источник убран у ${ids.length} оффер(ов)`, 'success');
+  bulkMode = false;
+  document.getElementById('offersTable').classList.remove('bulk-mode');
+  document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
+  clearSelection();
+  buildDynamicFilters();
+  loadOffers();
+}
+
+// Bulk "Сменить тип игры": game types present in the DB on this page + those of the add/edit form
+// (so a type not used yet can still be picked) + "-" to clear it
+function openBulkGameMenu() {
+  const seen = new Map();
+  const add = v => { const t = (v || '').trim(); if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t); };
+  (window._allGameTypes || []).forEach(add);
+  document.querySelectorAll('#f-game option').forEach(o => add(o.value));
+  const list = [...seen.values()].sort((a, b) => a.localeCompare(b));
+  document.getElementById('bulk-game-list').innerHTML =
+    `<div class="filter-option" onclick="setSelectedGame('')">-</div>` +
+    list.map(v => `<div class="filter-option" onclick="setSelectedGame('${esc(v).replace(/'/g,"\\'")}')">${esc(v)}</div>`).join('');
+  toggleFilterMenu('bulkGame');
+}
+
+async function setSelectedGame(game) {
+  const ids = [...document.querySelectorAll('.row-cb:checked')].map(el => el.value);
+  closeAllMenus();
+  if (ids.length === 0) { showToast('Ничего не выбрано', 'error'); return; }
+  const value = (game || '').trim() || null;
+
+  // update in chunks to stay within PostgREST limits on big selections
+  const BATCH = 200;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const { error } = await sb.from('offers').update({ game_type: value }).in('id', ids.slice(i, i + BATCH));
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  }
+  invalidateOfferVersions();
+  showToast(value ? `Тип игры «${value}» → ${ids.length} оффер(ов)` : `Тип игры убран у ${ids.length} оффер(ов)`, 'success');
   bulkMode = false;
   document.getElementById('offersTable').classList.remove('bulk-mode');
   document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
