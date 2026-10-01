@@ -1865,11 +1865,15 @@ function switchProject(p) {
 // ── DYNAMIC FILTERS (platform, partner, geo) ──────────
 async function buildDynamicFilters() {
   // Load distinct values from server for current project
+  // every list is scoped to the current page (Офферы = Network, Direct = Direct) so a filter never
+  // offers a value that has no offers on this page
+  const scoped = col => {
+    let q = sb.from('offers').select(col).eq('project', currentProject);
+    q = currentPage === 'direct' ? q.eq('partner_type', 'Direct') : q.or('partner_type.neq.Direct,partner_type.is.null');
+    return q.not(col, 'is', null).limit(100000);
+  };
   const [geoRes, platRes, partRes, srcRes] = await Promise.all([
-    sb.from('offers').select('geo').eq('project', currentProject).not('geo','is',null).limit(100000),
-    sb.from('offers').select('platform').eq('project', currentProject).not('platform','is',null).limit(100000),
-    sb.from('offers').select('partner').eq('project', currentProject).not('partner','is',null).limit(100000),
-    sb.from('offers').select('traffic_source').eq('project', currentProject).not('traffic_source','is',null).limit(100000),
+    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source'),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
   window._allGeos = geos; // cache for filterGeoList
