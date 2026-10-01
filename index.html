@@ -719,11 +719,7 @@ tr:hover .row-actions{opacity:1}
     <div class="filter-dropdown">
       <div class="chip" id="chip-game" onclick="toggleFilterMenu('game')"><i class="ti ti-device-gamepad-2"></i>Тип игры</div>
       <div class="filter-menu hidden" id="menu-game">
-        <div class="filter-menu-list">
-          <div class="filter-option" onclick="setFilter('game','Slots')">Slots</div>
-          <div class="filter-option" onclick="setFilter('game','Crash')">Crash</div>
-          <div class="filter-option" onclick="setFilter('game','Mix')">Mix</div>
-        </div>
+        <div class="filter-menu-list" id="game-list"></div>
       </div>
     </div>
 
@@ -1880,8 +1876,8 @@ async function buildDynamicFilters() {
     if (!keepNull) q = q.not(col, 'is', null);
     return q.limit(100000);
   };
-  const [geoRes, platRes, partRes, srcRes] = await Promise.all([
-    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source', true),
+  const [geoRes, platRes, partRes, srcRes, gameRes] = await Promise.all([
+    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source', true), scoped('game_type'),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
   window._allGeos = geos; // cache for filterGeoList
@@ -1893,6 +1889,7 @@ async function buildDynamicFilters() {
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
   const srcValues = (srcRes.data||[]).map(o=>o.traffic_source);
+  renderDynamicList('game-list', distinctSources((gameRes.data||[]).map(o=>o.game_type)), 'game');
   window._allSources = distinctSources(srcValues);
   renderDynamicList('source-list', window._allSources, 'source');
   if (srcValues.some(isBlankSource) || filters.source === SOURCE_NONE) {
@@ -4784,8 +4781,8 @@ function buildMobileMenuContent(key) {
     distinctSources(_srcVals).forEach(s =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`));
   } else if (key === 'gametype') {
-    ['Slots','Casino','Live','Sport','Poker','Bingo','Scratch'].forEach(g =>
-      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${g}')">${g}</div>`));
+    distinctSources(allOffers.filter(o=>o.project===currentProject).map(o=>o.game_type)).forEach(g =>
+      opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${esc(g).replace(/'/g,"\\'")}')">${esc(g)}</div>`));
   } else if (key === 'status') {
     [['active','Активен'],['stop','На стопе'],['capped','Закончился кап'],['outdated','Нужно актуализировать']].forEach(([v,l]) =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('status','${v}')">${l}</div>`));
@@ -4993,7 +4990,7 @@ function renderMobile() {
   if (mobileFilters.geo) rows = rows.filter(o => (o.geo||'').toUpperCase() === mobileFilters.geo.toUpperCase());
   if (mobileFilters.source === SOURCE_NONE) rows = rows.filter(o => isBlankSource(o.traffic_source));
   else if (mobileFilters.source) rows = rows.filter(o => (o.traffic_source || '').trim().toLowerCase() === mobileFilters.source.toLowerCase());
-  if (mobileFilters.gametype) rows = rows.filter(o => o.game_type === mobileFilters.gametype);
+  if (mobileFilters.gametype) rows = rows.filter(o => (o.game_type || '').trim().toLowerCase() === mobileFilters.gametype.toLowerCase());
   if (mobileFilters.partner) rows = rows.filter(o => o.partner === mobileFilters.partner);
 
   rows = rows.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
