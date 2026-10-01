@@ -1572,7 +1572,8 @@ function buildSupabaseQuery(countOnly = false) {
   // Filters
   if (filters.geo)      q = q.eq('geo', filters.geo);
   if (filters.status)   q = q.eq('status', filters.status);
-  if (filters.source)   q = q.ilike('traffic_source', filters.source);
+  if (filters.source === SOURCE_NONE) q = q.or('traffic_source.is.null,traffic_source.eq.,traffic_source.eq.-,traffic_source.eq.–,traffic_source.eq.—');
+  else if (filters.source) q = q.ilike('traffic_source', filters.source);
   if (filters.game)     q = q.ilike('game_type', filters.game);
   if (filters.kpi) {
     if (filters.kpi === 'KPI') {
@@ -1867,13 +1868,14 @@ async function buildDynamicFilters() {
   // Load distinct values from server for current project
   // every list is scoped to the current page (Офферы = Network, Direct = Direct) so a filter never
   // offers a value that has no offers on this page
-  const scoped = col => {
+  const scoped = (col, keepNull) => {
     let q = sb.from('offers').select(col).eq('project', currentProject);
     q = currentPage === 'direct' ? q.eq('partner_type', 'Direct') : q.or('partner_type.neq.Direct,partner_type.is.null');
-    return q.not(col, 'is', null).limit(100000);
+    if (!keepNull) q = q.not(col, 'is', null);
+    return q.limit(100000);
   };
   const [geoRes, platRes, partRes, srcRes] = await Promise.all([
-    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source'),
+    scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source', true),
   ]);
   const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
   window._allGeos = geos; // cache for filterGeoList
@@ -1884,7 +1886,14 @@ async function buildDynamicFilters() {
   renderDynamicList('geo-list', geos, 'geo');
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
-  renderDynamicList('source-list', distinctSources((srcRes.data||[]).map(o=>o.traffic_source)), 'source');
+  const srcValues = (srcRes.data||[]).map(o=>o.traffic_source);
+  renderDynamicList('source-list', distinctSources(srcValues), 'source');
+  if (srcValues.some(isBlankSource) || filters.source === SOURCE_NONE) {
+    // "Пропуск" — offers with no source filled in; shown first, only if such offers exist on this page
+    const none = `<div class="filter-option ${filters.source===SOURCE_NONE?'selected':''}" style="font-style:italic" onclick="setFilter('source','${SOURCE_NONE}')">Пропуск</div>`;
+    const el = document.getElementById('source-list');
+    if (el.querySelector('.filter-option')) el.insertAdjacentHTML('afterbegin', none); else el.innerHTML = none;
+  }
 
   // Exclude partner list
   const excEl = document.getElementById('exclude-partner-list');
@@ -1906,6 +1915,10 @@ async function buildDynamicFilters() {
     }
   }
 }
+
+// Pseudo-value of the source filter: offers whose source is blank (null / empty / dash placeholder)
+const SOURCE_NONE = '__none__';
+const isBlankSource = v => { const t = (v || '').trim(); return !t || t === '-' || t === '–' || t === '—'; };
 
 // Distinct traffic sources from real data. The source filter matches case-insensitively (ilike),
 // so spellings that differ only by case/spacing are merged — the most common spelling is shown.
@@ -2019,7 +2032,7 @@ function clearFilter(e, key) {
 function updateChips() {
   const defs = {
     geo:      {icon:'ti-world',          label:'GEO'},
-    source:   {icon:'ti-arrow-up-right', label:'Источник'},
+    source:   {icon:'ti-arrow-up-right', label:'Источник', vals:{[SOURCE_NONE]:'Пропуск'}},
     game:     {icon:'ti-device-gamepad-2',label:'Тип игры'},
     kpi:      {icon:'ti-target',         label:'KPI'},
     platform: {icon:'ti-layout-grid',    label:'Платформа'},
@@ -4712,7 +4725,9 @@ function buildMobileMenuContent(key) {
     const geos = [...new Set(allOffers.filter(o=>o.project===currentProject).map(o=>o.geo).filter(Boolean))].sort();
     opts = geos.map(g => `<div class="m-menu-opt" onclick="setMobileFilter('geo','${g}')">${g}</div>`);
   } else if (key === 'source') {
-    distinctSources(allOffers.filter(o=>o.project===currentProject).map(o=>o.traffic_source)).forEach(s =>
+    const _srcVals = allOffers.filter(o=>o.project===currentProject).map(o=>o.traffic_source);
+    if (_srcVals.some(isBlankSource)) opts.push(`<div class="m-menu-opt" style="font-style:italic" onclick="setMobileFilter('source','${SOURCE_NONE}')">Пропуск</div>`);
+    distinctSources(_srcVals).forEach(s =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`));
   } else if (key === 'gametype') {
     ['Slots','Casino','Live','Sport','Poker','Bingo','Scratch'].forEach(g =>
@@ -4752,7 +4767,7 @@ function updateMobileChips() {
     const el = document.getElementById('mchip-' + k);
     if (!el) return;
     if (mobileFilters[k]) {
-      const shown = (k === 'status' ? (valLabels[mobileFilters[k]] || mobileFilters[k]) : mobileFilters[k]);
+      const shown = (k === 'status' ? (valLabels[mobileFilters[k]] || mobileFilters[k]) : (k === 'source' && mobileFilters[k] === SOURCE_NONE ? 'Пропуск' : mobileFilters[k]));
       el.classList.add('active');
       el.innerHTML = `<i class="ti ti-x" style="font-size:9px" onclick="event.stopPropagation();clearMobileFilter('${k}')"></i>${shown}`;
     } else {
@@ -4922,7 +4937,8 @@ function renderMobile() {
 
   if (mobileFilters.status) rows = rows.filter(o => o.status === mobileFilters.status);
   if (mobileFilters.geo) rows = rows.filter(o => (o.geo||'').toUpperCase() === mobileFilters.geo.toUpperCase());
-  if (mobileFilters.source) rows = rows.filter(o => (o.traffic_source || '').trim().toLowerCase() === mobileFilters.source.toLowerCase());
+  if (mobileFilters.source === SOURCE_NONE) rows = rows.filter(o => isBlankSource(o.traffic_source));
+  else if (mobileFilters.source) rows = rows.filter(o => (o.traffic_source || '').trim().toLowerCase() === mobileFilters.source.toLowerCase());
   if (mobileFilters.gametype) rows = rows.filter(o => o.game_type === mobileFilters.gametype);
   if (mobileFilters.partner) rows = rows.filter(o => o.partner === mobileFilters.partner);
 
