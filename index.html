@@ -850,6 +850,12 @@ tr:hover .row-actions{opacity:1}
           <div class="filter-option" onclick="setSelectedStatus('outdated')"><span style="width:7px;height:7px;border-radius:50%;background:#6b7280;display:inline-block"></span>Устарел</div>
         </div>
       </div>
+      <div class="filter-dropdown">
+        <button class="btn btn-ghost" onclick="event.stopPropagation();openBulkSourceMenu()" style="font-size:11px;padding:4px 10px"><i class="ti ti-arrow-up-right"></i>Сменить источник<i class="ti ti-chevron-down" style="font-size:10px;opacity:0.6;margin-left:3px"></i></button>
+        <div class="filter-menu hidden" id="menu-bulkSource" style="right:0;left:auto;min-width:190px">
+          <div class="filter-menu-list" id="bulk-source-list"></div>
+        </div>
+      </div>
       <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
     </div>
   </div>
@@ -1887,7 +1893,8 @@ async function buildDynamicFilters() {
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
   const srcValues = (srcRes.data||[]).map(o=>o.traffic_source);
-  renderDynamicList('source-list', distinctSources(srcValues), 'source');
+  window._allSources = distinctSources(srcValues);
+  renderDynamicList('source-list', window._allSources, 'source');
   if (srcValues.some(isBlankSource) || filters.source === SOURCE_NONE) {
     // "Пропуск" — offers with no source filled in; shown first, only if such offers exist on this page
     const none = `<div class="filter-option ${filters.source===SOURCE_NONE?'selected':''}" style="font-style:italic" onclick="setFilter('source','${SOURCE_NONE}')">Пропуск</div>`;
@@ -3837,6 +3844,43 @@ async function setSelectedStatus(status) {
   document.getElementById('offersTable').classList.remove('bulk-mode');
   document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
   clearSelection();
+  loadOffers();
+}
+
+// Bulk "Сменить источник": options = sources that exist in the DB on this page + the sources offered
+// by the add/edit form (so a source not used yet can still be picked) + "Пропуск" to clear it
+function openBulkSourceMenu() {
+  const seen = new Map();
+  const add = v => { const t = (v || '').trim(); if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t); };
+  (window._allSources || []).forEach(add);
+  document.querySelectorAll('#f-source option').forEach(o => add(o.value));
+  const list = [...seen.values()].sort((a, b) => a.localeCompare(b));
+  const el = document.getElementById('bulk-source-list');
+  el.innerHTML =
+    `<div class="filter-option" style="font-style:italic" onclick="setSelectedSource('')">Пропуск (убрать источник)</div>` +
+    list.map(v => `<div class="filter-option" onclick="setSelectedSource('${esc(v).replace(/'/g,"\\'")}')">${esc(v)}</div>`).join('');
+  toggleFilterMenu('bulkSource');
+}
+
+async function setSelectedSource(source) {
+  const ids = [...document.querySelectorAll('.row-cb:checked')].map(el => el.value);
+  closeAllMenus();
+  if (ids.length === 0) { showToast('Ничего не выбрано', 'error'); return; }
+  const value = (source || '').trim() || null;
+
+  // update in chunks to stay within PostgREST limits on big selections
+  const BATCH = 200;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const { error } = await sb.from('offers').update({ traffic_source: value }).in('id', ids.slice(i, i + BATCH));
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  }
+  invalidateOfferVersions();
+  showToast(value ? `Источник «${value}» → ${ids.length} оффер(ов)` : `Источник убран у ${ids.length} оффер(ов)`, 'success');
+  bulkMode = false;
+  document.getElementById('offersTable').classList.remove('bulk-mode');
+  document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
+  clearSelection();
+  buildDynamicFilters();
   loadOffers();
 }
 
