@@ -1701,7 +1701,7 @@ async function syncPlatforms() {
     }
   }
 
-  if (conflicts.length > 0) showPlatformConflicts(conflicts);
+  if (conflicts.length > 0 && isAdmin) showPlatformConflicts(conflicts);
   return didChange;
 }
 
