@@ -1584,11 +1584,14 @@ function buildSupabaseQuery(countOnly = false) {
   if (dateFilter?.to)   q = q.lte('received_at', dateFilter.to);
   if (searchQuery) {
     // split into words so spaces in the query don't have to match spaces (or their absence)
-    // in the stored brand/partner/platform — "Joka Casino" still finds "JokaCasino" and vice versa
+    // in the stored brand/partner/platform, in EITHER direction — match against the generated
+    // _key columns (spaces/dashes/dots stripped, lowercased) so "Joka Casino" <-> "JokaCasino"
+    // and "Spin Rolls" <-> "spin-rolls" all resolve to the same thing regardless of who typed what
     const searchTokens = searchQuery.split(/\s+/).filter(Boolean);
     searchTokens.forEach(tok => {
-      const esc = tok.replace(/[%_]/g, c => '\\' + c);
-      q = q.or(`brand.ilike.%${esc}%,partner.ilike.%${esc}%,platform.ilike.%${esc}%`);
+      const stripped = skeletonOf(tok).replace(/[%_]/g, c => '\\' + c);
+      if (!stripped) return;
+      q = q.or(`brand_key.ilike.%${stripped}%,partner_key.ilike.%${stripped}%,platform_key.ilike.%${stripped}%`);
     });
   }
 
@@ -4332,10 +4335,12 @@ async function runMobileSearch() {
   let query = sb.from('offers')
     .select('*')
     .eq('project', currentProject);
-  // split into words so spaces don't have to match spaces (or their absence) in stored text
+  // split into words so spaces don't have to match spaces (or their absence) in stored text,
+  // matching against the generated _key columns (spaces/dashes/dots stripped) in both directions
   q.split(/\s+/).filter(Boolean).forEach(tok => {
-    const esc = tok.replace(/[%_]/g, c => '\\' + c);
-    query = query.or(`brand.ilike.%${esc}%,partner.ilike.%${esc}%,platform.ilike.%${esc}%`);
+    const stripped = skeletonOf(tok).replace(/[%_]/g, c => '\\' + c);
+    if (!stripped) return;
+    query = query.or(`brand_key.ilike.%${stripped}%,partner_key.ilike.%${stripped}%,platform_key.ilike.%${stripped}%`);
   });
   const { data, error } = await query
     .order('received_at', { ascending: false, nullsFirst: false })
