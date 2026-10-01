@@ -2375,16 +2375,21 @@ async function parseTemplate() {
     return;
   }
 
+  const noSource = parsedOffers.filter(o => isBlankSource(o.traffic_source));
+  const warn = noSource.length
+    ? `<div class="parse-error" style="margin:8px 0">В источнике пропуск у ${noSource.length} из ${parsedOffers.length} оффер(ов) — выделены красным. Заполни источник в тексте и распознай заново, пока не исправишь, сохранить нельзя.</div>`
+    : '';
   preview.innerHTML = `
     <div class="parse-preview-header">
       <span class="parse-preview-title">Предпросмотр</span>
       <span class="parse-preview-count">${parsedOffers.length} оффер(ов)</span>
     </div>
+    ${warn}
     ${parsedOffers.map(o=>`
-      <div class="parse-preview-row" title="${esc([o.geo,o.brand,o.traffic_source,o.game_type,o.rate,o.min_deposit,o.capa,o.kpi,o.platform,o.partner].filter(Boolean).join(' / '))}">
+      <div class="parse-preview-row" style="${isBlankSource(o.traffic_source) ? 'background:rgba(248,113,113,0.10);box-shadow:inset 2px 0 0 var(--red)' : ''}" title="${esc([o.geo,o.brand,o.traffic_source,o.game_type,o.rate,o.min_deposit,o.capa,o.kpi,o.platform,o.partner].filter(Boolean).join(' / '))}">
         <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text1)">${flag(o.geo)} ${esc(o.geo)||'—'}</span>
         <span style="color:var(--text1);font-weight:600">${esc(o.brand)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.traffic_source)||'—'}•${esc(o.game_type)||'—'}</span>
+        <span style="color:${isBlankSource(o.traffic_source) ? 'var(--red)' : 'var(--text3)'}">${isBlankSource(o.traffic_source) ? 'ПРОПУСК' : esc(o.traffic_source)}•${esc(o.game_type)||'—'}</span>
         <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace;font-weight:500">${esc(o.rate)||'—'}</span>
         <span style="color:var(--text3)">${esc(o.min_deposit)||'—'}</span>
         <span style="color:var(--text3)">${esc(o.capa)||'—'}</span>
@@ -2469,6 +2474,11 @@ async function saveOffer() {
     if (parsedOffers.length === 0) {
       showToast('Сначала распознай офферы', 'error');
       btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i>Сохранить'; return;
+    }
+    const missingSource = parsedOffers.filter(o => isBlankSource(o.traffic_source));
+    if (missingSource.length > 0) {
+      showToast(`В источнике пропуск у ${missingSource.length} оффер(ов) — заполни источник и распознай заново`, 'error');
+      btn.disabled=false; btn.innerHTML=`<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`; return;
     }
     const bulkDate = document.getElementById('bulk-date').value || null;
     const toInsert = parsedOffers.map(o => ({...o, received_at: bulkDate, rate_usd_num: parseRateToUsd(o.rate)}));
