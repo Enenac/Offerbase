@@ -1019,6 +1019,13 @@ tr:hover .row-actions{opacity:1}
             </div>
           </div>
           <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-platform" onclick="toggleFilterMenu('bundle-platform')"><i class="ti ti-layout-grid"></i>Платформа</div>
+            <div class="filter-menu hidden" id="menu-bundle-platform" style="min-width:200px">
+              <div class="filter-search"><input type="text" id="bundlePlatformSearch" placeholder="Поиск платформы..." oninput="renderBundlePlatformList()"></div>
+              <div class="filter-menu-list" id="bundlePlatformList"></div>
+            </div>
+          </div>
+          <div class="filter-dropdown">
             <div class="chip" id="chip-bundle-rate" onclick="toggleFilterMenu('bundle-rate')"><i class="ti ti-currency-dollar"></i>Ставка</div>
             <div class="filter-menu hidden" id="menu-bundle-rate" style="min-width:210px">
               <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
@@ -4119,6 +4126,9 @@ let bundleRateFilter = { min: null, cur: 'USD' };
 let bundleDateFilter = null;
 let bundleRegionSelection = []; // region ids, in the order they were picked
 let bundleManualGeos = []; // GEOs typed by hand into the field, tracked separately from region-derived ones
+let bundlePlatforms = []; // platforms (multi-select) the bundle is limited to
+let _bundlePlatformOptions = [];
+let _bundleFilterOptionsPage = null;
 let bundleExcludePartners = []; // partner names whose offers are left out of the bundle
 let _settingBundleGeoProgrammatically = false;
 let _bundleAutoRebuildTimer = null;
@@ -4374,6 +4384,46 @@ async function toggleBundleExcludePartner(name) {
   scheduleBundleAutoRebuild();
 }
 
+function renderBundlePlatformList() {
+  const list = document.getElementById('bundlePlatformList');
+  if (!list) return;
+  const q = (document.getElementById('bundlePlatformSearch')?.value || '').toLowerCase().trim();
+  const items = q ? _bundlePlatformOptions.filter(p => p.toLowerCase().includes(q)) : _bundlePlatformOptions;
+  list.innerHTML = items.length
+    ? items.map(p => {
+        const checked = bundlePlatforms.includes(p);
+        return `<div class="filter-option ${checked ? 'selected' : ''}" onclick="toggleBundlePlatform('${esc(p).replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:8px">
+          <span style="width:14px;flex-shrink:0;text-align:center">${checked ? '<i class="ti ti-check"></i>' : ''}</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p)}</span>
+        </div>`;
+      }).join('')
+    : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
+}
+
+function updateBundlePlatformChip() {
+  const chip = document.getElementById('chip-bundle-platform');
+  if (!chip) return;
+  chip.classList.toggle('active', bundlePlatforms.length > 0);
+  chip.innerHTML = bundlePlatforms.length
+    ? `<i class="ti ti-x" style="font-size:10px" onclick="event.stopPropagation();clearBundlePlatforms()"></i>${esc(bundlePlatforms.join(' + '))}`
+    : `<i class="ti ti-layout-grid"></i>Платформа`;
+}
+
+function toggleBundlePlatform(name) {
+  const idx = bundlePlatforms.indexOf(name);
+  if (idx < 0) bundlePlatforms.push(name); else bundlePlatforms.splice(idx, 1);
+  renderBundlePlatformList();
+  updateBundlePlatformChip();
+  scheduleBundleAutoRebuild();
+}
+
+function clearBundlePlatforms() {
+  bundlePlatforms = [];
+  renderBundlePlatformList();
+  updateBundlePlatformChip();
+  scheduleBundleAutoRebuild();
+}
+
 function clearBundleExcludeFilter() {
   bundleExcludePartners = [];
   renderBundleExclList();
@@ -4393,13 +4443,18 @@ function scheduleBundleAutoRebuild() {
 // fills the Источник / Тип игры dropdowns with the distinct values actually used
 // across the current project's active offers, so nothing needs to be typed by hand
 async function populateBundleFilterOptions() {
-  if (_bundleFilterOptionsLoaded) return;
+  if (_bundleFilterOptionsLoaded && _bundleFilterOptionsPage === currentPage) return;
   try {
-    const { data, error } = await sb.from('offers')
-      .select('traffic_source, game_type')
+    // scoped to the current page (Network / Direct), same as the bundle query itself
+    let pq = sb.from('offers')
+      .select('traffic_source, game_type, platform')
       .eq('project', currentProject)
       .eq('status', 'active');
+    pq = currentPage === 'direct' ? pq.eq('partner_type', 'Direct') : pq.or('partner_type.neq.Direct,partner_type.is.null');
+    const { data, error } = await pq.limit(100000);
     if (error) throw error;
+    _bundlePlatformOptions = [...new Set((data || []).map(o => (o.platform || '').trim()).filter(v => v && v !== '-' && v !== '—'))].sort((a, b) => a.localeCompare(b));
+    renderBundlePlatformList();
     const sources = [...new Set((data || []).map(o => (o.traffic_source || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const types = [...new Set((data || []).map(o => (o.game_type || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     document.getElementById('bundleSourceList').innerHTML = sources.length
@@ -4409,6 +4464,7 @@ async function populateBundleFilterOptions() {
       ? types.map(t => `<div class="filter-option" onclick="setBundleFilter('gametype','${esc(t).replace(/'/g,"\\'")}')">${esc(t)}</div>`).join('')
       : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
     _bundleFilterOptionsLoaded = true;
+    _bundleFilterOptionsPage = currentPage;
   } catch (e) {
     showToast('Не удалось загрузить список источников/типов: ' + e.message, 'error');
   }
@@ -4541,6 +4597,11 @@ async function openExport() {
   bundleRegionSelection = [];
   bundleManualGeos = [];
   bundleExcludePartners = [];
+  bundlePlatforms = [];
+  updateBundlePlatformChip();
+  const platSearch = document.getElementById('bundlePlatformSearch');
+  if (platSearch) platSearch.value = '';
+  renderBundlePlatformList();
   clearBundleRateFilter();
   clearBundleDateFilter();
   updateBundleFilterChips();
@@ -4644,6 +4705,7 @@ async function buildGeoBundle() {
     q = ptype ? q.eq('partner_type', ptype) : q.or('partner_type.neq.Direct,partner_type.is.null');
     if (bundleSourceFilter) q = q.eq('traffic_source', bundleSourceFilter);
     if (bundleGameTypeFilter) q = q.eq('game_type', bundleGameTypeFilter);
+    if (bundlePlatforms.length) q = q.in('platform', bundlePlatforms);
     if (bundleDateFilter?.from) q = q.gte('received_at', bundleDateFilter.from);
     if (bundleDateFilter?.to) q = q.lte('received_at', bundleDateFilter.to);
     const { data, error } = await q;
