@@ -2019,7 +2019,19 @@ function toggleFilterMenu(key) {
       if (inp) { inp.value = ''; filterExcludePartnerList(); setTimeout(() => inp.focus(), 50); }
     }
     if (key === 'platform') buildDynamicFilters();
+    clampFilterMenu(m);
   }
+}
+
+// inside a modal the menu is clipped at the modal's edge (overflow:auto) — when it would stick out on the
+// right, align it to its chip's right edge instead so it is never cut off
+function clampFilterMenu(m) {
+  const bound = m.closest('.modal');
+  if (!bound) return;
+  if (m.dataset.autoAlign) { m.style.left = ''; m.style.right = ''; delete m.dataset.autoAlign; } // re-measure from default
+  else if (m.style.right) return; // menu with explicit alignment in markup — leave it
+  const b = bound.getBoundingClientRect(), r = m.getBoundingClientRect();
+  if (r.right > b.right - 8) { m.style.left = 'auto'; m.style.right = '0'; m.dataset.autoAlign = '1'; }
 }
 
 function closeAllMenus() { document.querySelectorAll('.filter-menu').forEach(m=>m.classList.add('hidden')); }
