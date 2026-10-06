@@ -2740,7 +2740,8 @@ function initTasksRealtime() {
 function visibleTasks() {
   // tasks follow the global project tabs at the top
   let items = allTasks.filter(t => t.project === currentProject);
-  const active = items.filter(t => !t.done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  // active tasks: newest on top (new tasks get the highest sort_order), so today's tasks are visible without scrolling
+  const active = items.filter(t => !t.done).sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0));
   // completed tasks: most recently created first (nearest date to furthest)
   const done = items.filter(t => t.done).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   return [...active, ...done];
@@ -3035,9 +3036,10 @@ async function reorderTask(dragId, targetId, before) {
   const nextOrder = next && next.id !== dragId ? (next.sort_order || 0) : null;
 
   let newOrder;
+  // the list is shown highest-order-first: the item above has the higher number, the one below the lower
   if (prevOrder != null && nextOrder != null) newOrder = (prevOrder + nextOrder) / 2;
-  else if (prevOrder != null) newOrder = prevOrder + 1000;
-  else if (nextOrder != null) newOrder = nextOrder - 1000;
+  else if (prevOrder != null) newOrder = prevOrder - 1000; // dropped at the very bottom
+  else if (nextOrder != null) newOrder = nextOrder + 1000; // dropped at the very top
   else newOrder = 1000;
 
   const t = allTasks.find(x => x.id === dragId);
@@ -5109,7 +5111,7 @@ function renderMobileTasks() {
   if (!list) return;
   const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let items = allTasks.filter(t => t.project === currentProject);
-  items.sort((a, b) => (a.done - b.done) || ((a.sort_order ?? 0) - (b.sort_order ?? 0)));
+  items.sort((a, b) => (a.done - b.done) || ((b.sort_order ?? 0) - (a.sort_order ?? 0)));
   const active = items.filter(t => !t.done);
 
   if (!active.length) { list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px">Нет активных задач</div>'; return; }
