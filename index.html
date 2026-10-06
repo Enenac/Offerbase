@@ -1893,18 +1893,19 @@ async function buildDynamicFilters() {
   const [geoRes, platRes, partRes, srcRes, gameRes] = await Promise.all([
     scoped('geo'), scoped('platform'), scoped('partner'), scoped('traffic_source', true), scoped('game_type', true),
   ]);
-  const geos = [...new Set((geoRes.data||[]).map(o=>o.geo).filter(Boolean))].sort();
-  window._allGeos = geos; // cache for filterGeoList
+  const geoRank = rankGeos((geoRes.data||[]).map(o=>o.geo));
+  window._geoTop = geoRank.top; window._geoRest = geoRank.rest;
+  window._allGeos = [...geoRank.top, ...geoRank.rest]; // cache for filterGeoList (frequency order for search results)
   const platforms = [...new Set((platRes.data||[]).map(o=>o.platform).filter(v => v && v !== '-' && v !== '—'))].sort();
   const partners = [...new Set((partRes.data||[]).map(o=>o.partner).filter(Boolean))].sort();
   window._allPartners = partners;
 
-  renderDynamicList('geo-list', geos, 'geo');
+  renderGeoList(geoRank.top, geoRank.rest, false);
   renderDynamicList('platform-list', platforms, 'platform');
   renderDynamicList('partner-list', partners, 'partner');
   const srcValues = (srcRes.data||[]).map(o=>o.traffic_source);
   const gameValues = (gameRes.data||[]).map(o=>o.game_type);
-  window._allGameTypes = distinctSources(gameValues);
+  window._allGameTypes = distinctSources(gameValues, true);
   renderDynamicList('game-list', window._allGameTypes, 'game');
   if (gameValues.some(isBlankSource) || filters.game === SOURCE_NONE) {
     // "-" = game type not filled in; shown first, only if such offers exist on this page
@@ -1912,7 +1913,7 @@ async function buildDynamicFilters() {
     const gel = document.getElementById('game-list');
     if (gel.querySelector('.filter-option')) gel.insertAdjacentHTML('afterbegin', none); else gel.innerHTML = none;
   }
-  window._allSources = distinctSources(srcValues);
+  window._allSources = distinctSources(srcValues, true);
   renderDynamicList('source-list', window._allSources, 'source');
   if (srcValues.some(isBlankSource) || filters.source === SOURCE_NONE) {
     // "Пропуск" — offers with no source filled in; shown first, only if such offers exist on this page
@@ -1948,7 +1949,7 @@ const isBlankSource = v => { const t = (v || '').trim(); return !t || t === '-' 
 
 // Distinct traffic sources from real data. The source filter matches case-insensitively (ilike),
 // so spellings that differ only by case/spacing are merged — the most common spelling is shown.
-function distinctSources(values) {
+function distinctSources(values, byCount) {
   const groups = new Map(); // lowercase key -> Map(spelling -> count)
   (values || []).forEach(v => {
     const t = (v || '').trim();
@@ -1958,9 +1959,34 @@ function distinctSources(values) {
     const m = groups.get(k);
     m.set(t, (m.get(t) || 0) + 1);
   });
-  return [...groups.values()]
-    .map(m => [...m.entries()].sort((a, b) => b[1] - a[1])[0][0])
-    .sort((a, b) => a.localeCompare(b));
+  const rows = [...groups.values()].map(m => ({
+    name: [...m.entries()].sort((a, b) => b[1] - a[1])[0][0],
+    total: [...m.values()].reduce((x, y) => x + y, 0),
+  }));
+  // byCount: most used first (ties alphabetical); otherwise alphabetical
+  rows.sort((a, b) => (byCount && b.total !== a.total) ? b.total - a.total : a.name.localeCompare(b.name));
+  return rows.map(r => r.name);
+}
+
+// GEO: the 5 most used (by number of offers) first, then everything else alphabetically
+const TOP_GEO_COUNT = 5;
+function rankGeos(values) {
+  const cnt = new Map();
+  (values || []).forEach(g => { if (g) cnt.set(g, (cnt.get(g) || 0) + 1); });
+  const byCount = [...cnt.keys()].sort((a, b) => (cnt.get(b) - cnt.get(a)) || a.localeCompare(b));
+  const top = byCount.slice(0, TOP_GEO_COUNT);
+  const rest = byCount.slice(TOP_GEO_COUNT).sort((a, b) => a.localeCompare(b));
+  return { top, rest };
+}
+
+function renderGeoList(top, rest, flat) {
+  const el = document.getElementById('geo-list');
+  const opt = g => `<div class="filter-option ${filters.geo===g?'selected':''}" onclick="setFilter('geo','${g.replace(/'/g,"\\'")}')">${flag(g)} ${esc(g)}</div>`;
+  if (!top.length && !rest.length) { el.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>'; return; }
+  if (flat) { el.innerHTML = [...top, ...rest].map(opt).join(''); return; }
+  const cap = t => `<div style="padding:4px 10px 2px;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace">${t}</div>`;
+  el.innerHTML = cap('Часто используемые') + top.map(opt).join('') +
+    (rest.length ? `<div style="height:0.5px;background:var(--border2);margin:6px 8px"></div>` + cap('Все гео') + rest.map(opt).join('') : '');
 }
 
 function renderDynamicList(listId, items, filterKey) {
@@ -1978,8 +2004,9 @@ function renderDynamicList(listId, items, filterKey) {
 
 function filterGeoList() {
   const q = document.getElementById('geo-search').value.toUpperCase().trim();
-  const geos = (window._allGeos || []).filter(g => !q || g.toUpperCase().includes(q));
-  renderDynamicList('geo-list', geos, 'geo');
+  if (!q) { renderGeoList(window._geoTop || [], window._geoRest || [], false); return; }
+  const geos = (window._allGeos || []).filter(g => g.toUpperCase().includes(q));
+  renderGeoList(geos, [], true); // while searching: plain list, most used first
 }
 
 function filterPartnerList() {
@@ -3895,7 +3922,7 @@ function openBulkSourceMenu() {
   const add = v => { const t = (v || '').trim(); if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t); };
   (window._allSources || []).forEach(add);
   document.querySelectorAll('#f-source option').forEach(o => add(o.value));
-  const list = [...seen.values()].sort((a, b) => a.localeCompare(b));
+  const list = [...seen.values()]; // most used first (DB order), then form-only options
   const el = document.getElementById('bulk-source-list');
   el.innerHTML =
     `<div class="filter-option" style="font-style:italic" onclick="setSelectedSource('')">Пропуск (убрать источник)</div>` +
@@ -3932,7 +3959,7 @@ function openBulkGameMenu() {
   const add = v => { const t = (v || '').trim(); if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t); };
   (window._allGameTypes || []).forEach(add);
   document.querySelectorAll('#f-game option').forEach(o => add(o.value));
-  const list = [...seen.values()].sort((a, b) => a.localeCompare(b));
+  const list = [...seen.values()]; // most used first (DB order), then form-only options
   document.getElementById('bulk-game-list').innerHTML =
     `<div class="filter-option" onclick="setSelectedGame('')">-</div>` +
     list.map(v => `<div class="filter-option" onclick="setSelectedGame('${esc(v).replace(/'/g,"\\'")}')">${esc(v)}</div>`).join('');
@@ -4898,17 +4925,19 @@ function buildMobileMenuContent(key) {
   const titles = { geo:'GEO', source:'Источник', gametype:'Тип игры', status:'Статус', partner:'Партнёр' };
   let opts = [];
   if (key === 'geo') {
-    const geos = [...new Set(allOffers.filter(o=>o.project===currentProject).map(o=>o.geo).filter(Boolean))].sort();
-    opts = geos.map(g => `<div class="m-menu-opt" onclick="setMobileFilter('geo','${g}')">${g}</div>`);
+    const gr = rankGeos(allOffers.filter(o=>o.project===currentProject).map(o=>o.geo));
+    const mo = g => `<div class="m-menu-opt" onclick="setMobileFilter('geo','${g}')">${g}</div>`;
+    opts = gr.top.map(mo);
+    if (gr.rest.length) opts.push(`<div style="height:0.5px;background:var(--border2);margin:4px 8px"></div>`, ...gr.rest.map(mo));
   } else if (key === 'source') {
     const _srcVals = allOffers.filter(o=>o.project===currentProject).map(o=>o.traffic_source);
     if (_srcVals.some(isBlankSource)) opts.push(`<div class="m-menu-opt" style="font-style:italic" onclick="setMobileFilter('source','${SOURCE_NONE}')">Пропуск</div>`);
-    distinctSources(_srcVals).forEach(s =>
+    distinctSources(_srcVals, true).forEach(s =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`));
   } else if (key === 'gametype') {
     const _gameVals = allOffers.filter(o=>o.project===currentProject).map(o=>o.game_type);
     if (_gameVals.some(isBlankSource)) opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${SOURCE_NONE}')">-</div>`);
-    distinctSources(_gameVals).forEach(g =>
+    distinctSources(_gameVals, true).forEach(g =>
       opts.push(`<div class="m-menu-opt" onclick="setMobileFilter('gametype','${esc(g).replace(/'/g,"\\'")}')">${esc(g)}</div>`));
   } else if (key === 'status') {
     [['active','Активен'],['stop','На стопе'],['capped','Закончился кап'],['outdated','Нужно актуализировать']].forEach(([v,l]) =>
