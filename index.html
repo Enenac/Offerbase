@@ -6038,6 +6038,43 @@ function renderStatsPage() {
       </div>
     </div>`;
 
+  // daily breakdown: requests created each day and where they stand now (current status)
+  const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const byDay = {};
+  const todayKey = dayKey(new Date());
+  byDay[todayKey] = { date: new Date(), total: 0, sent: 0, proposed: 0, alt: 0, fresh: 0, other: 0 };
+  reqRows.forEach(r => {
+    if (!r.created_at) return;
+    const d = new Date(r.created_at);
+    const k = dayKey(d);
+    const g = byDay[k] || (byDay[k] = { date: d, total: 0, sent: 0, proposed: 0, alt: 0, fresh: 0, other: 0 });
+    g.total++;
+    if (r.status === 'sent') g.sent++;
+    else if (r.status === 'proposed') g.proposed++;
+    else if (r.status === 'proposed_alt') g.alt++;
+    else if (r.status === 'new') g.fresh++;
+    else g.other++;
+  });
+  const dayLbl = d => {
+    const sod = x => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    const diff = Math.round((sod(new Date()) - sod(d)) / 86400000);
+    if (diff === 0) return 'Сегодня';
+    if (diff === 1) return 'Вчера';
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+  };
+  const num = (n, color) => `<span style="flex-shrink:0;width:72px;text-align:right;font-family:'IBM Plex Mono',monospace;color:${n ? color : 'var(--text3)'};font-size:12px">${n}</span>`;
+  const hdr = t => `<span style="flex-shrink:0;width:72px;text-align:right;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.05em">${t}</span>`;
+  const dayList = Object.keys(byDay).sort().reverse().slice(0, 30).map(k => byDay[k]);
+  const reqDayRows = `
+    <div class="st-mrow" style="border-bottom:0.5px solid var(--border)">
+      <span style="flex:1;min-width:0;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.05em">День</span>
+      ${hdr('Новых')}${hdr('В работе')}${hdr('Предложен')}${hdr('Альтернатива')}${hdr('Не взяты')}${hdr('Прочее')}
+    </div>` + dayList.map(g => `
+    <div class="st-mrow">
+      <span style="flex:1;min-width:0;color:var(--text1)">${dayLbl(g.date)}</span>
+      ${num(g.total, 'var(--text1)')}${num(g.sent, '#60a5fa')}${num(g.proposed, '#4ade80')}${num(g.alt, '#14b8a6')}${num(g.fresh, 'var(--amber)')}${num(g.other, 'var(--text3)')}
+    </div>`).join('');
+
   const reqFunnel = Object.keys(RSL).map(k => {
     const n = reqStatusCounts[k] || 0;
     const p = pct(n, nReq);
@@ -6221,6 +6258,12 @@ function renderStatsPage() {
 
     <div class="st-card-title" style="margin:14px 0 0">Запросы</div>
     ${reqCards}
+
+    <div class="st-card">
+      <div class="st-card-title"><i class="ti ti-calendar-event"></i>Запросы по дням · сколько пришло и что с ними сейчас</div>
+      ${reqDayRows}
+      <div class="st-kpi-sub" style="margin-top:8px">Статус считается на сейчас, по запросам, созданным в этот день. «Не взяты» — всё ещё «Новый»; «Прочее» — отклонён, не найдено, закрыт и т. п.</div>
+    </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
       <div class="st-card">
