@@ -6187,56 +6187,6 @@ function renderStatsPage() {
         <span class="st-bar-val">$${x.avg.toFixed(0)} · ${x.n}</span>
       </div>`).join('') : `<div class="st-empty">Мало данных по ставкам</div>`;
 
-  // coverage gaps: region GEOs with no active offers
-  const activeGeos = new Set(offActive.map(o => (o.geo || '').toUpperCase()).filter(Boolean));
-  const gaps = [];
-  allRegions.forEach(r => {
-    const geos = allRegionGeos.filter(g => g.region_id === r.id).map(g => (g.geo || '').toUpperCase());
-    const missing = geos.filter(g => g && !activeGeos.has(g));
-    if (missing.length) gaps.push({ region: r.name, missing, total: geos.length });
-  });
-  const gapRows = gaps.length ? gaps.map(g => `
-      <div class="st-mrow">
-        <span style="width:130px;flex-shrink:0;color:var(--text1)">${esc(g.region)}</span>
-        <span style="flex:1;min-width:0;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.missing.map(x => `${flag(x)} ${esc(x)}`).join(' · ')}</span>
-        <span style="flex-shrink:0;font-family:'IBM Plex Mono',monospace;color:var(--red);font-size:11px">${g.missing.length}/${g.total}</span>
-      </div>`).join('') : `<div class="st-empty">Все GEO регионов покрыты</div>`;
-
-  // sleeping partners: in base but no active offers / nothing new for 30+ days
-  const lastByPartner = {};
-  offAll.forEach(o => {
-    if (!o.partner || !o.received_at) return;
-    const t = new Date(o.received_at).getTime();
-    const k = o.partner.trim();
-    if (!lastByPartner[k] || t > lastByPartner[k]) lastByPartner[k] = t;
-  });
-  const activeByPartner = {};
-  offActive.forEach(o => {
-    if (!o.partner) return;
-    const k = o.partner.trim();
-    activeByPartner[k] = (activeByPartner[k] || 0) + 1;
-  });
-  const sleeping = _statsPartners
-    .map(p => {
-      const name = (p.name || '').trim();
-      const last = lastByPartner[name];
-      const days = last ? Math.floor((Date.now() - last) / DAY) : null;
-      return { name, type: p.partner_type, active: activeByPartner[name] || 0, days };
-    })
-    .filter(p => p.active === 0 || (p.days != null && p.days >= 30))
-    .sort((a, b) => (b.days ?? 99999) - (a.days ?? 99999))
-    .slice(0, 15);
-  const sleepRows = sleeping.length ? sleeping.map(p => `
-      <div class="st-mrow">
-        <span style="width:150px;flex-shrink:0;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name) || '—'}</span>
-        <span style="flex:1;color:var(--text3);font-size:11px">${p.type || '—'}</span>
-        <span style="flex-shrink:0;color:var(--text3);font-size:11px">${p.active} активных</span>
-        <span style="flex-shrink:0;width:96px;text-align:right;font-family:'IBM Plex Mono',monospace;color:${(p.days ?? 999) >= 60 ? 'var(--red)' : 'var(--text2)'};font-size:11px">${p.days != null ? p.days + ' дн.' : 'нет офферов'}</span>
-      </div>`).join('') : `<div class="st-empty">Все партнёры активны</div>`;
-
-  const nDirect = _statsPartners.filter(p => (p.partner_type || '').toLowerCase() === 'direct').length;
-  const nNetwork = _statsPartners.filter(p => (p.partner_type || '').toLowerCase() === 'network').length;
-
   el.innerHTML = `
     <div class="st-card-title" style="margin:0">Выдачи и деньги</div>
     ${noDeliveries ? `<div class="st-empty">За выбранный период выдач нет</div>` : ''}
@@ -6309,29 +6259,9 @@ function renderStatsPage() {
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
       <div class="st-card">
-        <div class="st-card-title"><i class="ti ti-share"></i>Источники трафика</div>
-        ${countRows(topBy('traffic_source', 6))}
-      </div>
-      <div class="st-card">
-        <div class="st-card-title"><i class="ti ti-device-gamepad"></i>Типы игр</div>
-        ${countRows(topBy('game_type', 6))}
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px">
-      <div class="st-card">
         <div class="st-card-title"><i class="ti ti-currency-dollar"></i>Средняя ставка по GEO · USD</div>
         ${rateRows}
       </div>
-      <div class="st-card">
-        <div class="st-card-title"><i class="ti ti-map-pin-off"></i>Дыры в покрытии регионов</div>
-        ${gapRows}
-      </div>
-    </div>
-
-    <div class="st-card">
-      <div class="st-card-title"><i class="ti ti-zzz"></i>Спящие партнёры · ${nDirect} Direct / ${nNetwork} Network в базе</div>
-      ${sleepRows}
     </div>`;
 }
 
