@@ -259,6 +259,7 @@ tr:hover .row-actions{opacity:1}
 .kb-card{background:var(--bg);border:0.5px solid var(--border2);border-radius:8px;padding:7px 9px;cursor:grab;transition:border-color 0.12s;position:relative}
 .kb-card:hover{border-color:var(--accent-border)}
 .kb-card.dnd-source{opacity:0.35}
+.kb-day-sep{flex-shrink:0;height:1px;background:var(--border);margin:8px 6px;pointer-events:none}
 .kb-del{position:absolute;top:4px;right:4px;opacity:0;transition:opacity 0.12s;padding:2px;line-height:1}
 .kb-card:hover .kb-del{opacity:0.75}
 .kb-del:hover{opacity:1 !important}
@@ -3252,7 +3253,13 @@ function renderRequests() {
       <div class="kb-cards">
         ${reqs.length === 0
           ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:20px 8px;font-family:'IBM Plex Mono',monospace">—</div>`
-          : reqs.map(req => renderKbCard(req)).join('')
+          : reqs.map((req, i) => {
+              // thin line (no date) between requests of different days
+              const dk = d => d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : 'x';
+              const day = r => dk(r.created_at ? new Date(r.created_at) : null);
+              const sep = (i > 0 && day(req) !== day(reqs[i - 1])) ? '<div class="kb-day-sep"></div>' : '';
+              return sep + renderKbCard(req);
+            }).join('')
         }
       </div>
     </div>`;
