@@ -859,6 +859,13 @@ tr:hover .row-actions{opacity:1}
           <div class="filter-menu-list" id="bulk-game-list"></div>
         </div>
       </div>
+      <div class="filter-dropdown">
+        <button class="btn btn-ghost" onclick="event.stopPropagation();openBulkPartnerMenu()" style="font-size:11px;padding:4px 10px"><i class="ti ti-users"></i>Сменить партнёра<i class="ti ti-chevron-down" style="font-size:10px;opacity:0.6;margin-left:3px"></i></button>
+        <div class="filter-menu hidden" id="menu-bulkPartner" style="right:0;left:auto;min-width:220px" onclick="event.stopPropagation()">
+          <div class="filter-search"><input type="text" id="bulkPartnerSearch" placeholder="Поиск партнёра..." oninput="renderBulkPartnerList()"></div>
+          <div class="filter-menu-list" id="bulk-partner-list" style="max-height:260px;overflow-y:auto"></div>
+        </div>
+      </div>
       <button class="btn" onclick="deleteSelected()" style="background:#1e0a0a;border-color:#3a1212;color:var(--red);font-size:11px;padding:4px 10px"><i class="ti ti-trash"></i>Удалить выбранные</button>
     </div>
   </div>
@@ -3999,6 +4006,55 @@ async function setSelectedGame(game) {
   }
   invalidateOfferVersions();
   showToast(value ? `Тип игры «${value}» → ${ids.length} оффер(ов)` : `Тип игры убран у ${ids.length} оффер(ов)`, 'success');
+  bulkMode = false;
+  document.getElementById('offersTable').classList.remove('bulk-mode');
+  document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
+  clearSelection();
+  buildDynamicFilters();
+  loadOffers();
+}
+
+// Bulk "Сменить партнёра": partners come from the Партнёры table (so partner_type can be stamped
+// together with the name) plus partner names already used on offers. A partner is mandatory — no "clear" option.
+let _bulkPartnerOptions = [];
+async function openBulkPartnerMenu() {
+  toggleFilterMenu('bulkPartner');
+  const search = document.getElementById('bulkPartnerSearch');
+  if (search) { search.value = ''; setTimeout(() => search.focus(), 30); }
+  document.getElementById('bulk-partner-list').innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Загрузка…</div>';
+  const { data } = await sb.from('partners').select('name,partner_type').eq('project', currentProject).order('name');
+  const map = new Map();
+  (data || []).forEach(p => { if (p.name) map.set(p.name.toLowerCase(), { name: p.name, type: p.partner_type === 'direct' ? 'Direct' : 'Network' }); });
+  (window._allPartners || []).forEach(n => { if (n && !map.has(n.toLowerCase())) map.set(n.toLowerCase(), { name: n, type: null }); });
+  _bulkPartnerOptions = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  renderBulkPartnerList();
+}
+
+function renderBulkPartnerList() {
+  const q = (document.getElementById('bulkPartnerSearch')?.value || '').toLowerCase().trim();
+  const items = _bulkPartnerOptions.filter(p => !q || p.name.toLowerCase().includes(q));
+  document.getElementById('bulk-partner-list').innerHTML = items.length
+    ? items.map(p => `<div class="filter-option" onclick="setSelectedPartner(decodeURIComponent('${encodeURIComponent(p.name)}'))">${esc(p.name)}${p.type ? ` <span style="opacity:0.45;font-size:10px">${p.type}</span>` : ''}</div>`).join('')
+    : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
+}
+
+async function setSelectedPartner(name) {
+  const ids = [...document.querySelectorAll('.row-cb:checked')].map(el => el.value);
+  closeAllMenus();
+  if (ids.length === 0) { showToast('Ничего не выбрано', 'error'); return; }
+  const partner = (name || '').trim();
+  if (!partner) { showToast('Партнёр не может быть пустым', 'error'); return; }
+  const rec = _bulkPartnerOptions.find(p => p.name.toLowerCase() === partner.toLowerCase());
+  const patch = { partner: rec ? rec.name : partner };
+  if (rec && rec.type) patch.partner_type = rec.type; // keep Network/Direct in sync with the partner
+
+  const BATCH = 200;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const { error } = await sb.from('offers').update(patch).in('id', ids.slice(i, i + BATCH));
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  }
+  invalidateOfferVersions();
+  showToast(`Партнёр «${patch.partner}» → ${ids.length} оффер(ов)`, 'success');
   bulkMode = false;
   document.getElementById('offersTable').classList.remove('bulk-mode');
   document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
