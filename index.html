@@ -229,6 +229,8 @@ tr:hover .row-actions{opacity:1}
 .bulk-mode .bulk-cb-col { display: table-cell; }
 .bulk-mode-th { display: none; width: 36px; padding: 9px 4px 9px 14px !important; }
 .bulk-mode .bulk-mode-th { display: table-cell; }
+/* Direct offers don't go stale (stable rates), so the status column is just noise there */
+.page-direct .col-status { display: none; }
 
 /* Request cards */
 .req-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:border-color 0.15s}
@@ -888,7 +890,7 @@ tr:hover .row-actions{opacity:1}
           <th>KPI</th>
           <th>Платформа</th>
           <th>Партнёр</th>
-          <th>Статус</th>
+          <th class="col-status">Статус</th>
           <th onclick="sortBy('received_at')">Получен <i class="ti ti-selector"></i></th>
           <th></th>
         </tr>
@@ -2250,7 +2252,7 @@ function buildRowHtml(o) {
       <td>${kpiBadge(o.kpi)}</td>
       <td>${o.platform?`<span style="color:var(--text3);font-size:11px">${esc(o.platform)}</span>`:'<span class="td-empty">—</span>'}</td>
       <td><div class="partner-cell">${o.partner?`<span class="partner-name">${esc(o.partner)}</span>`:'<span class="td-empty">—</span>'}${o.partner_type?`<span class="badge ${o.partner_type==='Direct'?'badge-direct':'badge-network'}" style="font-size:10px;padding:1px 5px">${o.partner_type}</span>`:''}</div></td>
-      <td>${statusBadge(o.status)}</td>
+      <td class="col-status">${statusBadge(o.status)}</td>
       <td>${dateBadge(o.received_at)}</td>
       <td><div class="row-actions">
         <button class="act-btn" onclick="editOffer('${o.id}')"><i class="ti ti-edit"></i></button>
@@ -6420,6 +6422,7 @@ function switchPage(page) {
     if (titleEl) titleEl.innerHTML = page === 'direct'
       ? '<i class="ti ti-building"></i>База офферов Direct'
       : '<i class="ti ti-table"></i>База офферов';
+    document.getElementById('offersTable')?.classList.toggle('page-direct', page === 'direct');
     const addBtnLabel = document.getElementById('topbarAddBtn');
     if (addBtnLabel) addBtnLabel.innerHTML = page === 'direct'
       ? '<i class="ti ti-plus"></i>Добавить Direct-офферы'
