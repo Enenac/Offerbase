@@ -4909,7 +4909,7 @@ function refreshExportText() {
       if (!on(f.key)) continue;
       const p = fieldPart(f, o);
       if (!p) continue;
-      parts.push(f.key === 'kpi' ? ('KPI: ' + p) : p);
+      parts.push(p);
     }
     return { geo: (o.geo || '').toUpperCase(), line: parts.join(' • ') };
   }).filter(e => e.line);
