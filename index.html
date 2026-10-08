@@ -6490,11 +6490,27 @@ function addNpBrand() {
         <input class="form-input np-brand-name" placeholder="Название бренда" style="flex:1">
         <button class="icon-btn" type="button" onclick="this.closest('.np-brand').remove()" title="Убрать бренд"><i class="ti ti-x"></i></button>
       </div>
-      <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" style="margin-bottom:8px">
+      <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
       <div class="np-sources"></div>
       <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
     </div>`);
   addNpSource(box.lastElementChild);
+}
+
+// GEO field: commas / semicolons / line breaks become a single space, extra spaces collapse, letters go UPPERCASE.
+// Runs as you type or paste (no button needed); the caret stays where it was. On blur the trailing space is trimmed.
+function normalizeGeoInput(el, trim) {
+  const norm = v => v.replace(/[,;\n\r\t]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
+  const before = el.value;
+  let after = norm(before);
+  if (trim) after = after.trim();
+  if (after === before) return;
+  const caret = el.selectionStart;
+  el.value = after;
+  if (!trim && caret != null && document.activeElement === el) {
+    const pos = norm(before.slice(0, caret)).length;
+    el.setSelectionRange(pos, pos);
+  }
 }
 
 function addNpSource(brandEl) {
