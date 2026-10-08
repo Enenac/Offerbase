@@ -6488,13 +6488,16 @@ function addNpBrand(boxId, preset) {
       <div style="display:flex;gap:8px;margin-bottom:8px">
         <input class="form-input np-brand-name" placeholder="Название бренда" style="flex:1" value="${esc(preset ? preset.name : '')}">
         <label class="np-nofb" title="Рекл не принимает Facebook" style="display:flex;align-items:center;gap:5px;padding:0 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:11.5px;white-space:nowrap;cursor:pointer;color:var(--text3);flex-shrink:0"><input type="checkbox" class="np-brand-nofb" onchange="styleNpNoFb(this)" ${preset && preset.noFb ? 'checked' : ''} style="accent-color:#ef4444;cursor:pointer">Не принимает ФБ</label>
-        <button class="icon-btn" type="button" onclick="this.closest('.np-brand').remove()" title="Убрать бренд"><i class="ti ti-x"></i></button>
+        <button class="icon-btn" type="button" onclick="removeNpBrand(this)" title="Убрать бренд"><i class="ti ti-x"></i></button>
       </div>
+      <button class="btn btn-ghost np-copy-prev" type="button" onclick="copyPrevBrand(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px;margin-bottom:8px"><i class="ti ti-copy"></i>Как у предыдущего бренда</button>
       <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" value="${esc(preset ? preset.geos.join(' ') : '')}" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
       <div class="np-sources"></div>
-      <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
+      <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'), null, true)" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
     </div>`);
   styleNpNoFb(box.lastElementChild.querySelector('.np-brand-nofb'));
+  refreshNpCopyBtns(box);
+  if (!preset && box.children.length > 1) setTimeout(() => box.lastElementChild.querySelector('.np-brand-name').focus(), 0);
   if (preset && preset.sources.length) preset.sources.forEach(sr => addNpSource(box.lastElementChild, sr));
   else addNpSource(box.lastElementChild);
 }
@@ -6522,6 +6525,34 @@ function styleNpKpi(sel) {
   sel.style.borderColor = yes ? 'rgba(245,158,11,0.55)' : '';
 }
 
+function refreshNpCopyBtns(box) {
+  [...box.querySelectorAll('.np-brand')].forEach((b, i) => { b.querySelector('.np-copy-prev').style.display = i === 0 ? 'none' : ''; });
+}
+
+function removeNpBrand(btn) {
+  const b = btn.closest('.np-brand'), box = b.parentElement;
+  b.remove();
+  refreshNpCopyBtns(box);
+}
+
+// copies GEOs, sources (with rate / KPI) and the no-FB flag from the previous brand block; the name stays yours
+function copyPrevBrand(block) {
+  const prev = block.previousElementSibling;
+  if (!prev || !prev.classList.contains('np-brand')) return;
+  block.querySelector('.np-brand-geos').value = prev.querySelector('.np-brand-geos').value;
+  const cb = block.querySelector('.np-brand-nofb');
+  cb.checked = prev.querySelector('.np-brand-nofb').checked; styleNpNoFb(cb);
+  block.querySelector('.np-sources').innerHTML = '';
+  const rows = [...prev.querySelectorAll('.np-src')];
+  if (!rows.length) addNpSource(block);
+  rows.forEach(r => addNpSource(block, {
+    name: r.dataset.blank === '1' && !r.querySelector('.np-src-name').value.trim() ? r.dataset.raw : r.querySelector('.np-src-name').value.trim(),
+    rate: r.querySelector('.np-src-rate').value.trim(),
+    kpi: r.querySelector('.np-src-kpi').value,
+  }));
+  block.querySelector('.np-brand-name').focus();
+}
+
 function styleNpNoFb(cb) {
   const l = cb.closest('.np-nofb');
   l.style.color = cb.checked ? '#ef4444' : 'var(--text3)';
@@ -6529,7 +6560,7 @@ function styleNpNoFb(cb) {
   l.style.background = cb.checked ? 'rgba(239,68,68,0.10)' : '';
 }
 
-function addNpSource(brandEl, preset) {
+function addNpSource(brandEl, preset, focusNew) {
   const blank = preset && isBlankSource(preset.name);
   brandEl.querySelector('.np-sources').insertAdjacentHTML('beforeend', `
     <div class="np-src" style="display:flex;gap:6px;margin-bottom:6px"${blank ? ` data-blank="1" data-raw="${esc((preset.name || '').trim())}"` : ''}>
@@ -6539,6 +6570,11 @@ function addNpSource(brandEl, preset) {
       <button class="icon-btn" type="button" onclick="this.closest('.np-src').remove()" title="Убрать источник"><i class="ti ti-x"></i></button>
     </div>`);
   const added = brandEl.querySelector('.np-sources').lastElementChild;
+  if (focusNew) {
+    const inp = added.querySelector('.np-src-name');
+    inp.focus();
+    try { inp.showPicker && inp.showPicker(); } catch (_) {} // open the source suggestions right away
+  }
   if (preset && preset.kpi) { added.querySelector('.np-src-kpi').value = preset.kpi; styleNpKpi(added.querySelector('.np-src-kpi')); }
 }
 
