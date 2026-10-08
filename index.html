@@ -6567,6 +6567,7 @@ function collectNpOffers(canonSources) {
 function openAddPartnerModal() {
   document.getElementById('newPartnerName').value = '';
   document.getElementById('newPartnerType').value = 'direct';
+  document.getElementById('newPartnerNoFb').checked = false;
   document.getElementById('newPartnerBrands').innerHTML = '';
   // source suggestions: what's already in the base + the form's list
   const opts = new Map();
@@ -6710,6 +6711,12 @@ function renderPartnersGrid() {
     const activeOffers = partnerOffers.filter(o => o.status === 'active');
     const brands = [...new Set(partnerOffers.map(o => o.brand).filter(Boolean))];
     const isExpanded = expandedPartnerId === p.id;
+    const noFbBadge = p.no_fb
+      ? `<span class="badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border:0.5px solid rgba(239,68,68,0.35);display:inline-flex;align-items:center;gap:3px"><i class="ti ti-brand-facebook" style="font-size:11px"></i>Не принимает FB</span>`
+      : '';
+    const noFbToggle = isExpanded
+      ? `<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:7px;padding:8px 14px;border-top:0.5px solid var(--border);font-size:11.5px;color:var(--text2);cursor:pointer"><input type="checkbox" ${p.no_fb ? 'checked' : ''} onchange="togglePartnerNoFb('${p.id}', this.checked)" style="accent-color:#ef4444;cursor:pointer">Не принимает Facebook</label>`
+      : '';
 
     // Top 5 offers sorted by rate
     const topOffers = partnerOffers.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
@@ -6717,11 +6724,11 @@ function renderPartnersGrid() {
     let offersHtml = '';
     if (isExpanded) {
       if (isDirect && partnerOffers.length > 0) {
-        offersHtml = renderDirectBrandSummary(p.id, partnerOffers);
+        offersHtml = noFbToggle + renderDirectBrandSummary(p.id, partnerOffers);
       } else if (topOffers.length === 0) {
-        offersHtml = `<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Офферов нет в базе</div>`;
+        offersHtml = noFbToggle + `<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Офферов нет в базе</div>`;
       } else {
-        offersHtml = `<div style="border-top:0.5px solid var(--border);padding:8px">
+        offersHtml = noFbToggle + `<div style="border-top:0.5px solid var(--border);padding:8px">
           <div style="display:grid;grid-template-columns:28px 1fr auto;gap:6px;padding:4px 6px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px">
             <span></span><span>Бренд / GEO</span><span style="text-align:right">Ставка</span>
           </div>
@@ -6749,7 +6756,7 @@ function renderPartnersGrid() {
         <div class="sb-partner-info">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="sb-partner-name">${esc(p.name)}</span>
-            ${typeBadge}
+            ${typeBadge}${noFbBadge}
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
@@ -6835,6 +6842,17 @@ function renderDirectBrandSummary(partnerId, offers) {
   return `<div style="padding:2px 8px 6px">${blocks}</div>`;
 }
 
+async function togglePartnerNoFb(id, val) {
+  const p = allPartners.find(x => String(x.id) === String(id));
+  const { error } = await sb.from('partners').update({ no_fb: val }).eq('id', id);
+  if (error) {
+    showToast(/no_fb/.test(error.message) ? 'Нужна колонка no_fb в таблице partners (SQL ниже в чате)' : 'Ошибка: ' + error.message, 'error');
+    renderPartnersGrid(); return;
+  }
+  if (p) p.no_fb = val;
+  renderPartnersGrid();
+}
+
 function togglePartnerCard(id) {
   expandedPartnerId = (expandedPartnerId === id) ? null : id;
   renderPartnersGrid();
@@ -6894,8 +6912,13 @@ async function addPartner() {
   }
   const partnerName = existing ? existing.name : name;
   if (!existing) {
-    const { error } = await sb.from('partners').insert({ name, partner_type: type, project: currentProject });
-    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+    const noFb = document.getElementById('newPartnerNoFb').checked;
+    const { error } = await sb.from('partners').insert(noFb
+      ? { name, partner_type: type, project: currentProject, no_fb: true }
+      : { name, partner_type: type, project: currentProject });
+    if (error) { showToast(/no_fb/.test(error.message) ? 'Нужна колонка no_fb в таблице partners' : 'Ошибка: ' + error.message, 'error'); return; }
+  } else if (document.getElementById('newPartnerNoFb').checked && !existing.no_fb) {
+    await sb.from('partners').update({ no_fb: true }).eq('id', existing.id);
   }
 
   if (offerRows.length) {
@@ -7356,6 +7379,7 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:var(--text2);cursor:pointer"><input type="checkbox" id="newPartnerNoFb" style="accent-color:#ef4444">Не принимает Facebook</label>
       <div id="newPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— на каждый бренд × гео × источник создастся оффер Direct</span></label>
         <div id="newPartnerBrands"></div>
