@@ -6474,9 +6474,82 @@ function filterPartners(q) {
   renderPartnersGrid();
 }
 
+// ── Add partner: brands → offers (Direct only) ───────
+function onNewPartnerTypeChange() {
+  const direct = document.getElementById('newPartnerType').value === 'direct';
+  document.getElementById('newPartnerBrandsWrap').style.display = direct ? 'block' : 'none';
+  document.getElementById('addPartnerModalBox').style.maxWidth = direct ? '620px' : '380px';
+  if (direct && !document.querySelector('#newPartnerBrands .np-brand')) addNpBrand();
+}
+
+function addNpBrand() {
+  const box = document.getElementById('newPartnerBrands');
+  box.insertAdjacentHTML('beforeend', `
+    <div class="np-brand" style="border:0.5px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3)">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="form-input np-brand-name" placeholder="Название бренда" style="flex:1">
+        <button class="icon-btn" type="button" onclick="this.closest('.np-brand').remove()" title="Убрать бренд"><i class="ti ti-x"></i></button>
+      </div>
+      <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" style="margin-bottom:8px">
+      <div class="np-sources"></div>
+      <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
+    </div>`);
+  addNpSource(box.lastElementChild);
+}
+
+function addNpSource(brandEl) {
+  brandEl.querySelector('.np-sources').insertAdjacentHTML('beforeend', `
+    <div class="np-src" style="display:flex;gap:6px;margin-bottom:6px">
+      <input class="form-input np-src-name" list="npSourceList" placeholder="Источник" style="flex:1">
+      <input class="form-input np-src-rate" placeholder="Ставка: 170 USD" style="width:150px">
+      <button class="icon-btn" type="button" onclick="this.closest('.np-src').remove()" title="Убрать источник"><i class="ti ti-x"></i></button>
+    </div>`);
+}
+
+// reads the brand blocks → one offer per brand × geo × source; returns { rows, errors }
+function collectNpOffers(canonSources) {
+  const rows = [], errors = [];
+  const seen = new Set();
+  document.querySelectorAll('#newPartnerBrands .np-brand').forEach((b, i) => {
+    const name = b.querySelector('.np-brand-name').value.trim();
+    const geos = [...new Set(b.querySelector('.np-brand-geos').value.split(/[\s,]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
+    const srcs = [...b.querySelectorAll('.np-src')].map(r => ({
+      name: r.querySelector('.np-src-name').value.trim(),
+      rate: r.querySelector('.np-src-rate').value.trim(),
+    })).filter(x => x.name || x.rate);
+    if (!name && !geos.length && !srcs.length) return; // untouched empty block
+    const label = name || `Бренд №${i + 1}`;
+    if (!name) { errors.push(`${label}: не указано название`); return; }
+    if (!geos.length) errors.push(`${label}: не указано ни одного гео`);
+    if (!srcs.length) errors.push(`${label}: не указано ни одного источника`);
+    srcs.forEach(x => {
+      if (isBlankSource(x.name)) errors.push(`${label}: у ставки «${x.rate}» не указан источник`);
+      else if (!x.rate) errors.push(`${label} · ${x.name}: не указана ставка`);
+    });
+    if (errors.length) return;
+    srcs.forEach(x => {
+      const src = canonSources[x.name.toLowerCase()] || x.name; // keep the spelling already used in the base
+      geos.forEach(geo => {
+        const key = [name.toLowerCase(), geo, src.toLowerCase()].join('|');
+        if (seen.has(key)) return; // same brand+geo+source typed twice
+        seen.add(key);
+        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate });
+      });
+    });
+  });
+  return { rows, errors };
+}
+
 function openAddPartnerModal() {
   document.getElementById('newPartnerName').value = '';
   document.getElementById('newPartnerType').value = 'direct';
+  document.getElementById('newPartnerBrands').innerHTML = '';
+  // source suggestions: what's already in the base + the form's list
+  const opts = new Map();
+  [...(window._allSources || []), ...[...document.querySelectorAll('#f-source option')].map(o => o.value)]
+    .forEach(v => { const t = (v || '').trim(); if (t && !opts.has(t.toLowerCase())) opts.set(t.toLowerCase(), t); });
+  document.getElementById('npSourceList').innerHTML = [...opts.values()].map(v => `<option value="${esc(v)}"></option>`).join('');
+  onNewPartnerTypeChange();
   document.getElementById('addPartnerOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('newPartnerName').focus(), 50);
 }
@@ -6710,11 +6783,49 @@ async function addPartner() {
   const name = nameEl.value.trim();
   if (!name) { nameEl.focus(); return; }
   const type = typeEl.value;
-  const { error } = await sb.from('partners').insert({ name, partner_type: type, project: currentProject });
-  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+
+  // brands → offers (Direct only); validate everything BEFORE anything is written
+  let offerRows = [];
+  if (type === 'direct') {
+    const canonSources = {};
+    (window._allSources || []).forEach(v => { canonSources[v.toLowerCase()] = v; });
+    const { rows, errors } = collectNpOffers(canonSources);
+    if (errors.length) { showToast(errors[0] + (errors.length > 1 ? ` (и ещё ${errors.length - 1})` : ''), 'error'); return; }
+    offerRows = rows;
+  }
+
+  // reuse the partner if it already exists (no duplicate rows); a type clash is an error
+  const existing = allPartners.find(p => (p.name || '').trim().toLowerCase() === name.toLowerCase());
+  if (existing && existing.partner_type !== type) {
+    showToast(`Партнёр «${existing.name}» уже есть с типом ${existing.partner_type === 'direct' ? 'Direct' : 'Network'}`, 'error'); return;
+  }
+  const partnerName = existing ? existing.name : name;
+  if (!existing) {
+    const { error } = await sb.from('partners').insert({ name, partner_type: type, project: currentProject });
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  }
+
+  if (offerRows.length) {
+    const canonMap = await buildBrandCanonMap(currentProject);
+    const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD, local
+    const toInsert = offerRows.map(r => ({
+      project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
+      traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: null,
+      capa: null, kpi: null, platform: null, partner: partnerName, partner_type: 'Direct',
+      status: 'active', notes: null, received_at: today, rate_usd_num: parseRateToUsd(r.rate),
+    }));
+    const { error: oErr } = await sb.from('offers').insert(toInsert);
+    invalidateOfferVersions();
+    if (oErr) {
+      document.getElementById('addPartnerOverlay').classList.add('hidden');
+      showToast('Партнёр добавлен, но офферы не созданы: ' + oErr.message, 'error');
+      await loadPartners();
+      return;
+    }
+  }
   nameEl.value = '';
   document.getElementById('addPartnerOverlay').classList.add('hidden');
-  showToast('Партнёр добавлен', 'success');
+  showToast(offerRows.length ? `Партнёр добавлен · создано офферов: ${offerRows.length}` : 'Партнёр добавлен', 'success');
   await loadPartners();
 }
 
@@ -7135,7 +7246,7 @@ function showToast(msg,type='success') {
 </div>
 
 <div class="modal-overlay hidden" id="addPartnerOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
-  <div class="modal" style="max-width:380px">
+  <div class="modal" id="addPartnerModalBox" style="max-width:380px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-plus"></i>Добавить партнёра</span>
       <button class="icon-btn" onclick="document.getElementById('addPartnerOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
@@ -7147,10 +7258,16 @@ function showToast(msg,type='success') {
       </div>
       <div class="form-group">
         <label class="form-label">Тип</label>
-        <select class="form-select" id="newPartnerType">
+        <select class="form-select" id="newPartnerType" onchange="onNewPartnerTypeChange()">
           <option value="direct">Direct</option>
           <option value="network">Network</option>
         </select>
+      </div>
+      <div id="newPartnerBrandsWrap" style="margin-top:16px;display:none">
+        <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— на каждый бренд × гео × источник создастся оффер Direct</span></label>
+        <div id="newPartnerBrands"></div>
+        <button class="btn btn-ghost" type="button" onclick="addNpBrand()" style="font-size:11px;padding:4px 10px"><i class="ti ti-plus"></i>Бренд</button>
+        <datalist id="npSourceList"></datalist>
       </div>
     </div>
     <div class="modal-footer">
