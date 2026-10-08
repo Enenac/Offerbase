@@ -379,7 +379,6 @@ tr:hover .row-actions{opacity:1}
 .sb-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text3);gap:10px;text-align:center}
 .sb-empty i{font-size:32px;color:var(--border2)}
 /* Edit partner modal */
-#editPartnerOverlay .modal{max-width:380px}
 
 /* ── DELIVERIES ──────────────────────────────────── */
 .del-table{width:100%;border-collapse:collapse}
@@ -6482,19 +6481,20 @@ function onNewPartnerTypeChange() {
   if (direct && !document.querySelector('#newPartnerBrands .np-brand')) addNpBrand();
 }
 
-function addNpBrand() {
-  const box = document.getElementById('newPartnerBrands');
+function addNpBrand(boxId, preset) {
+  const box = document.getElementById(boxId || 'newPartnerBrands');
   box.insertAdjacentHTML('beforeend', `
     <div class="np-brand" style="border:0.5px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3)">
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input class="form-input np-brand-name" placeholder="Название бренда" style="flex:1">
+        <input class="form-input np-brand-name" placeholder="Название бренда" style="flex:1" value="${esc(preset ? preset.name : '')}">
         <button class="icon-btn" type="button" onclick="this.closest('.np-brand').remove()" title="Убрать бренд"><i class="ti ti-x"></i></button>
       </div>
-      <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
+      <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" value="${esc(preset ? preset.geos.join(' ') : '')}" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
       <div class="np-sources"></div>
       <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
     </div>`);
-  addNpSource(box.lastElementChild);
+  if (preset && preset.sources.length) preset.sources.forEach(sr => addNpSource(box.lastElementChild, sr));
+  else addNpSource(box.lastElementChild);
 }
 
 // GEO field: commas / semicolons / line breaks become a single space, extra spaces collapse, letters go UPPERCASE.
@@ -6520,41 +6520,45 @@ function styleNpKpi(sel) {
   sel.style.borderColor = yes ? 'rgba(245,158,11,0.55)' : '';
 }
 
-function addNpSource(brandEl) {
+function addNpSource(brandEl, preset) {
+  const blank = preset && isBlankSource(preset.name);
   brandEl.querySelector('.np-sources').insertAdjacentHTML('beforeend', `
-    <div class="np-src" style="display:flex;gap:6px;margin-bottom:6px">
-      <input class="form-input np-src-name" list="npSourceList" placeholder="Источник" style="flex:1">
-      <input class="form-input np-src-rate" placeholder="Ставка, необяз." style="width:150px">
+    <div class="np-src" style="display:flex;gap:6px;margin-bottom:6px"${blank ? ` data-blank="1" data-raw="${esc((preset.name || '').trim())}"` : ''}>
+      <input class="form-input np-src-name" list="npSourceList" placeholder="${blank ? 'Источник не указан (-)' : 'Источник'}" value="${esc(preset && !blank ? preset.name : '')}" style="flex:1">
+      <input class="form-input np-src-rate" placeholder="Ставка, необяз." value="${esc(preset ? (preset.rate || '') : '')}" style="width:150px">
       <select class="form-select np-src-kpi" onchange="styleNpKpi(this)" title="KPI: «-» не указано · Нет KPI · Есть KPI" style="flex-shrink:0;width:112px"><option value="">-</option><option value="No KPI">Нет KPI</option><option value="KPI">Есть KPI</option></select>
       <button class="icon-btn" type="button" onclick="this.closest('.np-src').remove()" title="Убрать источник"><i class="ti ti-x"></i></button>
     </div>`);
+  const added = brandEl.querySelector('.np-sources').lastElementChild;
+  if (preset && preset.kpi) { added.querySelector('.np-src-kpi').value = preset.kpi; styleNpKpi(added.querySelector('.np-src-kpi')); }
 }
 
 // reads the brand blocks → one offer per brand × geo × source; returns { rows, errors }
-function collectNpOffers(canonSources) {
+function collectNpOffers(canonSources, boxId) {
   const rows = [], errors = [];
   const seen = new Set();
-  document.querySelectorAll('#newPartnerBrands .np-brand').forEach((b, i) => {
+  document.querySelectorAll('#' + (boxId || 'newPartnerBrands') + ' .np-brand').forEach((b, i) => {
     const name = b.querySelector('.np-brand-name').value.trim();
     const geos = [...new Set(b.querySelector('.np-brand-geos').value.split(/[\s,]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
     const srcs = [...b.querySelectorAll('.np-src')].map(r => ({
       name: r.querySelector('.np-src-name').value.trim(),
       rate: r.querySelector('.np-src-rate').value.trim(),
       kpi: r.querySelector('.np-src-kpi').value || null,
-    })).filter(x => x.name || x.rate);
+      blank: r.dataset.blank === '1', raw: r.dataset.raw || '',
+    })).filter(x => x.name || x.rate || x.blank);
     if (!name && !geos.length && !srcs.length) return; // untouched empty block
     const label = name || `Бренд №${i + 1}`;
     if (!name) { errors.push(`${label}: не указано название`); return; }
     if (!geos.length) errors.push(`${label}: не указано ни одного гео`);
     if (!srcs.length) errors.push(`${label}: не указано ни одного источника`);
     srcs.forEach(x => {
-      if (isBlankSource(x.name)) errors.push(`${label}: у ставки «${x.rate}» не указан источник`);
+      if (isBlankSource(x.name) && !(x.blank && !x.name)) errors.push(`${label}: у ставки «${x.rate}» не указан источник`);
     });
     if (errors.length) return;
     srcs.forEach(x => {
-      const src = canonSources[x.name.toLowerCase()] || x.name; // keep the spelling already used in the base
+      const src = (x.blank && !x.name) ? x.raw : (canonSources[x.name.toLowerCase()] || x.name); // keep the spelling already used in the base
       geos.forEach(geo => {
-        const key = [name.toLowerCase(), geo, src.toLowerCase()].join('|');
+        const key = [name.toLowerCase(), geo, isBlankSource(src) ? '' : src.toLowerCase()].join('|');
         if (seen.has(key)) return; // same brand+geo+source typed twice
         seen.add(key);
         rows.push({ brand: name, geo, traffic_source: src, rate: x.rate || null, kpi: x.kpi });
@@ -6858,13 +6862,76 @@ function togglePartnerCard(id) {
   renderPartnersGrid();
 }
 
-function openEditPartner(id) {
+function onEditPartnerTypeChange() {
+  const direct = document.getElementById('editPartnerType').value === 'direct';
+  document.getElementById('editPartnerBrandsWrap').style.display = direct ? 'block' : 'none';
+  document.getElementById('editPartnerModalBox').style.maxWidth = direct ? '620px' : '380px';
+  if (direct && !document.querySelector('#editPartnerBrands .np-brand')) addNpBrand('editPartnerBrands');
+}
+
+const _skey = v => isBlankSource(v) ? '' : v.trim().toLowerCase();
+
+// existing offers of a partner → brand blocks. Geos with the same set of sources/rates/KPI share a block, so
+// uneven data (different sources per geo) is shown as-is and saving doesn't invent offers that never existed.
+function groupOffersToBlocks(offers) {
+  const brands = new Map();
+  offers.forEach(o => {
+    const bn = (o.brand || '').trim(), geo = (o.geo || '').trim().toUpperCase();
+    if (!bn || !geo) return;
+    const bk = bn.toLowerCase();
+    if (!brands.has(bk)) brands.set(bk, { names: new Map(), geos: new Map() });
+    const b = brands.get(bk);
+    b.names.set(bn, (b.names.get(bn) || 0) + 1);
+    if (!b.geos.has(geo)) b.geos.set(geo, new Map());
+    b.geos.get(geo).set(_skey(o.traffic_source), { name: (o.traffic_source || '').trim(), rate: (o.rate || '').trim(), kpi: o.kpi || '' });
+  });
+  const blocks = [];
+  [...brands.values()].sort((a, b) => b.geos.size - a.geos.size).forEach(b => {
+    const name = [...b.names.entries()].sort((x, y) => y[1] - x[1])[0][0];
+    const bySig = new Map();
+    [...b.geos.entries()].sort((x, y) => x[0].localeCompare(y[0])).forEach(([geo, srcs]) => {
+      const sig = [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
+      if (!bySig.has(sig)) bySig.set(sig, { name, geos: [], sources: [...srcs.values()] });
+      bySig.get(sig).geos.push(geo);
+    });
+    blocks.push(...bySig.values());
+  });
+  return blocks;
+}
+
+async function fetchPartnerOffersFull(name) {
+  const { data, error } = await sb.from('offers')
+    .select('id, brand, geo, traffic_source, rate, kpi')
+    .eq('project', currentProject).ilike('partner', name).limit(100000);
+  if (error) throw error;
+  return data || [];
+}
+
+async function openEditPartner(id) {
   const p = allPartners.find(x => x.id === id);
   if (!p) return;
   document.getElementById('editPartnerId').value = p.id;
   document.getElementById('editPartnerName').value = p.name;
   document.getElementById('editPartnerType').value = p.partner_type;
+  document.getElementById('editPartnerNoFb').checked = !!p.no_fb;
+  const box = document.getElementById('editPartnerBrands');
+  box.innerHTML = '';
+  const opts = new Map();
+  [...(window._allSources || []), ...[...document.querySelectorAll('#f-source option')].map(o => o.value)]
+    .forEach(v => { const t = (v || '').trim(); if (t && !opts.has(t.toLowerCase())) opts.set(t.toLowerCase(), t); });
+  document.getElementById('npSourceList').innerHTML = [...opts.values()].map(v => `<option value="${esc(v)}"></option>`).join('');
+  window._editOffersLoaded = false;
   document.getElementById('editPartnerOverlay').classList.remove('hidden');
+  onEditPartnerTypeChange();
+  try {
+    const offers = await fetchPartnerOffersFull(p.name);
+    box.innerHTML = '';
+    groupOffersToBlocks(offers).forEach(b => addNpBrand('editPartnerBrands', b));
+    if (!box.querySelector('.np-brand')) addNpBrand('editPartnerBrands');
+    window._editOffersLoaded = true;
+  } catch (e) {
+    showToast('Не удалось загрузить офферы партнёра: ' + e.message, 'error');
+  }
 }
 
 async function saveEditPartner() {
@@ -6872,9 +6939,52 @@ async function saveEditPartner() {
   const oldPartner = allPartners.find(x => x.id === id);
   const name = document.getElementById('editPartnerName').value.trim();
   const type = document.getElementById('editPartnerType').value;
+  const noFb = document.getElementById('editPartnerNoFb').checked;
   if (!name) return;
-  const { error } = await sb.from('partners').update({ name, partner_type: type }).eq('id', id);
-  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+
+  // 1) validate + plan the offers diff BEFORE writing anything
+  let plan = null;
+  if (type === 'direct' && window._editOffersLoaded && oldPartner) {
+    const canonSources = {};
+    (window._allSources || []).forEach(v => { canonSources[v.toLowerCase()] = v; });
+    const { rows, errors } = collectNpOffers(canonSources, 'editPartnerBrands');
+    if (errors.length) { showToast(errors[0] + (errors.length > 1 ? ` (и ещё ${errors.length - 1})` : ''), 'error'); return; }
+    let existing;
+    try { existing = await fetchPartnerOffersFull(oldPartner.name); }
+    catch (e) { showToast('Ошибка загрузки офферов: ' + e.message, 'error'); return; }
+    const canonMap = await buildBrandCanonMap(currentProject);
+    const exMap = new Map();
+    existing.forEach(o => {
+      const bn = (o.brand || '').trim(), geo = (o.geo || '').trim().toUpperCase();
+      if (!bn || !geo) return; // legacy rows without brand/geo aren't editable here — left untouched
+      const k = [bn.toLowerCase(), geo, _skey(o.traffic_source)].join('|');
+      if (!exMap.has(k)) exMap.set(k, []);
+      exMap.get(k).push(o);
+    });
+    const want = new Set();
+    plan = { ins: [], upd: [], del: [] };
+    rows.forEach(r => {
+      const k = [r.brand.toLowerCase(), r.geo, _skey(r.traffic_source)].join('|');
+      want.add(k);
+      const cur = exMap.get(k);
+      if (!cur) { plan.ins.push(r); return; }
+      const o = cur[0], patch = {};
+      const brand = resolveBrand(r.brand, canonMap);
+      if ((o.brand || '').trim() !== brand) patch.brand = brand;
+      if (!isBlankSource(r.traffic_source) && (o.traffic_source || '').trim() !== r.traffic_source) patch.traffic_source = r.traffic_source;
+      if ((o.rate || '').trim() !== (r.rate || '')) { patch.rate = r.rate || null; patch.rate_usd_num = r.rate ? parseRateToUsd(r.rate) : null; }
+      if ((o.kpi || null) !== (r.kpi || null)) patch.kpi = r.kpi || null;
+      if (Object.keys(patch).length) plan.upd.push({ id: o.id, patch });
+    });
+    exMap.forEach((arr, k) => { if (!want.has(k)) arr.forEach(o => plan.del.push(o.id)); });
+    if (plan.del.length && !confirm(`Будет удалено офферов: ${plan.del.length} (убранные бренды / гео / источники).\nПродолжить?`)) return;
+  }
+
+  // 2) partner record, rename, type
+  const upd = { name, partner_type: type };
+  if (!!(oldPartner && oldPartner.no_fb) !== noFb) upd.no_fb = noFb;
+  const { error } = await sb.from('partners').update(upd).eq('id', id);
+  if (error) { showToast(/no_fb/.test(error.message) ? 'Нужна колонка no_fb в таблице partners' : 'Ошибка: ' + error.message, 'error'); return; }
   if (oldPartner && oldPartner.name !== name) {
     await sb.from('offers').update({ partner: name }).ilike('partner', oldPartner.name);
     allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === oldPartner.name.toLowerCase()) o.partner = name; });
@@ -6882,8 +6992,39 @@ async function saveEditPartner() {
   const typeLabel = type === 'direct' ? 'Direct' : 'Network';
   await sb.from('offers').update({ partner_type: typeLabel }).ilike('partner', name);
   allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === name.toLowerCase()) o.partner_type = typeLabel; });
+
+  // 3) offers diff
+  let summary = '';
+  if (plan && (plan.ins.length || plan.upd.length || plan.del.length)) {
+    try {
+      const canonMap = await buildBrandCanonMap(currentProject);
+      const today = new Date().toLocaleDateString('sv-SE');
+      if (plan.ins.length) {
+        const { error: e1 } = await sb.from('offers').insert(plan.ins.map(r => ({
+          project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
+          traffic_source: r.traffic_source || null, game_type: null, rate: r.rate, min_deposit: null,
+          capa: null, kpi: r.kpi, platform: null, partner: name, partner_type: 'Direct',
+          status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
+        })));
+        if (e1) throw e1;
+      }
+      for (const u of plan.upd) {
+        const { error: e2 } = await sb.from('offers').update(u.patch).eq('id', u.id);
+        if (e2) throw e2;
+      }
+      if (plan.del.length) {
+        const { error: e3 } = await sb.from('offers').delete().in('id', plan.del);
+        if (e3) throw e3;
+      }
+      summary = ` · офферы: +${plan.ins.length} ~${plan.upd.length} −${plan.del.length}`;
+    } catch (e) {
+      showToast('Партнёр сохранён, но офферы обновились не полностью: ' + e.message, 'error');
+    }
+    invalidateOfferVersions();
+    if (typeof loadOffers === 'function') { try { await loadOffers(); } catch (_) {} }
+  }
   document.getElementById('editPartnerOverlay').classList.add('hidden');
-  showToast('Партнёр обновлён', 'success');
+  showToast('Партнёр обновлён' + summary, 'success');
   await loadPartners();
   renderTable();
 }
@@ -7309,12 +7450,12 @@ function showToast(msg,type='success') {
 
 <!-- EDIT PARTNER MODAL -->
 <div class="modal-overlay hidden" id="editPartnerOverlay" onclick="if(event.target===this)this.classList.add('hidden')">
-  <div class="modal" style="max-width:380px">
+  <div class="modal" id="editPartnerModalBox" style="max-width:380px">
     <div class="modal-header">
       <span class="modal-title"><i class="ti ti-edit"></i>Редактировать партнёра</span>
       <button class="icon-btn" onclick="document.getElementById('editPartnerOverlay').classList.add('hidden')"><i class="ti ti-x"></i></button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
       <input type="hidden" id="editPartnerId">
       <div class="form-group" style="margin-bottom:12px">
         <label class="form-label">Название</label>
@@ -7322,10 +7463,16 @@ function showToast(msg,type='success') {
       </div>
       <div class="form-group">
         <label class="form-label">Тип</label>
-        <select class="form-select" id="editPartnerType">
+        <select class="form-select" id="editPartnerType" onchange="onEditPartnerTypeChange()">
           <option value="direct">Direct</option>
           <option value="network">Network</option>
         </select>
+      </div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:var(--text2);cursor:pointer"><input type="checkbox" id="editPartnerNoFb" style="accent-color:#ef4444">Не принимает Facebook</label>
+      <div id="editPartnerBrandsWrap" style="margin-top:16px;display:none">
+        <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— убранные гео/источники/бренды будут удалены из офферов</span></label>
+        <div id="editPartnerBrands"></div>
+        <button class="btn btn-ghost" type="button" onclick="addNpBrand('editPartnerBrands')" style="font-size:11px;padding:4px 10px"><i class="ti ti-plus"></i>Бренд</button>
       </div>
     </div>
     <div class="modal-footer">
