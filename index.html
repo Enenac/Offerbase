@@ -6716,7 +6716,9 @@ function renderPartnersGrid() {
 
     let offersHtml = '';
     if (isExpanded) {
-      if (topOffers.length === 0) {
+      if (isDirect && partnerOffers.length > 0) {
+        offersHtml = renderDirectBrandSummary(p.id, partnerOffers);
+      } else if (topOffers.length === 0) {
         offersHtml = `<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Офферов нет в базе</div>`;
       } else {
         offersHtml = `<div style="border-top:0.5px solid var(--border);padding:8px">
@@ -6751,7 +6753,7 @@ function renderPartnersGrid() {
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
-            ${activeOffers.length > 0 ? `<span style="font-size:11px;color:var(--green);font-family:'IBM Plex Mono',monospace">${activeOffers.length} активных</span>` : ''}
+            ${!isDirect && activeOffers.length > 0 ? `<span style="font-size:11px;color:var(--green);font-family:'IBM Plex Mono',monospace">${activeOffers.length} активных</span>` : ''}
             ${brands.length > 0 ? `<span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${brands.length} брендов</span>` : ''}
           </div>
         </div>
@@ -6764,6 +6766,73 @@ function renderPartnersGrid() {
       ${isExpanded ? offersHtml : ''}
     </div>`;
   }).join('');
+}
+
+// Compact card body for Direct partners: one block per brand — GEOs as one line, sources as chips (rate · KPI)
+const _pcGeosOpen = new Set();
+const PC_GEO_LIMIT = 36;
+function togglePcGeos(partnerId, enc) {
+  const key = partnerId + '|' + decodeURIComponent(enc);
+  if (_pcGeosOpen.has(key)) _pcGeosOpen.delete(key); else _pcGeosOpen.add(key);
+  renderPartnersGrid();
+}
+
+function renderDirectBrandSummary(partnerId, offers) {
+  const groups = new Map();
+  offers.forEach(o => {
+    const name = (o.brand || '').trim() || '—';
+    const k = name.toLowerCase();
+    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0 });
+    const g = groups.get(k);
+    g.n++;
+    g.names.set(name, (g.names.get(name) || 0) + 1);
+    if (o.geo) g.geos.add(o.geo.trim().toUpperCase());
+    const blank = isBlankSource(o.traffic_source);
+    const sk = blank ? '' : o.traffic_source.trim().toLowerCase();
+    if (!g.srcs.has(sk)) g.srcs.set(sk, { name: blank ? '' : o.traffic_source.trim(), rates: new Set(), kpis: new Set() });
+    const sr = g.srcs.get(sk);
+    const rate = (o.rate || '').trim();
+    if (rate && rate !== '-') sr.rates.add(rate);
+    const kpi = (o.kpi || '').trim();
+    if (kpi && !['-', '–', '—', '--'].includes(kpi) && kpi.toLowerCase() !== 'no kpi') sr.kpis.add(kpi);
+  });
+
+  const rateText = set => {
+    const r = [...set];
+    if (!r.length) return '';
+    if (r.length <= 3) return r.join(' / ');
+    r.sort((a, b) => parseRateToUsd(a) - parseRateToUsd(b));
+    return `${r[0]} – ${r[r.length - 1]}`;
+  };
+
+  const blocks = [...groups.entries()].sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0])).map(([k, g]) => {
+    const name = [...g.names.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const all = [...g.geos].sort();
+    const key = partnerId + '|' + k;
+    const open = _pcGeosOpen.has(key);
+    const shown = (open || all.length <= PC_GEO_LIMIT) ? all : all.slice(0, PC_GEO_LIMIT);
+    const more = all.length > PC_GEO_LIMIT
+      ? ` <span onclick="event.stopPropagation();togglePcGeos('${partnerId}','${encodeURIComponent(k)}')" style="cursor:pointer;color:var(--accent)">${open ? 'свернуть' : '+' + (all.length - PC_GEO_LIMIT)}</span>`
+      : '';
+    const chips = [...g.srcs.values()].sort((a, b) => a.name.localeCompare(b.name)).map(sr => {
+      const rt = rateText(sr.rates);
+      const kp = [...sr.kpis].join(' / ');
+      return `<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:10px;background:var(--bg3);border:0.5px solid var(--border2);font-size:11px;color:var(--text2)">
+        ${sr.name ? esc(sr.name) : '<span style="opacity:0.5">-</span>'}
+        ${rt ? `<span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);font-weight:500">${esc(rt)}</span>` : ''}
+        ${kp ? `<span style="color:#f59e0b;font-size:10px">${esc(kp)}</span>` : ''}
+      </span>`;
+    }).join('');
+    return `<div style="padding:9px 6px;border-top:0.5px solid var(--border)">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">
+        <span style="font-size:12.5px;font-weight:600;color:var(--text1)">${esc(name)}</span>
+        <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${all.length} гео</span>
+      </div>
+      <div style="font-size:11px;line-height:1.55;color:var(--text3);font-family:'IBM Plex Mono',monospace;word-break:break-word;margin-bottom:6px">${shown.map(esc).join(' ')}${more}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">${chips}</div>
+    </div>`;
+  }).join('');
+  return `<div style="padding:2px 8px 6px">${blocks}</div>`;
 }
 
 function togglePartnerCard(id) {
