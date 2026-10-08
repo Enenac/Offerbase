@@ -6487,12 +6487,14 @@ function addNpBrand(boxId, preset) {
     <div class="np-brand" style="border:0.5px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3)">
       <div style="display:flex;gap:8px;margin-bottom:8px">
         <input class="form-input np-brand-name" placeholder="Название бренда" style="flex:1" value="${esc(preset ? preset.name : '')}">
+        <label class="np-nofb" title="Рекл не принимает Facebook" style="display:flex;align-items:center;gap:5px;padding:0 10px;border:0.5px solid var(--border2);border-radius:8px;font-size:11.5px;white-space:nowrap;cursor:pointer;color:var(--text3);flex-shrink:0"><input type="checkbox" class="np-brand-nofb" onchange="styleNpNoFb(this)" ${preset && preset.noFb ? 'checked' : ''} style="accent-color:#ef4444;cursor:pointer">Не принимает ФБ</label>
         <button class="icon-btn" type="button" onclick="this.closest('.np-brand').remove()" title="Убрать бренд"><i class="ti ti-x"></i></button>
       </div>
       <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" value="${esc(preset ? preset.geos.join(' ') : '')}" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
       <div class="np-sources"></div>
       <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
     </div>`);
+  styleNpNoFb(box.lastElementChild.querySelector('.np-brand-nofb'));
   if (preset && preset.sources.length) preset.sources.forEach(sr => addNpSource(box.lastElementChild, sr));
   else addNpSource(box.lastElementChild);
 }
@@ -6520,6 +6522,13 @@ function styleNpKpi(sel) {
   sel.style.borderColor = yes ? 'rgba(245,158,11,0.55)' : '';
 }
 
+function styleNpNoFb(cb) {
+  const l = cb.closest('.np-nofb');
+  l.style.color = cb.checked ? '#ef4444' : 'var(--text3)';
+  l.style.borderColor = cb.checked ? 'rgba(239,68,68,0.55)' : '';
+  l.style.background = cb.checked ? 'rgba(239,68,68,0.10)' : '';
+}
+
 function addNpSource(brandEl, preset) {
   const blank = preset && isBlankSource(preset.name);
   brandEl.querySelector('.np-sources').insertAdjacentHTML('beforeend', `
@@ -6539,6 +6548,7 @@ function collectNpOffers(canonSources, boxId) {
   const seen = new Set();
   document.querySelectorAll('#' + (boxId || 'newPartnerBrands') + ' .np-brand').forEach((b, i) => {
     const name = b.querySelector('.np-brand-name').value.trim();
+    const noFb = b.querySelector('.np-brand-nofb').checked;
     const geos = [...new Set(b.querySelector('.np-brand-geos').value.split(/[\s,]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
     const srcs = [...b.querySelectorAll('.np-src')].map(r => ({
       name: r.querySelector('.np-src-name').value.trim(),
@@ -6561,7 +6571,7 @@ function collectNpOffers(canonSources, boxId) {
         const key = [name.toLowerCase(), geo, isBlankSource(src) ? '' : src.toLowerCase()].join('|');
         if (seen.has(key)) return; // same brand+geo+source typed twice
         seen.add(key);
-        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate || null, kpi: x.kpi });
+        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate || null, kpi: x.kpi, no_fb: noFb });
       });
     });
   });
@@ -6571,7 +6581,6 @@ function collectNpOffers(canonSources, boxId) {
 function openAddPartnerModal() {
   document.getElementById('newPartnerName').value = '';
   document.getElementById('newPartnerType').value = 'direct';
-  document.getElementById('newPartnerNoFb').checked = false;
   document.getElementById('newPartnerBrands').innerHTML = '';
   // source suggestions: what's already in the base + the form's list
   const opts = new Map();
@@ -6584,10 +6593,12 @@ function openAddPartnerModal() {
 }
 
 async function loadPartners() {
-  const [partnersRes, countsRes] = await Promise.all([
+  const offerQ = cols => sb.from('offers').select(cols).eq('project', currentProject).limit(100000);
+  let [partnersRes, countsRes] = await Promise.all([
     sb.from('partners').select('*').eq('project', currentProject).order('name'),
-    sb.from('offers').select('id, partner, status, brand, geo, rate, traffic_source, game_type').eq('project', currentProject).limit(100000)
+    offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb')
   ]);
+  if (countsRes.error && /no_fb/.test(countsRes.error.message)) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi');
   if (partnersRes.error) { showToast('Ошибка загрузки партнёров: ' + partnersRes.error.message, 'error'); return; }
   allPartners = partnersRes.data || [];
   // Store offer data for partner grid
@@ -6715,24 +6726,17 @@ function renderPartnersGrid() {
     const activeOffers = partnerOffers.filter(o => o.status === 'active');
     const brands = [...new Set(partnerOffers.map(o => o.brand).filter(Boolean))];
     const isExpanded = expandedPartnerId === p.id;
-    const noFbBadge = p.no_fb
-      ? `<span class="badge" style="background:rgba(239,68,68,0.12);color:#ef4444;border:0.5px solid rgba(239,68,68,0.35);display:inline-flex;align-items:center;gap:3px"><i class="ti ti-brand-facebook" style="font-size:11px"></i>Не принимает FB</span>`
-      : '';
-    const noFbToggle = isExpanded
-      ? `<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:7px;padding:8px 14px;border-top:0.5px solid var(--border);font-size:11.5px;color:var(--text2);cursor:pointer"><input type="checkbox" ${p.no_fb ? 'checked' : ''} onchange="togglePartnerNoFb('${p.id}', this.checked)" style="accent-color:#ef4444;cursor:pointer">Не принимает Facebook</label>`
-      : '';
-
     // Top 5 offers sorted by rate
     const topOffers = partnerOffers.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
 
     let offersHtml = '';
     if (isExpanded) {
       if (isDirect && partnerOffers.length > 0) {
-        offersHtml = noFbToggle + renderDirectBrandSummary(p.id, partnerOffers);
+        offersHtml = renderDirectBrandSummary(p.id, partnerOffers);
       } else if (topOffers.length === 0) {
-        offersHtml = noFbToggle + `<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Офферов нет в базе</div>`;
+        offersHtml = `<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Офферов нет в базе</div>`;
       } else {
-        offersHtml = noFbToggle + `<div style="border-top:0.5px solid var(--border);padding:8px">
+        offersHtml = `<div style="border-top:0.5px solid var(--border);padding:8px">
           <div style="display:grid;grid-template-columns:28px 1fr auto;gap:6px;padding:4px 6px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px">
             <span></span><span>Бренд / GEO</span><span style="text-align:right">Ставка</span>
           </div>
@@ -6760,7 +6764,7 @@ function renderPartnersGrid() {
         <div class="sb-partner-info">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="sb-partner-name">${esc(p.name)}</span>
-            ${typeBadge}${noFbBadge}
+            ${typeBadge}
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
@@ -6793,9 +6797,10 @@ function renderDirectBrandSummary(partnerId, offers) {
   offers.forEach(o => {
     const name = (o.brand || '').trim() || '—';
     const k = name.toLowerCase();
-    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0 });
+    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0, nofb: false });
     const g = groups.get(k);
     g.n++;
+    if (o.no_fb) g.nofb = true;
     g.names.set(name, (g.names.get(name) || 0) + 1);
     if (o.geo) g.geos.add(o.geo.trim().toUpperCase());
     const blank = isBlankSource(o.traffic_source);
@@ -6838,23 +6843,13 @@ function renderDirectBrandSummary(partnerId, offers) {
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:3px">
         <span style="font-size:12.5px;font-weight:600;color:var(--text1)">${esc(name)}</span>
         <span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${all.length} гео</span>
+        ${g.nofb ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;color:#ef4444;background:rgba(239,68,68,0.10);border:0.5px solid rgba(239,68,68,0.4)"><i class="ti ti-brand-facebook" style="font-size:11px"></i>Не принимает ФБ</span>` : ''}
       </div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12px;line-height:1.5;font-weight:700;color:var(--text1);font-family:'IBM Plex Mono',monospace;margin-bottom:7px">${shown.map(g2 => `<span style="display:inline-flex;align-items:center;gap:4px">${/^[A-Z]{2}$/.test(g2) ? flag(g2) : ''}${esc(g2)}</span>`).join('')}${more ? `<span style="font-weight:500;font-size:11px">${more}</span>` : ''}</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px">${chips}</div>
     </div>`;
   }).join('');
   return `<div style="padding:2px 8px 6px">${blocks}</div>`;
-}
-
-async function togglePartnerNoFb(id, val) {
-  const p = allPartners.find(x => String(x.id) === String(id));
-  const { error } = await sb.from('partners').update({ no_fb: val }).eq('id', id);
-  if (error) {
-    showToast(/no_fb/.test(error.message) ? 'Нужна колонка no_fb в таблице partners (SQL ниже в чате)' : 'Ошибка: ' + error.message, 'error');
-    renderPartnersGrid(); return;
-  }
-  if (p) p.no_fb = val;
-  renderPartnersGrid();
 }
 
 function togglePartnerCard(id) {
@@ -6879,19 +6874,20 @@ function groupOffersToBlocks(offers) {
     const bn = (o.brand || '').trim(), geo = (o.geo || '').trim().toUpperCase();
     if (!bn || !geo) return;
     const bk = bn.toLowerCase();
-    if (!brands.has(bk)) brands.set(bk, { names: new Map(), geos: new Map() });
+    if (!brands.has(bk)) brands.set(bk, { names: new Map(), geos: new Map(), nofb: new Set() });
     const b = brands.get(bk);
     b.names.set(bn, (b.names.get(bn) || 0) + 1);
     if (!b.geos.has(geo)) b.geos.set(geo, new Map());
     b.geos.get(geo).set(_skey(o.traffic_source), { name: (o.traffic_source || '').trim(), rate: (o.rate || '').trim(), kpi: o.kpi || '' });
+    if (o.no_fb) b.nofb.add(geo);
   });
   const blocks = [];
   [...brands.values()].sort((a, b) => b.geos.size - a.geos.size).forEach(b => {
     const name = [...b.names.entries()].sort((x, y) => y[1] - x[1])[0][0];
     const bySig = new Map();
     [...b.geos.entries()].sort((x, y) => x[0].localeCompare(y[0])).forEach(([geo, srcs]) => {
-      const sig = [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
-      if (!bySig.has(sig)) bySig.set(sig, { name, geos: [], sources: [...srcs.values()] });
+      const sig = (b.nofb.has(geo) ? 'FB!' : '') + [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
+      if (!bySig.has(sig)) bySig.set(sig, { name, geos: [], sources: [...srcs.values()], noFb: b.nofb.has(geo) });
       bySig.get(sig).geos.push(geo);
     });
     blocks.push(...bySig.values());
@@ -6900,9 +6896,9 @@ function groupOffersToBlocks(offers) {
 }
 
 async function fetchPartnerOffersFull(name) {
-  const { data, error } = await sb.from('offers')
-    .select('id, brand, geo, traffic_source, rate, kpi')
-    .eq('project', currentProject).ilike('partner', name).limit(100000);
+  const q = cols => sb.from('offers').select(cols).eq('project', currentProject).ilike('partner', name).limit(100000);
+  let { data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb');
+  if (error && /no_fb/.test(error.message)) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi')); // column not created yet
   if (error) throw error;
   return data || [];
 }
@@ -6913,7 +6909,6 @@ async function openEditPartner(id) {
   document.getElementById('editPartnerId').value = p.id;
   document.getElementById('editPartnerName').value = p.name;
   document.getElementById('editPartnerType').value = p.partner_type;
-  document.getElementById('editPartnerNoFb').checked = !!p.no_fb;
   const box = document.getElementById('editPartnerBrands');
   box.innerHTML = '';
   const opts = new Map();
@@ -6939,7 +6934,6 @@ async function saveEditPartner() {
   const oldPartner = allPartners.find(x => x.id === id);
   const name = document.getElementById('editPartnerName').value.trim();
   const type = document.getElementById('editPartnerType').value;
-  const noFb = document.getElementById('editPartnerNoFb').checked;
   if (!name) return;
 
   // 1) validate + plan the offers diff BEFORE writing anything
@@ -6974,6 +6968,7 @@ async function saveEditPartner() {
       if (!isBlankSource(r.traffic_source) && (o.traffic_source || '').trim() !== r.traffic_source) patch.traffic_source = r.traffic_source;
       if ((o.rate || '').trim() !== (r.rate || '')) { patch.rate = r.rate || null; patch.rate_usd_num = r.rate ? parseRateToUsd(r.rate) : null; }
       if ((o.kpi || null) !== (r.kpi || null)) patch.kpi = r.kpi || null;
+      if (!!o.no_fb !== !!r.no_fb) patch.no_fb = !!r.no_fb;
       if (Object.keys(patch).length) plan.upd.push({ id: o.id, patch });
     });
     exMap.forEach((arr, k) => { if (!want.has(k)) arr.forEach(o => plan.del.push(o.id)); });
@@ -6982,9 +6977,8 @@ async function saveEditPartner() {
 
   // 2) partner record, rename, type
   const upd = { name, partner_type: type };
-  if (!!(oldPartner && oldPartner.no_fb) !== noFb) upd.no_fb = noFb;
   const { error } = await sb.from('partners').update(upd).eq('id', id);
-  if (error) { showToast(/no_fb/.test(error.message) ? 'Нужна колонка no_fb в таблице partners' : 'Ошибка: ' + error.message, 'error'); return; }
+  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   if (oldPartner && oldPartner.name !== name) {
     await sb.from('offers').update({ partner: name }).ilike('partner', oldPartner.name);
     allOffers.forEach(o => { if ((o.partner||'').toLowerCase() === oldPartner.name.toLowerCase()) o.partner = name; });
@@ -7005,12 +6999,13 @@ async function saveEditPartner() {
           traffic_source: r.traffic_source || null, game_type: null, rate: r.rate, min_deposit: null,
           capa: null, kpi: r.kpi, platform: null, partner: name, partner_type: 'Direct',
           status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
+          ...(r.no_fb ? { no_fb: true } : {}),
         })));
         if (e1) throw e1;
       }
       for (const u of plan.upd) {
         const { error: e2 } = await sb.from('offers').update(u.patch).eq('id', u.id);
-        if (e2) throw e2;
+        if (e2) throw new Error(e2.message + (/no_fb/.test(e2.message) ? ' (создай колонку no_fb в offers)' : ''));
       }
       if (plan.del.length) {
         const { error: e3 } = await sb.from('offers').delete().in('id', plan.del);
@@ -7053,13 +7048,8 @@ async function addPartner() {
   }
   const partnerName = existing ? existing.name : name;
   if (!existing) {
-    const noFb = document.getElementById('newPartnerNoFb').checked;
-    const { error } = await sb.from('partners').insert(noFb
-      ? { name, partner_type: type, project: currentProject, no_fb: true }
-      : { name, partner_type: type, project: currentProject });
-    if (error) { showToast(/no_fb/.test(error.message) ? 'Нужна колонка no_fb в таблице partners' : 'Ошибка: ' + error.message, 'error'); return; }
-  } else if (document.getElementById('newPartnerNoFb').checked && !existing.no_fb) {
-    await sb.from('partners').update({ no_fb: true }).eq('id', existing.id);
+    const { error } = await sb.from('partners').insert({ name, partner_type: type, project: currentProject });
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   }
 
   if (offerRows.length) {
@@ -7070,12 +7060,13 @@ async function addPartner() {
       traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: null,
       capa: null, kpi: r.kpi, platform: null, partner: partnerName, partner_type: 'Direct',
       status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
+      ...(r.no_fb ? { no_fb: true } : {}),
     }));
     const { error: oErr } = await sb.from('offers').insert(toInsert);
     invalidateOfferVersions();
     if (oErr) {
       document.getElementById('addPartnerOverlay').classList.add('hidden');
-      showToast('Партнёр добавлен, но офферы не созданы: ' + oErr.message, 'error');
+      showToast('Партнёр добавлен, но офферы не созданы: ' + oErr.message + (/no_fb/.test(oErr.message) ? ' (создай колонку no_fb в offers)' : ''), 'error');
       await loadPartners();
       return;
     }
@@ -7468,7 +7459,6 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
-      <label style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:var(--text2);cursor:pointer"><input type="checkbox" id="editPartnerNoFb" style="accent-color:#ef4444">Не принимает Facebook</label>
       <div id="editPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— убранные гео/источники/бренды будут удалены из офферов</span></label>
         <div id="editPartnerBrands"></div>
@@ -7526,7 +7516,6 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
-      <label style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:var(--text2);cursor:pointer"><input type="checkbox" id="newPartnerNoFb" style="accent-color:#ef4444">Не принимает Facebook</label>
       <div id="newPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— на каждый бренд × гео × источник создастся оффер Direct</span></label>
         <div id="newPartnerBrands"></div>
