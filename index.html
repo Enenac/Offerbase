@@ -6513,11 +6513,24 @@ function normalizeGeoInput(el, trim) {
   }
 }
 
+// KPI pill on each source: "Нет KPI" (default) ⇄ "Есть KPI"; saved into the offer's KPI field as "No KPI" / "KPI"
+const NP_KPI_STYLE = {
+  no:  'flex-shrink:0;width:92px;border-radius:8px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text3);font-size:11px;font-weight:500;cursor:pointer',
+  yes: 'flex-shrink:0;width:92px;border-radius:8px;border:0.5px solid rgba(245,158,11,0.55);background:rgba(245,158,11,0.14);color:#f59e0b;font-size:11px;font-weight:500;cursor:pointer',
+};
+function toggleNpKpi(btn) {
+  const on = btn.dataset.kpi !== 'yes';
+  btn.dataset.kpi = on ? 'yes' : 'no';
+  btn.textContent = on ? 'Есть KPI' : 'Нет KPI';
+  btn.style.cssText = NP_KPI_STYLE[on ? 'yes' : 'no'];
+}
+
 function addNpSource(brandEl) {
   brandEl.querySelector('.np-sources').insertAdjacentHTML('beforeend', `
     <div class="np-src" style="display:flex;gap:6px;margin-bottom:6px">
       <input class="form-input np-src-name" list="npSourceList" placeholder="Источник" style="flex:1">
       <input class="form-input np-src-rate" placeholder="Ставка: 170 USD" style="width:150px">
+      <button class="np-src-kpi" type="button" data-kpi="no" onclick="toggleNpKpi(this)" title="Нажми, чтобы переключить: есть KPI / нет KPI" style="${NP_KPI_STYLE.no}">Нет KPI</button>
       <button class="icon-btn" type="button" onclick="this.closest('.np-src').remove()" title="Убрать источник"><i class="ti ti-x"></i></button>
     </div>`);
 }
@@ -6532,6 +6545,7 @@ function collectNpOffers(canonSources) {
     const srcs = [...b.querySelectorAll('.np-src')].map(r => ({
       name: r.querySelector('.np-src-name').value.trim(),
       rate: r.querySelector('.np-src-rate').value.trim(),
+      kpi: r.querySelector('.np-src-kpi').dataset.kpi === 'yes' ? 'KPI' : 'No KPI',
     })).filter(x => x.name || x.rate);
     if (!name && !geos.length && !srcs.length) return; // untouched empty block
     const label = name || `Бренд №${i + 1}`;
@@ -6549,7 +6563,7 @@ function collectNpOffers(canonSources) {
         const key = [name.toLowerCase(), geo, src.toLowerCase()].join('|');
         if (seen.has(key)) return; // same brand+geo+source typed twice
         seen.add(key);
-        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate });
+        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate, kpi: x.kpi });
       });
     });
   });
@@ -6827,7 +6841,7 @@ async function addPartner() {
     const toInsert = offerRows.map(r => ({
       project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
       traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: null,
-      capa: null, kpi: null, platform: null, partner: partnerName, partner_type: 'Direct',
+      capa: null, kpi: r.kpi, platform: null, partner: partnerName, partner_type: 'Direct',
       status: 'active', notes: null, received_at: today, rate_usd_num: parseRateToUsd(r.rate),
     }));
     const { error: oErr } = await sb.from('offers').insert(toInsert);
