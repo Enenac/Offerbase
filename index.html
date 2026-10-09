@@ -861,6 +861,13 @@ tr:hover .row-actions{opacity:1}
         </div>
       </div>
       <div class="filter-dropdown">
+        <button class="btn btn-ghost" onclick="event.stopPropagation();openBulkGeoMenu()" style="font-size:11px;padding:4px 10px"><i class="ti ti-world"></i>Сменить GEO<i class="ti ti-chevron-down" style="font-size:10px;margin-left:2px"></i></button>
+        <div class="filter-menu hidden" id="menu-bulkGeo" style="right:0;left:auto;min-width:200px" onclick="event.stopPropagation()">
+          <div class="filter-search"><input type="text" id="bulkGeoSearch" placeholder="GEO (IT, DE…) + Enter" oninput="normalizeGeoInput(this); renderBulkGeoList()" onkeydown="if(event.key==='Enter'){event.preventDefault();setSelectedGeo(this.value)}"></div>
+          <div class="filter-menu-list" id="bulk-geo-list" style="max-height:260px;overflow-y:auto"></div>
+        </div>
+      </div>
+      <div class="filter-dropdown">
         <button class="btn btn-ghost" onclick="event.stopPropagation();openBulkPartnerMenu()" style="font-size:11px;padding:4px 10px"><i class="ti ti-users"></i>Сменить партнёра<i class="ti ti-chevron-down" style="font-size:10px;opacity:0.6;margin-left:3px"></i></button>
         <div class="filter-menu hidden" id="menu-bulkPartner" style="right:0;left:auto;min-width:220px" onclick="event.stopPropagation()">
           <div class="filter-search"><input type="text" id="bulkPartnerSearch" placeholder="Поиск партнёра..." oninput="renderBulkPartnerList()"></div>
@@ -4052,6 +4059,47 @@ async function setSelectedGame(game) {
   }
   invalidateOfferVersions();
   showToast(value ? `Тип игры «${value}» → ${ids.length} оффер(ов)` : `Тип игры убран у ${ids.length} оффер(ов)`, 'success');
+  bulkMode = false;
+  document.getElementById('offersTable').classList.remove('bulk-mode');
+  document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
+  clearSelection();
+  buildDynamicFilters();
+  loadOffers();
+}
+
+// Bulk "Сменить GEO": pick one of the GEOs already in the base (most used first) or type any code and press Enter.
+// GEO is mandatory — no "clear" option.
+function openBulkGeoMenu() {
+  const search = document.getElementById('bulkGeoSearch');
+  search.value = '';
+  renderBulkGeoList();
+  toggleFilterMenu('bulkGeo');
+  setTimeout(() => search.focus(), 50);
+}
+
+function renderBulkGeoList() {
+  const q = (document.getElementById('bulkGeoSearch').value || '').trim().toUpperCase();
+  const all = (window._allGeos || []).filter(g => !q || g.toUpperCase().includes(q));
+  const typed = q && !all.some(g => g.toUpperCase() === q) && /^[A-Z]{2,8}$/.test(q)
+    ? `<div class="filter-option" style="font-style:italic" onclick="setSelectedGeo('${q}')">Новое GEO: ${esc(q)}</div>` : '';
+  document.getElementById('bulk-geo-list').innerHTML = typed + (all.length
+    ? all.map(g => `<div class="filter-option" onclick="setSelectedGeo('${esc(g).replace(/'/g,"\\'")}')">${/^[A-Za-z]{2}$/.test(g) ? flag(g) + ' ' : ''}${esc(g)}</div>`).join('')
+    : (typed ? '' : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>'));
+}
+
+async function setSelectedGeo(geo) {
+  const ids = [...document.querySelectorAll('.row-cb:checked')].map(el => el.value);
+  closeAllMenus();
+  if (ids.length === 0) { showToast('Ничего не выбрано', 'error'); return; }
+  const value = (geo || '').trim().toUpperCase();
+  if (!value) { showToast('GEO не может быть пустым', 'error'); return; }
+  const BATCH = 200;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const { error } = await sb.from('offers').update({ geo: value }).in('id', ids.slice(i, i + BATCH));
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+  }
+  invalidateOfferVersions();
+  showToast(`GEO «${value}» → ${ids.length} оффер(ов)`, 'success');
   bulkMode = false;
   document.getElementById('offersTable').classList.remove('bulk-mode');
   document.getElementById('bulkModeBtn').innerHTML = '<i class="ti ti-trash"></i>Удалить';
