@@ -6,7 +6,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const SYSTEM_PROMPT = `You extract structured fields from a raw affiliate-marketing offer message (Russian or English, often informal, sometimes with emoji flags, "•" or "/" separators, or just plain prose).
 
-A very common compact format looks like this (flag) GEO • Brand • Source • GameType • Rate [• MinDep X • Cap Y • KPI: Z • Platform • Partner], for example:
+A very common compact format looks like this (flag) GEO • Brand • Source • GameType • Rate [• MinDep X • Cap Y • KPI: Z • Platform • Conversion • Other • Partner] (slash-separated "GEO / Brand / Source / Type / Rate / MinDep / Cap / KPI / Platform / Conversion / Other / Partner" is the same layout; the partner, when present, is always LAST), for example:
 "🇮🇹 IT • Brand123 • FB • Slots • $190 • MinDep 20 EUR • Cap 20 FTD"
 Here "Slots" (the token right after the traffic source and before the rate) is the game_type — always check for and extract this token, it is easy to miss.
 
@@ -20,6 +20,8 @@ Return ONLY a JSON object with these keys (use null for anything not present —
 - "capa": the cap/capa — a NUMBER only (count of deposits/FTDs), e.g. 20. If it says "20 FTD" or "cap 20" or "капа 20", return 20. Null if absent.
 - "kpi": any KPI/wagering requirement text, as written.
 - "platform": the platform/software mentioned (e.g. "Soft2Bet", "In-house", "iGate").
+- "conversion": conversion data for the offer only (e.g. "CR 10%", "reg→dep 15%"), as written, and nothing else.
+- "other": any other info that matters to the partner taking this offer and fits no other field — e.g. restricted regions/provinces ("Ontario", islands), payment terms ("Payment from 3 FTD"), special conditions. As written, short; several items joined with "; ".
 - "partner": the partner/company name this offer is FROM, if explicitly named (not who it's being given to).
 
 Double-check your output against the original text field by field before answering — it's easy to accidentally skip one bullet-separated token, especially game_type. Be conservative about inventing values you don't see, but thorough about not missing ones that are there. Output JSON only, no explanation, no markdown fences.`;
@@ -76,7 +78,7 @@ export default async function handler(req, res) {
     }
 
     // Normalize: keep only expected keys, coerce capa to a number
-    const ALLOWED = ["geo", "brand", "traffic_source", "game_type", "rate", "min_deposit", "capa", "kpi", "platform", "partner"];
+    const ALLOWED = ["geo", "brand", "traffic_source", "game_type", "rate", "min_deposit", "capa", "kpi", "platform", "conversion", "other", "partner"];
     const clean = {};
     for (const k of ALLOWED) {
       let v = fields[k];

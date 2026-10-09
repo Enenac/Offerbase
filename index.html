@@ -1339,7 +1339,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const chips = [
           chip('GEO', _mDelParsed.geo), chip('Бренд', _mDelParsed.brand),
           chip('Источник', _mDelParsed.traffic_source), chip('Подход', _mDelParsed.game_type),
-          chip('Ставка', _mDelParsed.rate), chip('Капа', _mDelParsed.capa), chip('Партнёр', _mDelParsed.partner),
+          chip('Ставка', _mDelParsed.rate), chip('Капа', _mDelParsed.capa), chip('Конверт', _mDelParsed.conversion), chip('Другое', _mDelParsed.other), chip('Партнёр', _mDelParsed.partner),
         ].filter(Boolean).join('');
         mDelParsePreview.innerHTML = chips || `<span style="color:var(--text3)">Не удалось распознать поля — сохранится как есть</span>`;
         mDelParsePreview.classList.remove('hidden');
@@ -1383,6 +1383,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         amount_out: rateAmt ? rateAmt.value : null,
         amount_out_cur: rateAmt ? rateAmt.cur : 'EUR',
         capa: (p.capa != null ? p.capa : 0), // filled by AI parse when available, else finished from desktop later
+        ...(p.conversion ? { conversion: p.conversion } : {}),
+        ...(p.other ? { other: p.other } : {}),
       };
       const { error } = await sb.from('deliveries').insert(data);
       if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }

@@ -41,6 +41,8 @@ function buildMessage(row) {
     text += `\nСуммы: ${src} → ${out}`;
   }
   if (row.capa != null && Number(row.capa) > 0) text += `\nКапа: ${row.capa}`;
+  if (row.conversion) text += `\nКонверт: ${escapeHtml(row.conversion)}`;
+  if (row.other) text += `\nДругое: ${escapeHtml(row.other)}`;
   return text;
 }
 
