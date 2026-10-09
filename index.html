@@ -2453,7 +2453,7 @@ async function parseTemplate() {
       platform: platform||null, partner: partnerName,
       partner_type: partnerTypeLabel, status: 'active', notes: null,
       received_at: null,
-      ...(conversion ? { conversion } : {}), ...(other ? { other } : {}),
+      ...(!isBlankSource(conversion) ? { conversion } : {}), ...(!isBlankSource(other) ? { other } : {}),
     });
   });
 
@@ -2472,28 +2472,40 @@ async function parseTemplate() {
   if (noSource.length) warnMsgs.push(`В источнике пропуск у ${noSource.length} из ${parsedOffers.length} оффер(ов) — выделены красным. Заполни источник в тексте и распознай заново, пока не исправишь, сохранить нельзя.`);
   if (noPartner.length) warnMsgs.push(`В партнёре пропуск у ${noPartner.length} из ${parsedOffers.length} оффер(ов) — выделены красным. Партнёр обязателен: добавь его последним полем и распознай заново, сохранить нельзя.`);
   const warn = warnMsgs.length ? `<div class="parse-error" style="margin:8px 0">${warnMsgs.join('<br>')}</div>` : '';
+  // compact review table: every column that goes into the DB, one line per offer, hover/title shows full text
+  const cols = [
+    ['geo', 'GEO', 40], ['brand', 'Бренд', 90], ['traffic_source', 'Источник', 70], ['game_type', 'Тип', 80],
+    ['rate', 'Ставка', 64], ['min_deposit', 'МинДеп', 56], ['capa', 'Капа', 64], ['kpi', 'KPI', 60],
+    ['platform', 'Платф.', 70], ['conversion', 'Конверт', 110], ['other', 'Другое', 190], ['partner', 'Партнёр', 80],
+  ];
+  const base = 'padding:4px 8px;white-space:nowrap;';
+  const cell = (o, key, w) => {
+    const v = (o[key] == null ? '' : String(o[key])).trim();
+    const bad = (key === 'traffic_source' || key === 'partner') && isBlankSource(v);
+    if (bad) return `<td style="${base}color:var(--red);font-weight:600" title="Пропуск — заполни и распознай заново">ПРОПУСК</td>`;
+    if (!v) return `<td style="${base}opacity:0.25">·</td>`;
+    const st = key === 'geo' ? 'font-weight:600;color:var(--text1)' : key === 'brand' ? 'font-weight:600;color:var(--text1)'
+      : key === 'rate' ? 'color:var(--accent);font-weight:600' : key === 'partner' ? 'color:var(--text1)' : '';
+    const inner = key === 'geo' ? `${flag(v)} ${esc(v)}` : esc(v);
+    return `<td style="${base}${st}" title="${esc(v)}"><div style="max-width:${w * 1.6}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inner}</div></td>`;
+  };
   preview.innerHTML = `
     <div class="parse-preview-header">
       <span class="parse-preview-title">Предпросмотр</span>
       <span class="parse-preview-count">${parsedOffers.length} оффер(ов)</span>
     </div>
     ${warn}
-    ${parsedOffers.map(o=>`
-      <div class="parse-preview-row" style="${(isBlankSource(o.traffic_source) || isBlankSource(o.partner)) ? 'background:rgba(248,113,113,0.10);box-shadow:inset 2px 0 0 var(--red)' : ''}" title="${esc([o.geo,o.brand,o.traffic_source,o.game_type,o.rate,o.min_deposit,o.capa,o.kpi,o.platform,o.partner].filter(Boolean).join(' / '))}">
-        <span style="font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text1)">${flag(o.geo)} ${esc(o.geo)||'—'}</span>
-        <span style="color:var(--text1);font-weight:600">${esc(o.brand)||'—'}</span>
-        <span style="color:${isBlankSource(o.traffic_source) ? 'var(--red)' : 'var(--text3)'}">${isBlankSource(o.traffic_source) ? 'ПРОПУСК' : esc(o.traffic_source)}•${esc(o.game_type)||'—'}</span>
-        <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace;font-weight:500">${esc(o.rate)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.min_deposit)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.capa)||'—'}</span>
-        <span style="color:var(--text2)">${esc(o.kpi)||'—'}</span>
-        <span style="color:var(--text3)">${esc(o.platform)||'—'}</span>
-        ${o.conversion ? `<span style="color:var(--text2)">${esc(o.conversion)}</span>` : ''}
-        ${o.other ? `<span style="color:var(--text3);font-style:italic">${esc(o.other)}</span>` : ''}
-        <span style="color:${isBlankSource(o.partner) ? 'var(--red)' : 'var(--text2)'}">${isBlankSource(o.partner) ? 'ПРОПУСК' : esc(o.partner)}</span>
-      </div>
-    `).join('')}
+    <div style="overflow:auto;max-height:46vh">
+      <table style="border-collapse:collapse;width:100%;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text2)">
+        <thead><tr>${cols.map(c => `<th style="position:sticky;top:0;background:var(--bg3);text-align:left;font-weight:500;font-size:10px;color:var(--text3);padding:5px 8px;border-bottom:0.5px solid var(--border2);white-space:nowrap">${c[1]}</th>`).join('')}</tr></thead>
+        <tbody>${parsedOffers.map(o => {
+          const bad = isBlankSource(o.traffic_source) || isBlankSource(o.partner);
+          return `<tr style="border-bottom:0.5px solid var(--border);${bad ? 'background:rgba(248,113,113,0.10);box-shadow:inset 2px 0 0 var(--red)' : ''}">${cols.map(c => cell(o, c[0], c[2])).join('')}</tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
   `;
+  document.querySelector('#modalOverlay .modal').style.maxWidth = '1040px';
   section.classList.remove('hidden');
   document.getElementById('saveBtn').innerHTML = `<i class="ti ti-check"></i>Сохранить всё (${parsedOffers.length})`;
 }
@@ -2544,7 +2556,7 @@ function editOffer(id) {
 // true once the DB has the conversion/other columns (offers are loaded with select('*'))
 function offerHasNewCols() { return allOffers.length > 0 && ('conversion' in allOffers[0]); }
 
-function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); editingId=null; _editingOriginalBrand=null; }
+function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); document.querySelector('#modalOverlay .modal').style.maxWidth = ''; editingId=null; _editingOriginalBrand=null; }
 function handleOverlayClick(e) { if(e.target===document.getElementById('modalOverlay')) closeModal(); }
 
 function clearForm() {
