@@ -1101,6 +1101,26 @@ tr:hover .row-actions{opacity:1}
               </div>
             </div>
           </div>
+          <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-geomin" onclick="toggleFilterMenu('bundle-geomin')"><i class="ti ti-filter-dollar"></i>Мин. по гео</div>
+            <div class="filter-menu hidden" id="menu-bundle-geomin" style="min-width:250px" onclick="event.stopPropagation()">
+              <div style="padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+                  <input type="checkbox" id="bundleGeoMinToggle" onchange="toggleBundleGeoMin()" style="accent-color:var(--accent)">
+                  <span>Убирать офферы ниже порога гео</span>
+                </label>
+                <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.05em">
+                  <span style="flex:1">Порог (ставка как в подборке)</span>
+                  <select id="bundleGeoMinCur" class="form-select" style="width:72px;font-size:11px" onchange="setBundleGeoMinCur(this.value)"><option value="EUR">EUR</option><option value="USD">USD</option></select>
+                </div>
+                <div id="bundleGeoMinList" style="max-height:240px;overflow-y:auto"></div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost" onclick="addBundleGeoMin()" style="flex:1;font-size:11px;padding:5px;justify-content:center"><i class="ti ti-plus"></i>Гео</button>
+                  <button class="btn btn-ghost" onclick="addBundleGeoMinFromInput()" title="Добавить строки для гео из поля подборки" style="flex:1;font-size:11px;padding:5px;justify-content:center"><i class="ti ti-list-details"></i>Из подборки</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -4830,6 +4850,8 @@ async function openExport() {
   renderBundleExclList();
   if (!allRegions.length) await loadRegions();
   renderBundleRegionList();
+  updateBundleGeoMinChip();
+  renderBundleGeoMinMenu();
   updateBundleMarginChip();
   renderBundleMarginMenu(); // margin tiers/toggle persist across opens — just sync the UI
   populateBundleFilterOptions();
@@ -4903,6 +4925,74 @@ function deduplicateOffers(rows) {
   return Array.from(map.values());
 }
 
+// ── Min rate per GEO: offers cheaper than the GEO's threshold are left out of the bundle ──
+// {enabled, cur, items:[{geo, min}]}, persisted in localStorage. GEOs without a threshold are untouched.
+let bundleGeoMin = (() => {
+  try { const v = JSON.parse(localStorage.getItem('bundleGeoMin') || 'null'); if (v && Array.isArray(v.items)) return v; } catch (_) {}
+  return { enabled: false, cur: 'EUR', items: [] };
+})();
+
+function saveBundleGeoMin(rebuild = true) {
+  try { localStorage.setItem('bundleGeoMin', JSON.stringify(bundleGeoMin)); } catch (_) {}
+  updateBundleGeoMinChip();
+  if (rebuild) scheduleBundleAutoRebuild();
+}
+function toggleBundleGeoMin() { bundleGeoMin.enabled = document.getElementById('bundleGeoMinToggle').checked; saveBundleGeoMin(); }
+function setBundleGeoMinCur(c) { bundleGeoMin.cur = c; saveBundleGeoMin(); }
+function addBundleGeoMin(geo) {
+  bundleGeoMin.items.push({ geo: geo || '', min: null });
+  saveBundleGeoMin(false); renderBundleGeoMinMenu();
+  if (!geo) { const inputs = document.querySelectorAll('#bundleGeoMinList .bgm-geo'); inputs[inputs.length - 1]?.focus(); }
+}
+function addBundleGeoMinFromInput() {
+  const geos = [...new Set((document.getElementById('bundleGeoInput').value || '').split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
+  if (!geos.length) { showToast('В поле подборки нет гео', 'error'); return; }
+  geos.forEach(g => { if (!bundleGeoMin.items.some(i => i.geo === g)) bundleGeoMin.items.push({ geo: g, min: null }); });
+  saveBundleGeoMin(false); renderBundleGeoMinMenu();
+  const empty = [...document.querySelectorAll('#bundleGeoMinList .bgm-min')].find(i => !i.value);
+  empty?.focus();
+}
+function removeBundleGeoMin(i) { bundleGeoMin.items.splice(i, 1); saveBundleGeoMin(); renderBundleGeoMinMenu(); }
+function updateBundleGeoMinGeo(i, el) {
+  el.value = el.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 8);
+  bundleGeoMin.items[i].geo = el.value; saveBundleGeoMin();
+}
+function updateBundleGeoMinVal(i, v) {
+  const n = parseFloat(String(v).replace(',', '.'));
+  bundleGeoMin.items[i].min = isNaN(n) ? null : n; saveBundleGeoMin();
+}
+
+function renderBundleGeoMinMenu() {
+  const t = document.getElementById('bundleGeoMinToggle'); if (t) t.checked = !!bundleGeoMin.enabled;
+  const c = document.getElementById('bundleGeoMinCur'); if (c) c.value = bundleGeoMin.cur || 'EUR';
+  const el = document.getElementById('bundleGeoMinList'); if (!el) return;
+  const inp = 'background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text1);font-family:\'IBM Plex Mono\',monospace';
+  el.innerHTML = bundleGeoMin.items.length ? bundleGeoMin.items.map((it, i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:3px 0">
+      <input class="bgm-geo" value="${esc(it.geo)}" placeholder="GEO" oninput="updateBundleGeoMinGeo(${i}, this)" style="width:54px;text-transform:uppercase;${inp}">
+      <span style="font-size:10px;color:var(--text3)">не ниже</span>
+      <input class="bgm-min no-spin" type="number" value="${it.min == null ? '' : it.min}" placeholder="0" onchange="updateBundleGeoMinVal(${i}, this.value)" style="width:64px;${inp}">
+      <button class="icon-btn" onclick="removeBundleGeoMin(${i})" style="color:var(--text3);margin-left:auto"><i class="ti ti-x" style="font-size:12px"></i></button>
+    </div>`).join('')
+    : '<div style="font-size:11px;color:var(--text3);padding:4px 0">Порогов нет — добавь гео и минимальную ставку</div>';
+}
+
+function updateBundleGeoMinChip() {
+  const chip = document.getElementById('chip-bundle-geomin'); if (!chip) return;
+  const n = bundleGeoMin.items.filter(i => i.geo && i.min > 0).length;
+  const on = bundleGeoMin.enabled && n > 0;
+  chip.classList.toggle('active', on);
+  chip.innerHTML = `<i class="ti ti-filter-dollar"></i>Мин. по гео${on ? ` · ${n}` : ''}`;
+}
+
+// threshold for a GEO in USD-equivalent (matches parseRateToUsd), or null when none / disabled
+function bundleGeoMinUsd(geo) {
+  if (!bundleGeoMin.enabled) return null;
+  const it = bundleGeoMin.items.find(i => i.geo && i.geo === (geo || '').toUpperCase() && i.min > 0);
+  if (!it) return null;
+  return bundleGeoMin.cur === 'EUR' ? it.min * (eurUsd || 1.08) : it.min;
+}
+
 async function buildGeoBundle() {
   const raw = (document.getElementById('bundleGeoInput').value || '').trim();
   if (!raw) { showToast('Укажите гео через пробел, например: CA PT DE', 'error'); return; }
@@ -4935,6 +5025,17 @@ async function buildGeoBundle() {
     // converted to USD, against the threshold converted to USD
     const bundleRateUsd = o => parseRateToUsd(bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
     if (minRate != null && !isNaN(minRate)) current = current.filter(o => bundleRateUsd(o) >= minRate - 0.005);
+    // per-GEO minimum: drop offers cheaper than their GEO's threshold (offers with no rate are left alone)
+    let belowGeoMin = 0;
+    if (bundleGeoMin.enabled) {
+      current = current.filter(o => {
+        const th = bundleGeoMinUsd(o.geo);
+        if (th == null || !(o.rate || '').trim()) return true;
+        const ok = bundleRateUsd(o) >= th - 0.005;
+        if (!ok) belowGeoMin++;
+        return ok;
+      });
+    }
     // sort by rate descending (USD-equivalent) across all selected GEOs combined
     current.sort((a, b) => bundleRateUsd(b) - bundleRateUsd(a));
     _exportRows = current;
@@ -4942,7 +5043,8 @@ async function buildGeoBundle() {
     document.getElementById('sortRateToggle').checked = true;
     refreshExportText();
     const missing = geos.filter(g => !current.some(o => (o.geo || '').toUpperCase() === g));
-    showToast(missing.length ? `Собрано. Нет офферов по фильтру для: ${missing.join(', ')}` : 'Подборка собрана', missing.length ? 'error' : 'success');
+    const cut = belowGeoMin ? ` · убрано по порогам гео: ${belowGeoMin}` : '';
+    showToast(missing.length ? `Собрано${cut}. Нет офферов по фильтру для: ${missing.join(', ')}` : `Подборка собрана${cut}`, missing.length ? 'error' : 'success');
   } catch (e) {
     showToast('Ошибка сборки подборки: ' + e.message, 'error');
   } finally {
