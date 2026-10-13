@@ -4665,10 +4665,16 @@ async function populateBundleFilterOptions() {
     pq = currentPage === 'direct' ? pq.eq('partner_type', 'Direct') : pq.or('partner_type.neq.Direct,partner_type.is.null');
     const { data, error } = await pq.limit(100000);
     if (error) throw error;
-    _bundlePlatformOptions = [...new Set((data || []).map(o => (o.platform || '').trim()).filter(v => v && v !== '-' && v !== '—'))].sort((a, b) => a.localeCompare(b));
+    // most used first (ties alphabetical). Exact spellings are kept — the bundle query matches them exactly.
+    const byUse = vals => {
+      const cnt = new Map();
+      vals.map(v => (v || '').trim()).filter(v => v && v !== '-' && v !== '—').forEach(v => cnt.set(v, (cnt.get(v) || 0) + 1));
+      return [...cnt.keys()].sort((a, b) => (cnt.get(b) - cnt.get(a)) || a.localeCompare(b));
+    };
+    _bundlePlatformOptions = byUse((data || []).map(o => o.platform));
     renderBundlePlatformList();
-    const sources = [...new Set((data || []).map(o => (o.traffic_source || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const types = [...new Set((data || []).map(o => (o.game_type || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const sources = byUse((data || []).map(o => o.traffic_source));
+    const types = byUse((data || []).map(o => o.game_type));
     document.getElementById('bundleSourceList').innerHTML = sources.length
       ? sources.map(s => `<div class="filter-option" onclick="setBundleFilter('source','${esc(s).replace(/'/g,"\\'")}')">${esc(s)}</div>`).join('')
       : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Нет данных</div>';
