@@ -605,6 +605,37 @@ tr:hover .row-actions{opacity:1}
     <div id="mTaskList" style="flex:1;overflow-y:auto;padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;scrollbar-width:none"></div>
   </div>
 
+  <!-- ── MAILING SECTION (aff manager: build a bundle and copy it) ── -->
+  <div class="m-sec hidden" id="m-sec-mailing">
+    <div style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px;scrollbar-width:none">
+      <div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Тир</div>
+        <div id="mMailRegions" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Или гео вручную</div>
+        <input id="mMailGeos" placeholder="IT ES DE PL" autocapitalize="characters" autocomplete="off" oninput="mMailGeosTyped(this)" style="width:100%;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text1);font-size:14px;font-family:'IBM Plex Mono',monospace;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <button id="mMailExclBtn" onclick="mMailToggleExcl()" style="width:100%;display:flex;align-items:center;gap:8px;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text2);font-size:13px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer"></button>
+        <div id="mMailExclPanel" class="hidden" style="margin-top:6px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;overflow:hidden">
+          <input id="mMailExclSearch" placeholder="Поиск партнёра…" oninput="mMailRenderExcl()" style="width:100%;background:var(--bg3);border:none;border-bottom:0.5px solid var(--border);padding:10px 12px;color:var(--text1);font-size:14px;outline:none;box-sizing:border-box">
+          <div id="mMailExclList" style="max-height:38vh;overflow-y:auto"></div>
+        </div>
+      </div>
+      <div id="mMailInfo" style="font-size:11px;color:var(--text3);line-height:1.5;font-family:'IBM Plex Mono',monospace"></div>
+      <button class="btn btn-primary" id="mMailBuildBtn" onclick="mMailBuild()" style="justify-content:center;padding:12px;font-size:14px"><i class="ti ti-stack-2"></i>Собрать подборку</button>
+      <div id="mMailResult" class="hidden" style="display:flex;flex-direction:column;gap:8px">
+        <div id="mMailCount" style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace"></div>
+        <textarea id="mMailText" readonly rows="12" style="width:100%;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text1);font-size:12px;line-height:1.55;font-family:'IBM Plex Mono',monospace;resize:vertical;box-sizing:border-box"></textarea>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="mMailCopy()" style="flex:2;justify-content:center;padding:12px;font-size:14px"><i class="ti ti-copy"></i>Скопировать</button>
+          <button class="btn btn-ghost" onclick="mMailShare()" style="flex:1;justify-content:center;padding:12px;font-size:14px"><i class="ti ti-send"></i>Telegram</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Section nav -->
   <div class="m-bottom-nav">
     <button class="m-nav-tab active" id="m-tab-offers" onclick="mSwitchSection('offers')">
@@ -615,6 +646,9 @@ tr:hover .row-actions{opacity:1}
     </button>
     <button class="m-nav-tab" id="m-tab-deliveries" onclick="mSwitchSection('deliveries')">
       <i class="ti ti-link"></i><span>Выдачи</span>
+    </button>
+    <button class="m-nav-tab" id="m-tab-mailing" onclick="mSwitchSection('mailing')">
+      <i class="ti ti-send"></i><span>Рассылка</span>
     </button>
     <button class="m-nav-tab" id="m-tab-tasks" onclick="mSwitchSection('tasks')">
       <i class="ti ti-checklist"></i><span>Таски</span>
@@ -1497,6 +1531,7 @@ function initApp() {
   loadOffers();
   loadPartners();
   loadRegions();
+  loadBundleSettings(false);
   updateRequestsBadge();
   initInfiniteScroll();
   initTasksRealtime();
@@ -2758,7 +2793,7 @@ function applyHashRoute() {
   const hash = (location.hash || '').replace('#', '');
   if (!hash) return;
   if (isMobile()) {
-    const mobilePages = ['offers', 'requests', 'deliveries', 'tasks'];
+    const mobilePages = ['offers', 'requests', 'deliveries', 'mailing', 'tasks'];
     if (mobilePages.includes(hash) && !(hash === 'tasks' && hideTasks)) mSwitchSection(hash);
   } else {
     const desktopPages = ['offers', 'direct', 'partners', 'requests', 'settings', 'deliveries', 'tasks', 'stats'];
@@ -4382,6 +4417,7 @@ function saveMarginTiers() {
   sortMarginTiers();
   localStorage.setItem('bundleMarginTiers', JSON.stringify(bundleMarginTiers));
   localStorage.setItem('bundleApplyMargin', String(bundleApplyMargin));
+  pushBundleSettings();
   updateBundleMarginChip();
   renderBundleMarginMenu();
   scheduleBundleAutoRebuild();
@@ -4850,6 +4886,7 @@ async function openExport() {
   renderBundleExclList();
   if (!allRegions.length) await loadRegions();
   renderBundleRegionList();
+  await loadBundleSettings(true);
   updateBundleGeoMinChip();
   renderBundleGeoMinMenu();
   updateBundleMarginChip();
@@ -4934,6 +4971,7 @@ let bundleGeoMin = (() => {
 
 function saveBundleGeoMin(rebuild = true) {
   try { localStorage.setItem('bundleGeoMin', JSON.stringify(bundleGeoMin)); } catch (_) {}
+  pushBundleSettings();
   updateBundleGeoMinChip();
   if (rebuild) scheduleBundleAutoRebuild();
 }
@@ -4991,6 +5029,48 @@ function bundleGeoMinUsd(geo) {
   const it = bundleGeoMin.items.find(i => i.geo && i.geo === (geo || '').toUpperCase() && i.min > 0);
   if (!it) return null;
   return bundleGeoMin.cur === 'EUR' ? it.min * (eurUsd || 1.08) : it.min;
+}
+
+// ── Bundle settings (margin tiers, per-GEO minimums) are shared through the app_settings table, so the
+// aff manager's phone uses exactly what is set on the desktop. localStorage stays as an offline cache.
+let _settingsTableWarned = false;
+let _pushSettingsTimer = null;
+const bundleSettingsKey = () => 'bundle_' + currentProject;
+
+function applyBundleSettings(v) {
+  if (!v) return;
+  if (Array.isArray(v.marginTiers)) bundleMarginTiers = v.marginTiers;
+  if (typeof v.applyMargin === 'boolean') bundleApplyMargin = v.applyMargin;
+  if (v.geoMin && Array.isArray(v.geoMin.items)) bundleGeoMin = v.geoMin;
+  sortMarginTiers();
+  try {
+    localStorage.setItem('bundleMarginTiers', JSON.stringify(bundleMarginTiers));
+    localStorage.setItem('bundleApplyMargin', String(bundleApplyMargin));
+    localStorage.setItem('bundleGeoMin', JSON.stringify(bundleGeoMin));
+  } catch (_) {}
+}
+
+// migrate=true (desktop): when the base has no settings yet, upload this browser's current ones
+async function loadBundleSettings(migrate) {
+  try {
+    const { data, error } = await sb.from('app_settings').select('value').eq('key', bundleSettingsKey()).maybeSingle();
+    if (error) throw error;
+    if (data && data.value) applyBundleSettings(data.value);
+    else if (migrate) await pushBundleSettingsNow();
+  } catch (e) { /* table not created yet — keep working from the local cache */ }
+}
+
+async function pushBundleSettingsNow() {
+  const value = { marginTiers: bundleMarginTiers, applyMargin: bundleApplyMargin, geoMin: bundleGeoMin };
+  const { error } = await sb.from('app_settings').upsert({ key: bundleSettingsKey(), value, updated_at: new Date().toISOString() });
+  if (error && !_settingsTableWarned) {
+    _settingsTableWarned = true;
+    showToast('Настройки подборки не сохранены в базе (нужна таблица app_settings): ' + error.message, 'error');
+  }
+}
+function pushBundleSettings() {
+  clearTimeout(_pushSettingsTimer);
+  _pushSettingsTimer = setTimeout(pushBundleSettingsNow, 500);
 }
 
 async function buildGeoBundle() {
@@ -5057,6 +5137,61 @@ function bundleSortUsd(o) {
   return parseRateToUsd(_bundleGeoOrder && bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
 }
 
+// One export line per offer: Smerch "GEO • Бренд • Источник • …", Phantom "Бренд / GEO / FB Slots / …".
+// on(key) says which fields are included; applyMargin deducts the margin from the shown rate.
+function buildBundleEntries(rows, on, applyMargin) {
+  const val = v => (v && String(v).trim() !== '-') ? String(v).trim() : null;
+  const isPhantom = currentProject === 'phantom';
+  const fieldPart = (f, o) => {
+    let v = val(o[f.key]);
+    if (!v) return '';
+    if (f.key === 'rate' && applyMargin) v = marginAdjustedRateText(v);
+    if (f.key === 'geo') {
+      const fe = flagEmoji(v);
+      return (fe ? fe + ' ' : '') + (f.prefix || '') + v;
+    }
+    return (f.prefix || '') + v;
+  };
+  const fieldByKey = k => EXPORT_FIELDS.find(f => f.key === k);
+  return rows.map(o => {
+    const parts = [];
+    if (isPhantom) {
+      if (on('brand')) { const p = fieldPart(fieldByKey('brand'), o); if (p) parts.push(p); }
+      if (on('geo'))   { const p = fieldPart(fieldByKey('geo'), o);   if (p) parts.push(p); }
+      const src  = on('traffic_source') ? fieldPart(fieldByKey('traffic_source'), o) : '';
+      const game = on('game_type')      ? fieldPart(fieldByKey('game_type'), o)      : '';
+      const combo = [src, game].filter(Boolean).join(' ');
+      if (combo) parts.push(combo);
+      for (const f of EXPORT_FIELDS) {
+        if (['brand','geo','traffic_source','game_type'].includes(f.key)) continue;
+        if (!on(f.key)) continue;
+        const p = fieldPart(f, o);
+        if (p) parts.push(p);
+      }
+      return { geo: (o.geo || '').toUpperCase(), line: parts.join(' / ') };
+    }
+    for (const f of EXPORT_FIELDS) {
+      if (!on(f.key)) continue;
+      const p = fieldPart(f, o);
+      if (!p) continue;
+      parts.push(p);
+    }
+    return { geo: (o.geo || '').toUpperCase(), line: parts.join(' • ') };
+  }).filter(e => e.line);
+}
+
+function bundleEntriesToText(entries, groupByGeo) {
+  if (!groupByGeo) return entries.map(e => e.line).join('\n');
+  // blank line between GEO blocks so the bundle reads cleanly in Telegram
+  let out = '', lastGeo = null;
+  entries.forEach((e, i) => {
+    if (i > 0 && e.geo !== lastGeo) out += '\n';
+    out += e.line + '\n';
+    lastGeo = e.geo;
+  });
+  return out.trimEnd();
+}
+
 function refreshExportText() {
   const dedup = document.getElementById('dedupToggle').checked;
   const sortByRate = document.getElementById('sortRateToggle')?.checked;
@@ -5073,69 +5208,11 @@ function refreshExportText() {
   } else if (sortByRate) {
     rows.sort((a, b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
   }
-  const val = v => (v && v.trim() !== '-') ? v.trim() : null;
-  const isPhantom = currentProject === 'phantom';
-
-  const fieldPart = (f, o) => {
-    let v = val(o[f.key]);
-    if (!v) return '';
-    if (f.key === 'rate' && _bundleGeoOrder && bundleApplyMargin) v = marginAdjustedRateText(v);
-    if (f.key === 'geo') {
-      const fe = flagEmoji(v);
-      return (fe ? fe + ' ' : '') + (f.prefix || '') + v;
-    }
-    return (f.prefix || '') + v;
-  };
-  const fieldByKey = k => EXPORT_FIELDS.find(f => f.key === k);
-  const on = k => exportFieldsEnabled[k];
-
-  const entries = rows.map(o => {
-    const parts = [];
-
-    if (isPhantom) {
-      // Phantom: Бренд / GEO / "FB Slots" / остальное — разделитель "/"
-      if (on('brand')) { const p = fieldPart(fieldByKey('brand'), o); if (p) parts.push(p); }
-      if (on('geo'))   { const p = fieldPart(fieldByKey('geo'), o);   if (p) parts.push(p); }
-      // источник и тип игры — без разделителя между собой
-      const src  = on('traffic_source') ? fieldPart(fieldByKey('traffic_source'), o) : '';
-      const game = on('game_type')      ? fieldPart(fieldByKey('game_type'), o)      : '';
-      const combo = [src, game].filter(Boolean).join(' ');
-      if (combo) parts.push(combo);
-      for (const f of EXPORT_FIELDS) {
-        if (['brand','geo','traffic_source','game_type'].includes(f.key)) continue;
-        if (!on(f.key)) continue;
-        const p = fieldPart(f, o);
-        if (p) parts.push(p);
-      }
-      return { geo: (o.geo || '').toUpperCase(), line: parts.join(' / ') };
-    }
-
-    // Smerch: как было — GEO • Бренд • Источник • Тип игры • ...
-    for (const f of EXPORT_FIELDS) {
-      if (!on(f.key)) continue;
-      const p = fieldPart(f, o);
-      if (!p) continue;
-      parts.push(p);
-    }
-    return { geo: (o.geo || '').toUpperCase(), line: parts.join(' • ') };
-  }).filter(e => e.line);
+  const entries = buildBundleEntries(rows, k => exportFieldsEnabled[k], !!(_bundleGeoOrder && bundleApplyMargin));
   const lines = entries.map(e => e.line);
   const dedupNote = dedup ? ` (после дедупликации: ${rows.length} из ${_exportRows.length})` : ` (${rows.length})`;
   document.getElementById('exportCount').textContent = `${_exportRows.length} оффер(ов)${dedupNote}`;
-  let text;
-  if (_bundleGeoOrder) {
-    // blank line between GEO blocks so the bundle reads cleanly in Telegram
-    let out = '';
-    let lastGeo = null;
-    entries.forEach((e, i) => {
-      if (i > 0 && e.geo !== lastGeo) out += '\n';
-      out += e.line + '\n';
-      lastGeo = e.geo;
-    });
-    text = out.trimEnd();
-  } else {
-    text = lines.join('\n');
-  }
+  const text = bundleEntriesToText(entries, !!_bundleGeoOrder);
   document.getElementById('exportText').textContent = text;
 }
 
@@ -5296,13 +5373,155 @@ function mSwitchSection(sec) {
   mSection = sec;
   document.title = PAGE_TITLES[sec] || 'OfferBase';
   history.replaceState(null, '', '#' + sec); // remembers the tab across a page refresh
-  ['offers', 'requests', 'deliveries', 'tasks'].forEach(s => {
+  ['offers', 'requests', 'deliveries', 'mailing', 'tasks'].forEach(s => {
     document.getElementById('m-sec-' + s).classList.toggle('hidden', s !== sec);
     document.getElementById('m-tab-' + s).classList.toggle('active', s === sec);
   });
   if (sec === 'requests') loadRequests().then(renderMobileRequests);
   if (sec === 'deliveries') loadDeliveries().then(renderMobileDeliveries);
   if (sec === 'tasks') loadTasks().then(renderMobileTasks);
+  if (sec === 'mailing') openMobileMailing();
+}
+
+
+// ── mobile mailing: the aff manager picks Tier(s) / GEOs, leaves out partners, taps "Собрать" and copies the text ──
+// Same pipeline as the desktop bundle builder: Network only, current offers only, margin deducted, per-GEO minimums
+// applied, duplicates collapsed to the max rate. Margin / minimums come from the shared settings in the base.
+let mMail = (() => {
+  try { const v = JSON.parse(localStorage.getItem('mMailState') || 'null'); if (v) return { regions: v.regions || [], geos: v.geos || '', exclude: v.exclude || [] }; } catch (_) {}
+  return { regions: [], geos: '', exclude: [] };
+})();
+function mMailSave() { try { localStorage.setItem('mMailState', JSON.stringify(mMail)); } catch (_) {} }
+
+async function openMobileMailing() {
+  await Promise.all([allRegions.length ? null : loadRegions(), loadBundleSettings(false)]);
+  if (!allPartners.length) { try { await loadPartners(); } catch (_) {} }
+  renderMobileMailing();
+}
+
+function renderMobileMailing() {
+  const reg = document.getElementById('mMailRegions');
+  if (!reg) return;
+  reg.innerHTML = allRegions.length ? allRegions.map(r => {
+    const on = mMail.regions.map(String).includes(String(r.id));
+    return `<button onclick="mMailToggleRegion('${r.id}')" style="padding:9px 16px;border-radius:20px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;border:0.5px solid ${on ? 'var(--accent)' : 'var(--border2)'};background:${on ? 'var(--accent-bg)' : 'var(--bg3)'};color:${on ? 'var(--accent)' : 'var(--text2)'}">${esc(r.name)}</button>`;
+  }).join('') : '<span style="font-size:12px;color:var(--text3)">Регионы не заведены в Настройках</span>';
+  document.getElementById('mMailGeos').value = mMail.geos;
+  mMailUpdateExclBtn();
+  const tiers = bundleApplyMargin && bundleMarginTiers.length
+    ? 'Маржа: вкл (' + [...bundleMarginTiers].sort((a, b) => b.min - a.min).map(t => `от ${t.min} −${t.deduct}`).join(', ') + ')' : 'Маржа: выкл';
+  const mins = bundleGeoMin.enabled ? bundleGeoMin.items.filter(i => i.geo && i.min > 0) : [];
+  document.getElementById('mMailInfo').textContent = tiers + '\n' + (mins.length
+    ? `Мин. ставка (${bundleGeoMin.cur}): ` + mins.map(i => `${i.geo} ${i.min}`).join(', ') : 'Мин. ставки по гео: выкл');
+  document.getElementById('mMailInfo').style.whiteSpace = 'pre-wrap';
+}
+
+function mMailToggleRegion(id) {
+  const k = String(id), i = mMail.regions.map(String).indexOf(k);
+  if (i < 0) mMail.regions.push(k); else mMail.regions.splice(i, 1);
+  mMailSave(); renderMobileMailing();
+}
+function mMailGeosTyped(el) {
+  el.value = el.value.replace(/[,;\n]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
+  mMail.geos = el.value; mMailSave();
+}
+
+function mMailPartnerNames() {
+  const known = new Map((allPartners || []).map(p => [(p.name || '').trim().toLowerCase(), p.partner_type]));
+  const names = new Map();
+  (allPartners || []).forEach(p => { if (p.partner_type !== 'direct' && (p.name || '').trim()) names.set(p.name.trim().toLowerCase(), p.name.trim()); });
+  (window._partnerOffers || []).forEach(o => {
+    const n = (o.partner || '').trim(), k = n.toLowerCase();
+    if (n && !known.has(k)) names.set(k, n); // partner without a card counts as Network
+  });
+  return [...names.values()].sort((a, b) => a.localeCompare(b));
+}
+function mMailUpdateExclBtn() {
+  const n = mMail.exclude.length;
+  document.getElementById('mMailExclBtn').innerHTML = `<i class="ti ti-user-off" style="font-size:16px;${n ? 'color:var(--red)' : ''}"></i><span style="flex:1;text-align:left">${n ? `Исключено партнёров: ${n}` : 'Исключить партнёров'}</span><i class="ti ti-chevron-down" style="font-size:14px;color:var(--text3)"></i>`;
+}
+function mMailToggleExcl() {
+  const p = document.getElementById('mMailExclPanel');
+  p.classList.toggle('hidden');
+  if (!p.classList.contains('hidden')) { document.getElementById('mMailExclSearch').value = ''; mMailRenderExcl(); }
+}
+function mMailRenderExcl() {
+  const q = (document.getElementById('mMailExclSearch').value || '').toLowerCase().trim();
+  const ex = new Set(mMail.exclude.map(n => n.toLowerCase()));
+  const names = mMailPartnerNames().filter(n => !q || n.toLowerCase().includes(q));
+  document.getElementById('mMailExclList').innerHTML = (mMail.exclude.length ? `<div onclick="mMailClearExcl()" style="padding:10px 12px;font-size:12px;color:var(--accent);border-bottom:0.5px solid var(--border);cursor:pointer">Сбросить исключения</div>` : '') +
+    (names.length ? names.map(n => {
+      const on = ex.has(n.toLowerCase());
+      return `<label style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:0.5px solid var(--border);font-size:14px;color:${on ? 'var(--red)' : 'var(--text1)'};cursor:pointer"><input type="checkbox" ${on ? 'checked' : ''} onchange="mMailToggleExclName(decodeURIComponent(this.dataset.n))" data-n="${encodeURIComponent(n)}" style="width:18px;height:18px;accent-color:#ef4444">${esc(n)}</label>`;
+    }).join('') : '<div style="padding:12px;font-size:12px;color:var(--text3)">Ничего не найдено</div>');
+}
+function mMailToggleExclName(name) {
+  const i = mMail.exclude.findIndex(n => n.toLowerCase() === name.toLowerCase());
+  if (i < 0) mMail.exclude.push(name); else mMail.exclude.splice(i, 1);
+  mMailSave(); mMailUpdateExclBtn(); mMailRenderExcl();
+}
+function mMailClearExcl() { mMail.exclude = []; mMailSave(); mMailUpdateExclBtn(); mMailRenderExcl(); }
+
+async function mMailBuild() {
+  const manual = (document.getElementById('mMailGeos').value || '').split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean);
+  const geos = [];
+  mMail.regions.forEach(rid => {
+    allRegionGeos.filter(rg => String(rg.region_id) === String(rid)).map(rg => (rg.geo || '').toUpperCase()).filter(Boolean)
+      .sort((a, b) => a.localeCompare(b)).forEach(g => { if (!geos.includes(g)) geos.push(g); });
+  });
+  manual.forEach(g => { if (!geos.includes(g)) geos.push(g); });
+  if (!geos.length) { showToast('Выберите тир или впишите гео', 'error'); return; }
+  const btn = document.getElementById('mMailBuildBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Собираю…';
+  try {
+    await loadBundleSettings(false); // always the latest margin / minimums
+    if (!eurUsd) await fetchRates();
+    await buildOfferVersionIndex();
+    const { data, error } = await sb.from('offers').select('*').eq('project', currentProject).in('geo', geos).eq('status', 'active')
+      .or('partner_type.neq.Direct,partner_type.is.null');
+    if (error) throw error;
+    let rows = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
+    const ex = new Set(mMail.exclude.map(n => n.toLowerCase()));
+    if (ex.size) rows = rows.filter(o => !ex.has((o.partner || '').trim().toLowerCase()));
+    const shownUsd = o => parseRateToUsd(bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
+    let cut = 0;
+    if (bundleGeoMin.enabled) rows = rows.filter(o => {
+      const th = bundleGeoMinUsd(o.geo);
+      if (th == null || !(o.rate || '').trim()) return true;
+      const ok = shownUsd(o) >= th - 0.005; if (!ok) cut++; return ok;
+    });
+    rows = deduplicateOffers(rows);
+    const order = new Map(geos.map((g, i) => [g, i]));
+    rows.sort((a, b) => {
+      const ai = order.get((a.geo || '').toUpperCase()), bi = order.get((b.geo || '').toUpperCase());
+      return ai !== bi ? ai - bi : shownUsd(b) - shownUsd(a);
+    });
+    const entries = buildBundleEntries(rows, k => k !== 'partner' && k !== 'notes', bundleApplyMargin);
+    const text = bundleEntriesToText(entries, true);
+    document.getElementById('mMailText').value = text;
+    document.getElementById('mMailCount').textContent = `${entries.length} оффер(ов)` + (cut ? ` · убрано по мин. ставке: ${cut}` : '') + (ex.size ? ` · без партнёров: ${ex.size}` : '');
+    document.getElementById('mMailResult').classList.remove('hidden');
+    if (!entries.length) showToast('По этим гео офферов нет', 'error');
+    else setTimeout(() => document.getElementById('mMailResult').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  } catch (e) {
+    showToast('Ошибка сборки: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-stack-2"></i>Собрать подборку';
+  }
+}
+
+async function mMailCopy() {
+  const ta = document.getElementById('mMailText');
+  if (!ta.value) return;
+  try { await navigator.clipboard.writeText(ta.value); }
+  catch (_) { ta.focus(); ta.select(); try { document.execCommand('copy'); } catch (__) {} }
+  showToast('Скопировано', 'success');
+}
+function mMailShare() {
+  const text = document.getElementById('mMailText').value;
+  if (!text) return;
+  if (navigator.share) { navigator.share({ text }).catch(() => {}); return; }
+  window.open('https://t.me/share/url?url=%20&text=' + encodeURIComponent(text), '_blank');
 }
 
 // ── mobile requests ──────────────────────────────────
@@ -6589,7 +6808,7 @@ function renderStatsPage() {
 
 const PAGE_TITLES = {
   offers: 'Офферы', direct: 'Direct', partners: 'Партнёры', requests: 'Запросы',
-  deliveries: 'Выдачи', tasks: 'Таксы', stats: 'Стата', settings: 'Настройки',
+  deliveries: 'Выдачи', mailing: 'Рассылка', tasks: 'Таксы', stats: 'Стата', settings: 'Настройки',
 };
 
 function switchPage(page) {
