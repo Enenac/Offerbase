@@ -1116,6 +1116,13 @@ tr:hover .row-actions{opacity:1}
             </div>
           </div>
           <div class="filter-dropdown">
+            <div class="chip" id="chip-bundle-only" onclick="toggleFilterMenu('bundle-only')"><i class="ti ti-user"></i>Партнёр</div>
+            <div class="filter-menu hidden" id="menu-bundle-only">
+              <div class="filter-search"><input type="text" id="bundleOnlySearch" placeholder="Поиск партнёра..." oninput="renderBundleOnlyList()"></div>
+              <div class="filter-menu-list" id="bundleOnlyList" style="max-height:260px;overflow-y:auto"></div>
+            </div>
+          </div>
+          <div class="filter-dropdown">
             <div class="chip" id="chip-bundle-excl" onclick="toggleFilterMenu('bundle-excl')" style="border-color:rgba(239,68,68,0.3)"><i class="ti ti-user-off"></i>Исключить</div>
             <div class="filter-menu hidden" id="menu-bundle-excl">
               <div class="filter-search"><input type="text" id="bundleExclSearch" placeholder="Поиск партнёра..." oninput="filterBundleExclList()"></div>
@@ -4396,6 +4403,7 @@ let bundleManualGeos = []; // GEOs typed by hand into the field, tracked separat
 let bundlePlatforms = []; // platforms (multi-select) the bundle is limited to
 let _bundlePlatformOptions = [];
 let _bundleFilterOptionsPage = null;
+let bundleOnlyPartner = null; // when set, the bundle contains only this partner's offers
 let bundleExcludePartners = []; // partner names whose offers are left out of the bundle
 let _settingBundleGeoProgrammatically = false;
 let _bundleAutoRebuildTimer = null;
@@ -4610,6 +4618,33 @@ async function bundleExcludePartnerSource() {
   const partners = [...new Set((data || []).map(o => o.partner).filter(Boolean))].sort();
   window._allPartners = partners;
   return partners;
+}
+
+async function renderBundleOnlyList() {
+  const list = document.getElementById('bundleOnlyList');
+  if (!list) return;
+  const partners = await bundleExcludePartnerSource();
+  const q = (document.getElementById('bundleOnlySearch')?.value || '').toLowerCase().trim();
+  const filtered = q ? partners.filter(p => p.toLowerCase().includes(q)) : partners;
+  list.innerHTML = filtered.length
+    ? filtered.map(p => `<div class="filter-option ${bundleOnlyPartner === p ? 'selected' : ''}" onclick="setBundleOnlyPartner('${esc(p).replace(/'/g,"\\'")}')">${esc(p)}</div>`).join('')
+    : '<div style="padding:8px 10px;font-size:11px;color:var(--text3)">Ничего не найдено</div>';
+}
+
+function updateBundleOnlyChip() {
+  const chip = document.getElementById('chip-bundle-only');
+  if (!chip) return;
+  chip.classList.toggle('active', !!bundleOnlyPartner);
+  chip.innerHTML = bundleOnlyPartner
+    ? `<i class="ti ti-x" style="font-size:10px" onclick="event.stopPropagation();setBundleOnlyPartner(null)"></i>${esc(bundleOnlyPartner)}`
+    : `<i class="ti ti-user"></i>Партнёр`;
+}
+
+function setBundleOnlyPartner(name) {
+  bundleOnlyPartner = (name && bundleOnlyPartner !== name) ? name : null;
+  closeAllMenus();
+  updateBundleOnlyChip();
+  scheduleBundleAutoRebuild();
 }
 
 async function renderBundleExclList() {
@@ -4871,6 +4906,8 @@ async function openExport() {
   bundleRegionSelection = [];
   bundleManualGeos = [];
   bundleExcludePartners = [];
+  bundleOnlyPartner = null;
+  updateBundleOnlyChip();
   bundlePlatforms = [];
   updateBundlePlatformChip();
   const platSearch = document.getElementById('bundlePlatformSearch');
@@ -4884,6 +4921,7 @@ async function openExport() {
   const exclSearch = document.getElementById('bundleExclSearch');
   if (exclSearch) exclSearch.value = '';
   renderBundleExclList();
+  renderBundleOnlyList();
   if (!allRegions.length) await loadRegions();
   renderBundleRegionList();
   await loadBundleSettings(true);
@@ -5091,6 +5129,7 @@ async function buildGeoBundle() {
     const ptype = currentPage === 'direct' ? 'Direct' : null;
     let q = sb.from('offers').select('*').eq('project', currentProject).in('geo', geos).eq('status', 'active');
     q = ptype ? q.eq('partner_type', ptype) : q.or('partner_type.neq.Direct,partner_type.is.null');
+    if (bundleOnlyPartner) q = q.eq('partner', bundleOnlyPartner);
     if (bundleSourceFilter) q = q.eq('traffic_source', bundleSourceFilter);
     if (bundleGameTypeFilter) q = q.eq('game_type', bundleGameTypeFilter);
     if (bundlePlatforms.length) q = q.in('platform', bundlePlatforms);
