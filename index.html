@@ -44,6 +44,9 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:'IBM P
 .search-box i{color:var(--text3);font-size:15px}
 .search-box input{background:none;border:none;outline:none;font-size:12px;color:var(--text2);width:100%;font-family:'IBM Plex Sans',sans-serif}
 .search-box input::placeholder{color:var(--text3)}
+.search-box .search-clear{display:none;flex-shrink:0;cursor:pointer;color:var(--text3);font-size:14px;margin-left:-2px}
+.search-box .search-clear:hover{color:var(--text1)}
+.search-box:hover.has-text .search-clear{display:inline-block}
 .btn{display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid;transition:all 0.15s;font-family:'IBM Plex Sans',sans-serif}
 .btn-primary{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent)}
 .btn-primary:hover{background:#1c2540;border-color:#3a4a80}
@@ -1530,10 +1533,34 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+// Search boxes: an "×" appears at the right edge while hovering a box that has text; click clears it
+function initSearchClear() {
+  document.querySelectorAll('.search-box').forEach(box => {
+    const inp = box.querySelector('input');
+    if (!inp || box.querySelector('.search-clear')) return;
+    const x = document.createElement('i');
+    x.className = 'ti ti-x search-clear';
+    x.title = 'Очистить';
+    x.addEventListener('mousedown', e => e.preventDefault()); // keep focus state as is
+    x.addEventListener('click', () => {
+      inp.value = '';
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      box.classList.remove('has-text');
+      inp.focus();
+    });
+    box.appendChild(x);
+    const sync = () => box.classList.toggle('has-text', !!inp.value);
+    inp.addEventListener('input', sync);
+    inp.addEventListener('change', sync);
+    sync();
+  });
+}
+
 let _appInited = false;
 function initApp() {
   if (_appInited) return;
   _appInited = true;
+  initSearchClear();
   document.title = 'Офферы';
   loadOffers();
   loadPartners();
