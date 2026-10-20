@@ -1154,7 +1154,7 @@ tr:hover .row-actions{opacity:1}
                   <span>Убирать офферы ниже порога гео</span>
                 </label>
                 <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.05em">
-                  <span style="flex:1">Порог (ставка оффера до маржи)</span>
+                  <span style="flex:1">Порог (ставка как в подборке)</span>
                   <select id="bundleGeoMinCur" class="form-select" style="width:72px;font-size:11px" onchange="setBundleGeoMinCur(this.value)"><option value="EUR">EUR</option><option value="USD">USD</option></select>
                 </div>
                 <div id="bundleGeoMinList" style="max-height:240px;overflow-y:auto"></div>
@@ -5177,7 +5177,7 @@ async function buildGeoBundle() {
       current = current.filter(o => {
         const th = bundleGeoMinUsd(o.geo);
         if (th == null || !(o.rate || '').trim()) return true;
-        const ok = parseRateToUsd(o.rate) >= th - 0.005; // the offer's own rate, before margin
+        const ok = bundleRateUsd(o) >= th - 0.005; // rate as shown in the bundle (after margin)
         if (!ok) belowGeoMin++;
         return ok;
       });
@@ -5554,7 +5554,7 @@ async function mMailBuild() {
     if (bundleGeoMin.enabled) rows = rows.filter(o => {
       const th = bundleGeoMinUsd(o.geo);
       if (th == null || !(o.rate || '').trim()) return true;
-      const ok = parseRateToUsd(o.rate) >= th - 0.005; if (!ok) cut++; return ok; // own rate, before margin
+      const ok = shownUsd(o) >= th - 0.005; if (!ok) cut++; return ok; // rate as shown (after margin)
     });
     rows = deduplicateOffers(rows);
     const order = new Map(geos.map((g, i) => [g, i]));
