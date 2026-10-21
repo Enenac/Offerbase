@@ -1450,7 +1450,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         status: 'waiting_link',
         remind_at: null,
         amount_src: null,
-        amount_src_cur: 'EUR',
+        amount_src_cur: rateAmt ? rateAmt.cur : 'EUR', // same currency as the partner's amount
         amount_out: rateAmt ? rateAmt.value : null,
         amount_out_cur: rateAmt ? rateAmt.cur : 'EUR',
         capa: (p.capa != null ? p.capa : 0), // filled by AI parse when available, else finished from desktop later
@@ -6025,6 +6025,12 @@ function openAddDeliveryModal() {
   setTimeout(() => document.getElementById('del-offer').focus(), 50);
 }
 
+// while the "amount from source" is still empty, its currency mirrors the partner amount's currency
+function syncSrcCur(pre) {
+  const amt = document.getElementById(pre + '-src-amt');
+  if (amt && String(amt.value).trim() === '') document.getElementById(pre + '-src-cur').value = document.getElementById(pre + '-out-cur').value;
+}
+
 async function saveDelivery() {
   const offer = document.getElementById('del-offer').value.trim();
   const partner = document.getElementById('del-partner').value.trim();
@@ -6072,7 +6078,8 @@ function openEditDelivery(id) {
   document.getElementById('edit-del-status').value = d.status||'waiting_link';
   document.getElementById('edit-del-remind').value = d.remind_at ? toLocalDatetimeInput(d.remind_at) : '';
   document.getElementById('edit-del-src-amt').value = d.amount_src ?? '';
-  document.getElementById('edit-del-src-cur').value = d.amount_src_cur || 'EUR';
+  // no source amount yet → its currency follows the partner's amount currency (the typical case after AI parse)
+  document.getElementById('edit-del-src-cur').value = d.amount_src != null ? (d.amount_src_cur || 'EUR') : (d.amount_out_cur || d.amount_src_cur || 'EUR');
   document.getElementById('edit-del-out-amt').value = d.amount_out ?? '';
   document.getElementById('edit-del-out-cur').value = d.amount_out_cur || 'EUR';
   document.getElementById('edit-del-capa').value = d.capa ?? '';
@@ -8119,7 +8126,7 @@ function showToast(msg,type='success') {
           <label class="form-label">Сумма партнёру</label>
           <div style="display:flex;gap:6px">
             <input class="form-input" type="number" step="any" id="del-out-amt" placeholder="210" style="flex:1">
-            <select class="form-select" id="del-out-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
+            <select class="form-select" id="del-out-cur" onchange="syncSrcCur('del')" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
           </div>
         </div>
       </div>
@@ -8187,7 +8194,7 @@ function showToast(msg,type='success') {
           <label class="form-label">Сумма партнёру</label>
           <div style="display:flex;gap:6px">
             <input class="form-input" type="number" step="any" id="edit-del-out-amt" placeholder="210" style="flex:1">
-            <select class="form-select" id="edit-del-out-cur" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
+            <select class="form-select" id="edit-del-out-cur" onchange="syncSrcCur('edit-del')" style="width:64px;flex-shrink:0"><option value="EUR">€</option><option value="USD">$</option></select>
           </div>
         </div>
       </div>
