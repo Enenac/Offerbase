@@ -6016,7 +6016,8 @@ function renderDeliveries() {
 }
 
 function openAddDeliveryModal() {
-  ['offer','by','partner','remind'].forEach(f => {
+  _delParsedCache = { text: null, fields: null };
+  ['offer','by','partner','remind','src-amt','out-amt','capa'].forEach(f => {
     const el = document.getElementById('del-'+f);
     if (el) el.value = '';
   });
@@ -6031,38 +6032,86 @@ function syncSrcCur(pre) {
   if (amt && String(amt.value).trim() === '') document.getElementById(pre + '-src-cur').value = document.getElementById(pre + '-out-cur').value;
 }
 
+// Pasted offer text → fields via the same AI endpoint the phone uses. The result is cached per text,
+// so a second "Сохранить" (e.g. after filling in a missing cap) doesn't call the AI again.
+let _delParsedCache = { text: null, fields: null };
+async function parseDeliveryText(text) {
+  if (_delParsedCache.text === text && _delParsedCache.fields) return _delParsedCache.fields;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const resp = await fetch('/api/parse-offer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }), signal: controller.signal,
+    });
+    const raw = await resp.text();
+    let result; try { result = JSON.parse(raw); } catch { throw new Error(`сервер вернул не JSON (код ${resp.status})`); }
+    if (!resp.ok || !result.ok) throw new Error(result.error || `код ${resp.status}`);
+    _delParsedCache = { text, fields: result.fields || {} };
+    return _delParsedCache.fields;
+  } finally { clearTimeout(timeoutId); }
+}
+
 async function saveDelivery() {
-  const offer = document.getElementById('del-offer').value.trim();
-  const partner = document.getElementById('del-partner').value.trim();
-  const by = document.getElementById('del-by').value.trim();
-  const status = document.getElementById('del-status').value;
-  const remind = document.getElementById('del-remind').value;
-  if (!offer) { document.getElementById('del-offer').focus(); return; }
-  const capaRaw = document.getElementById('del-capa').value.trim();
-  const capa = parseFloat(capaRaw);
-  if (capaRaw === '' || isNaN(capa) || capa < 0) {
-    showToast('Укажите капу — это обязательное условие выдачи', 'error');
-    document.getElementById('del-capa').focus();
-    return;
+  const offerEl = document.getElementById('del-offer');
+  const offer = offerEl.value.trim();
+  if (!offer) { offerEl.focus(); return; }
+  const btn = document.getElementById('saveDeliveryBtn');
+  const idle = '<i class="ti ti-check"></i>Сохранить';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Распознаю…';
+  try {
+    let p = {};
+    try { p = await parseDeliveryText(offer); }
+    catch (e) { showToast('ИИ не распознал оффер (' + (e.name === 'AbortError' ? 'нет ответа за 25 с' : e.message) + ') — сохраняю как есть', 'error'); }
+
+    const partner = document.getElementById('del-partner').value.trim() || p.partner || null;
+    const by = document.getElementById('del-by').value.trim();
+    const status = document.getElementById('del-status').value;
+    const remind = document.getElementById('del-remind').value;
+    const capaRaw = document.getElementById('del-capa').value.trim();
+    const capaTyped = parseFloat(capaRaw);
+    const capa = (capaRaw !== '' && !isNaN(capaTyped)) ? capaTyped : (p.capa != null ? Number(p.capa) : NaN);
+    if (isNaN(capa) || capa < 0) {
+      showToast('Капа не найдена в тексте — укажите её вручную (обязательное условие выдачи)', 'error');
+      document.getElementById('del-capa').focus();
+      return;
+    }
+    // partner's amount: typed by hand, otherwise the parsed rate (with its currency)
+    const rateAmt = parseRateAmountCur(p.rate);
+    const outTyped = parseFloat(document.getElementById('del-out-amt').value);
+    const amountOut = !isNaN(outTyped) && outTyped ? outTyped : (rateAmt ? rateAmt.value : null);
+    const outCur = (!isNaN(outTyped) && outTyped) ? document.getElementById('del-out-cur').value : (rateAmt ? rateAmt.cur : document.getElementById('del-out-cur').value);
+    const srcTyped = parseFloat(document.getElementById('del-src-amt').value);
+    const amountSrc = (!isNaN(srcTyped) && srcTyped) ? srcTyped : null;
+    const data = {
+      project: currentProject,
+      notes: offer,        // the free-form offer text stays in notes
+      partner,
+      created_by: by || null,
+      brand: p.brand || null,
+      geo: p.geo || null,
+      traffic_source: p.traffic_source || null,
+      game_type: p.game_type || null,
+      rate: p.rate || null,
+      status,
+      remind_at: fromLocalDatetimeInput(remind),
+      amount_src: amountSrc,
+      amount_src_cur: amountSrc != null ? document.getElementById('del-src-cur').value : outCur, // follows the partner's currency until filled
+      amount_out: amountOut,
+      amount_out_cur: outCur,
+      capa,
+      ...(p.conversion ? { conversion: p.conversion } : {}),
+      ...(p.other ? { other: p.other } : {}),
+    };
+    const { error } = await sb.from('deliveries').insert(data);
+    if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
+    document.getElementById('addDeliveryOverlay').classList.add('hidden');
+    showToast('Выдача добавлена', 'success');
+    await loadDeliveries();
+  } finally {
+    btn.disabled = false; btn.innerHTML = idle;
   }
-  const data = {
-    project: currentProject,
-    notes: offer,        // store the free-form offer text in notes
-    partner: partner||null,
-    created_by: by||null,
-    status,
-    remind_at: fromLocalDatetimeInput(remind),
-    amount_src: parseFloat(document.getElementById('del-src-amt').value) || null,
-    amount_src_cur: document.getElementById('del-src-cur').value,
-    amount_out: parseFloat(document.getElementById('del-out-amt').value) || null,
-    amount_out_cur: document.getElementById('del-out-cur').value,
-    capa,
-  };
-  const { error } = await sb.from('deliveries').insert(data);
-  if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
-  document.getElementById('addDeliveryOverlay').classList.add('hidden');
-  showToast('Выдача добавлена', 'success');
-  await loadDeliveries();
 }
 
 function openEditDelivery(id) {
@@ -8102,7 +8151,8 @@ function showToast(msg,type='success') {
     <div class="modal-body">
       <div class="form-group" style="margin-bottom:12px">
         <label class="form-label">Оффер</label>
-        <input class="form-input" id="del-offer" placeholder="например: RoyalFlush | SpinGranny | IT | FB | $190">
+        <textarea class="form-input" id="del-offer" rows="3" placeholder="Вставь оффер целиком — при сохранении ИИ сам распознает гео, бренд, источник, ставку, капу…" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();saveDelivery()}" style="resize:vertical;line-height:1.5"></textarea>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">Остальные поля необязательны: что заполнишь вручную — перекроет распознанное. Ctrl+Enter — сохранить.</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group">
@@ -8155,7 +8205,7 @@ function showToast(msg,type='success') {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="document.getElementById('addDeliveryOverlay').classList.add('hidden')">Отмена</button>
-      <button class="btn btn-primary" onclick="saveDelivery()"><i class="ti ti-check"></i>Сохранить</button>
+      <button class="btn btn-primary" id="saveDeliveryBtn" onclick="saveDelivery()"><i class="ti ti-check"></i>Сохранить</button>
     </div>
   </div>
 </div>
