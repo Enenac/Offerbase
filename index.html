@@ -6017,6 +6017,7 @@ function renderDeliveries() {
 
 function openAddDeliveryModal() {
   _delParsedCache = { text: null, fields: null };
+  toggleDelAdvanced(false);
   ['offer','by','partner','remind','src-amt','out-amt','capa'].forEach(f => {
     const el = document.getElementById('del-'+f);
     if (el) el.value = '';
@@ -6030,6 +6031,13 @@ function openAddDeliveryModal() {
 function syncSrcCur(pre) {
   const amt = document.getElementById(pre + '-src-amt');
   if (amt && String(amt.value).trim() === '') document.getElementById(pre + '-src-cur').value = document.getElementById(pre + '-out-cur').value;
+}
+
+function toggleDelAdvanced(force) {
+  const box = document.getElementById('delAdvanced');
+  const open = typeof force === 'boolean' ? force : box.classList.contains('hidden');
+  box.classList.toggle('hidden', !open);
+  document.getElementById('delAdvIcon').style.transform = open ? 'rotate(90deg)' : '';
 }
 
 // Pasted offer text → fields via the same AI endpoint the phone uses. The result is cached per text,
@@ -6074,6 +6082,7 @@ async function saveDelivery() {
     const capa = (capaRaw !== '' && !isNaN(capaTyped)) ? capaTyped : (p.capa != null ? Number(p.capa) : NaN);
     if (isNaN(capa) || capa < 0) {
       showToast('Капа не найдена в тексте — укажите её вручную (обязательное условие выдачи)', 'error');
+      toggleDelAdvanced(true);
       document.getElementById('del-capa').focus();
       return;
     }
@@ -8152,16 +8161,18 @@ function showToast(msg,type='success') {
       <div class="form-group" style="margin-bottom:12px">
         <label class="form-label">Оффер</label>
         <textarea class="form-input" id="del-offer" rows="3" placeholder="Вставь оффер целиком — при сохранении ИИ сам распознает гео, бренд, источник, ставку, капу…" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();saveDelivery()}" style="resize:vertical;line-height:1.5"></textarea>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px">Остальные поля необязательны: что заполнишь вручную — перекроет распознанное. Ctrl+Enter — сохранить.</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">Остальное ИИ заполнит сам; при необходимости — «Расширенные настройки». Ctrl+Enter — сохранить.</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group" style="margin-bottom:10px">
+        <label class="form-label">Выдаём партнёру</label>
+        <input class="form-input" id="del-partner" placeholder="Кому отдаём...">
+      </div>
+      <div id="delAdvToggle" onclick="toggleDelAdvanced()" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text3);user-select:none;padding:2px 0"><i class="ti ti-chevron-right" id="delAdvIcon" style="font-size:12px;transition:transform 0.15s"></i>Расширенные настройки</div>
+      <div id="delAdvanced" class="hidden" style="margin-top:12px">
+<div style="margin-bottom:12px">
         <div class="form-group">
           <label class="form-label">Источник оффера</label>
           <input class="form-input" id="del-by" placeholder="Кто нам дал оффер...">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Выдаём партнёру</label>
-          <input class="form-input" id="del-partner" placeholder="Кому отдаём...">
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
@@ -8201,6 +8212,7 @@ function showToast(msg,type='success') {
           <label class="form-label">Напомнить <span style="color:var(--text3)">(для «Ожидаем запуска»)</span></label>
           <input class="form-input" type="datetime-local" id="del-remind">
         </div>
+      </div>
       </div>
     </div>
     <div class="modal-footer">
