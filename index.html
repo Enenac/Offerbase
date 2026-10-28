@@ -6097,13 +6097,9 @@ async function saveDelivery() {
     const remind = document.getElementById('del-remind').value;
     const capaRaw = document.getElementById('del-capa').value.trim();
     const capaTyped = parseFloat(capaRaw);
-    const capa = (capaRaw !== '' && !isNaN(capaTyped)) ? capaTyped : (p.capa != null ? Number(p.capa) : NaN);
-    if (isNaN(capa) || capa < 0) {
-      showToast('Капа не найдена в тексте — укажите её вручную (обязательное условие выдачи)', 'error');
-      toggleDelAdvanced(true);
-      document.getElementById('del-capa').focus();
-      return;
-    }
+    // cap is optional: typed value, else the AI's, else 0 ("not set yet", same as the phone form)
+    let capa = (capaRaw !== '' && !isNaN(capaTyped)) ? capaTyped : (p.capa != null ? Number(p.capa) : 0);
+    if (isNaN(capa) || capa < 0) capa = 0;
     // partner's amount: typed by hand, otherwise the parsed rate (with its currency)
     const rateAmt = parseRateAmountCur(p.rate);
     const outTyped = parseFloat(document.getElementById('del-out-amt').value);
@@ -6215,12 +6211,8 @@ function startEditDeliveryDate(id, ev) {
 async function updateDelivery() {
   const id = document.getElementById('edit-del-id').value;
   const capaRaw = document.getElementById('edit-del-capa').value.trim();
-  const capa = parseFloat(capaRaw);
-  if (capaRaw === '' || isNaN(capa) || capa < 0) {
-    showToast('Укажите капу — это обязательное условие выдачи', 'error');
-    document.getElementById('edit-del-capa').focus();
-    return;
-  }
+  let capa = parseFloat(capaRaw);
+  if (capaRaw === '' || isNaN(capa) || capa < 0) capa = 0; // cap is optional (0 = not set yet)
   const data = {
     notes: document.getElementById('edit-del-notes').value.trim()||null,
     geo: document.getElementById('edit-del-geo').value.trim().toUpperCase()||null,
@@ -8211,7 +8203,7 @@ function showToast(msg,type='success') {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group">
-          <label class="form-label">Капа <span style="color:var(--red)">*</span></label>
+          <label class="form-label">Капа</label>
           <input class="form-input" type="number" step="any" min="0" id="del-capa" placeholder="Кол-во депозитов">
         </div>
       </div>
@@ -8280,7 +8272,7 @@ function showToast(msg,type='success') {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="form-group">
-          <label class="form-label">Капа <span style="color:var(--red)">*</span></label>
+          <label class="form-label">Капа</label>
           <input class="form-input" type="number" step="any" min="0" id="edit-del-capa" placeholder="Кол-во депозитов">
         </div>
         <div class="form-group">
