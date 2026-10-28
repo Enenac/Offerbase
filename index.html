@@ -2113,8 +2113,25 @@ function renderDynamicList(listId, items, filterKey) {
   `).join('');
 }
 
+// GEO typed on a Russian keyboard layout (ШЕ instead of IT) → the Latin letters on the same keys
+const RU_TO_LAT = { 'й':'q','ц':'w','у':'e','к':'r','е':'t','н':'y','г':'u','ш':'i','щ':'o','з':'p','ф':'a','ы':'s','в':'d','а':'f','п':'g','р':'h','о':'j','л':'k','д':'l','я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m' };
+function fixGeoLayout(v) {
+  return (v || '').replace(/[а-яё]/gi, ch => {
+    const lat = RU_TO_LAT[ch.toLowerCase()];
+    return lat ? (ch === ch.toLowerCase() ? lat : lat.toUpperCase()) : ch;
+  });
+}
+// same fix for a text input, in place (same length, so the caret stays where it was)
+function fixGeoLayoutInput(el) {
+  const fixed = fixGeoLayout(el.value);
+  if (fixed === el.value) return;
+  const pos = el.selectionStart;
+  el.value = fixed;
+  try { el.setSelectionRange(pos, pos); } catch (_) {}
+}
+
 function filterGeoList() {
-  const q = document.getElementById('geo-search').value.toUpperCase().trim();
+  const q = fixGeoLayout(document.getElementById('geo-search').value).toUpperCase().trim();
   if (!q) { renderGeoList(window._geoTop || [], window._geoRest || [], false); return; }
   const geos = (window._allGeos || []).filter(g => g.toUpperCase().includes(q));
   renderGeoList(geos, [], true); // while searching: plain list, most used first
@@ -4558,6 +4575,7 @@ function recomputeBundleGeoInput() {
 // so toggling a region later doesn't wipe out what was typed (and vice versa)
 function onBundleGeoInputTyped() {
   if (_settingBundleGeoProgrammatically) return;
+  fixGeoLayoutInput(document.getElementById('bundleGeoInput'));
   const regionGeos = bundleRegionGeosOrdered();
   const tokens = [...new Set((document.getElementById('bundleGeoInput').value || '')
     .split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
@@ -5488,7 +5506,7 @@ function mMailToggleRegion(id) {
   mMailSave(); renderMobileMailing();
 }
 function mMailGeosTyped(el) {
-  el.value = el.value.replace(/[,;\n]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
+  el.value = fixGeoLayout(el.value).replace(/[,;\n]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
   mMail.geos = el.value; mMailSave();
 }
 
@@ -7054,7 +7072,7 @@ function addNpBrand(boxId, preset) {
 // GEO field: commas / semicolons / line breaks become a single space, extra spaces collapse, letters go UPPERCASE.
 // Runs as you type or paste (no button needed); the caret stays where it was. On blur the trailing space is trimmed.
 function normalizeGeoInput(el, trim) {
-  const norm = v => v.replace(/[,;\n\r\t]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
+  const norm = v => fixGeoLayout(v).replace(/[,;\n\r\t]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
   const before = el.value;
   let after = norm(before);
   if (trim) after = after.trim();
