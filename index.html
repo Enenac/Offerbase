@@ -7089,7 +7089,10 @@ function addNpBrand(boxId, preset) {
         <button class="icon-btn" type="button" onclick="removeNpBrand(this)" title="Убрать бренд"><i class="ti ti-x"></i></button>
       </div>
       <button class="btn btn-ghost np-copy-prev" type="button" onclick="copyPrevBrand(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px;margin-bottom:8px"><i class="ti ti-copy"></i>Как у предыдущего бренда</button>
-      <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" value="${esc(preset ? preset.geos.join(' ') : '')}" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" value="${esc(preset ? preset.geos.join(' ') : '')}" style="flex:1;min-width:0" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
+        <input class="form-input np-x-platform" list="partnerPlatformList" placeholder="Платформа" value="${esc(preset && preset.platform || '')}" autocomplete="off" style="width:150px;flex-shrink:0">
+      </div>
       <div class="np-extra" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px">
         <input class="form-input np-x-mindep" placeholder="Мин. деп" value="${esc(preset && preset.min_deposit || '')}" autocomplete="off">
         <input class="form-input np-x-capa" placeholder="Капа" value="${esc(preset && preset.capa || '')}" autocomplete="off">
@@ -7146,7 +7149,7 @@ function copyPrevBrand(block) {
   block.querySelector('.np-brand-geos').value = prev.querySelector('.np-brand-geos').value;
   const cb = block.querySelector('.np-brand-nofb');
   cb.checked = prev.querySelector('.np-brand-nofb').checked; styleNpNoFb(cb);
-  ['mindep', 'capa', 'conv', 'other'].forEach(c => { block.querySelector('.np-x-' + c).value = prev.querySelector('.np-x-' + c).value; });
+  ['platform', 'mindep', 'capa', 'conv', 'other'].forEach(c => { block.querySelector('.np-x-' + c).value = prev.querySelector('.np-x-' + c).value; });
   block.querySelector('.np-sources').innerHTML = '';
   const rows = [...prev.querySelectorAll('.np-src')];
   if (!rows.length) addNpSource(block);
@@ -7191,7 +7194,7 @@ function collectNpOffers(canonSources, boxId) {
     const name = b.querySelector('.np-brand-name').value.trim();
     const noFb = b.querySelector('.np-brand-nofb').checked;
     const xv = c => b.querySelector('.np-x-' + c).value.trim() || null;
-    const extra = { min_deposit: xv('mindep'), capa: xv('capa'), conversion: xv('conv'), other: xv('other') };
+    const extra = { platform: xv('platform'), min_deposit: xv('mindep'), capa: xv('capa'), conversion: xv('conv'), other: xv('other') };
     const geos = [...new Set(b.querySelector('.np-brand-geos').value.split(/[\s,]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
     const srcs = [...b.querySelectorAll('.np-src')].map(r => ({
       name: r.querySelector('.np-src-name').value.trim(),
@@ -7222,7 +7225,6 @@ function collectNpOffers(canonSources, boxId) {
 function openAddPartnerModal() {
   document.getElementById('newPartnerName').value = '';
   document.getElementById('newPartnerType').value = 'direct';
-  document.getElementById('newPartnerPlatform').value = '';
   document.getElementById('newPartnerLicense').value = '';
   fillPartnerPlatformList();
   document.getElementById('newPartnerBrands').innerHTML = '';
@@ -7238,7 +7240,7 @@ function openAddPartnerModal() {
 
 function fillPartnerPlatformList() {
   const dl = document.getElementById('partnerPlatformList'); if (!dl) return;
-  const set = new Set([...allPartners.map(p => (p.platform || '').trim()), ...(allOffers || []).map(o => (o.platform || '').trim())].filter(v => v && v !== '-' && v !== '—'));
+  const set = new Set([...(window._partnerOffers || []).map(o => (o.platform || '').trim()), ...(allOffers || []).map(o => (o.platform || '').trim())].filter(v => v && v !== '-' && v !== '—'));
   dl.innerHTML = [...set].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
   const ll = document.getElementById('partnerLicenseList');
   if (ll) ll.innerHTML = [...new Set(allPartners.map(p => (p.license || '').trim()).filter(Boolean))].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
@@ -7246,10 +7248,10 @@ function fillPartnerPlatformList() {
 // partners.platform may not exist yet — retry without it and tell the user
 async function partnerWrite(fn, payload) {
   let r = await fn(payload);
-  if (r.error && /platform|license/.test(r.error.message)) {
-    const { platform, license, ...rest } = payload;
+  if (r.error && /license/.test(r.error.message)) {
+    const { license, ...rest } = payload;
     r = await fn(rest);
-    if (!r.error && (platform || license)) showToast('Платформа/лицензия не сохранены: создай колонки platform и license в partners (SQL в ответе)', 'error');
+    if (!r.error && license) showToast('Лицензия не сохранена: создай колонку license в partners (SQL в ответе)', 'error');
   }
   return r;
 }
@@ -7258,10 +7260,10 @@ async function loadPartners() {
   const offerQ = cols => sb.from('offers').select(cols).eq('project', currentProject).limit(100000);
   let [partnersRes, countsRes] = await Promise.all([
     sb.from('partners').select('*').eq('project', currentProject).order('name'),
-    offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, min_deposit, capa, conversion, other')
+    offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, platform, min_deposit, capa, conversion, other')
   ]);
-  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, min_deposit, capa');
-  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, min_deposit, capa');
+  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, platform, min_deposit, capa');
+  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, platform, min_deposit, capa');
   if (partnersRes.error) { showToast('Ошибка загрузки партнёров: ' + partnersRes.error.message, 'error'); return; }
   allPartners = partnersRes.data || [];
   // Store offer data for partner grid
@@ -7439,7 +7441,8 @@ function renderPartnersGrid() {
     const isExpanded = expandedPartnerId === p.id;
     // Direct: flag in red if any of the partner's offers carries a KPI ("No KPI" / empty / "-" don't count)
     const kpiCount = isDirect ? partnerOffers.filter(o => { const k = (o.kpi || '').trim(); return k && k !== '-' && k !== '–' && k !== '—' && k.toLowerCase() !== 'no kpi'; }).length : 0;
-    const platBadge = p.platform ? `<span title="Платформа" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border)"><i class="ti ti-layout-grid" style="font-size:10px"></i>${esc(p.platform)}</span>` : '';
+    const platSet = [...new Set(partnerOffers.map(o => (o.platform || '').trim()).filter(v => v && v !== '-' && v !== '—'))];
+    const platBadge = platSet.length ? `<span title="Платформа" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border)"><i class="ti ti-layout-grid" style="font-size:10px"></i>${esc(platSet.slice(0, 2).join(', '))}${platSet.length > 2 ? ' +' + (platSet.length - 2) : ''}</span>` : '';
     const licBadge = p.license ? `<span title="Лицензия" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border)"><i class="ti ti-certificate" style="font-size:10px"></i>${esc(p.license)}</span>` : '';
     const kpiBadge = kpiCount
       ? `<span title="Офферов с KPI: ${kpiCount}" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;color:#ef4444;background:rgba(239,68,68,0.10);border:0.5px solid rgba(239,68,68,0.4)">Есть KPI</span>`
@@ -7515,7 +7518,7 @@ function renderDirectBrandSummary(partnerId, offers) {
   offers.forEach(o => {
     const name = (o.brand || '').trim() || '—';
     const k = name.toLowerCase();
-    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0, nofb: false, ex: { min_deposit: new Set(), capa: new Set(), conversion: new Set(), other: new Set() } });
+    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0, nofb: false, ex: { platform: new Set(), min_deposit: new Set(), capa: new Set(), conversion: new Set(), other: new Set() } });
     const g = groups.get(k);
     g.n++;
     if (o.no_fb) g.nofb = true;
@@ -7549,7 +7552,7 @@ function renderDirectBrandSummary(partnerId, offers) {
     const more = all.length > PC_GEO_LIMIT
       ? ` <span onclick="event.stopPropagation();togglePcGeos('${partnerId}','${encodeURIComponent(k)}')" style="cursor:pointer;color:var(--accent)">${open ? 'свернуть' : '+' + (all.length - PC_GEO_LIMIT)}</span>`
       : '';
-    const exLbl = { min_deposit: 'Мин. деп', capa: 'Капа', conversion: 'Конверт', other: 'Другое' };
+    const exLbl = { platform: 'Платформа', min_deposit: 'Мин. деп', capa: 'Капа', conversion: 'Конверт', other: 'Другое' };
     const extraLine = Object.keys(exLbl).some(c => g.ex[c].size)
       ? `<div style="display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11px;color:var(--text2);margin-bottom:7px">${Object.keys(exLbl).filter(c => g.ex[c].size).map(c => `<span><span style="color:var(--text3)">${exLbl[c]}:</span> ${esc([...g.ex[c]].join(' / '))}</span>`).join('')}</div>`
       : '';
@@ -7604,7 +7607,7 @@ function groupOffersToBlocks(offers) {
     if (!b.geos.has(geo)) b.geos.set(geo, new Map());
     b.geos.get(geo).set(_skey(o.traffic_source), { name: (o.traffic_source || '').trim(), rate: (o.rate || '').trim(), kpi: o.kpi || '' });
     if (o.no_fb) b.nofb.add(geo);
-    if (!b.extra.has(geo)) b.extra.set(geo, { min_deposit: o.min_deposit || '', capa: o.capa || '', conversion: o.conversion || '', other: o.other || '' });
+    if (!b.extra.has(geo)) b.extra.set(geo, { platform: o.platform || '', min_deposit: o.min_deposit || '', capa: o.capa || '', conversion: o.conversion || '', other: o.other || '' });
   });
   const blocks = [];
   [...brands.values()].sort((a, b) => b.geos.size - a.geos.size).forEach(b => {
@@ -7612,7 +7615,7 @@ function groupOffersToBlocks(offers) {
     const bySig = new Map();
     [...b.geos.entries()].sort((x, y) => x[0].localeCompare(y[0])).forEach(([geo, srcs]) => {
       const ex = b.extra.get(geo);
-      const sig = (b.nofb.has(geo) ? 'FB!' : '') + [ex.min_deposit, ex.capa, ex.conversion, ex.other].join('^') + '#' + [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
+      const sig = (b.nofb.has(geo) ? 'FB!' : '') + [ex.platform, ex.min_deposit, ex.capa, ex.conversion, ex.other].join('^') + '#' + [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
       if (!bySig.has(sig)) bySig.set(sig, { name, geos: [], sources: [...srcs.values()], noFb: b.nofb.has(geo), ...ex });
       bySig.get(sig).geos.push(geo);
     });
@@ -7623,9 +7626,9 @@ function groupOffersToBlocks(offers) {
 
 async function fetchPartnerOffersFull(name) {
   const q = cols => sb.from('offers').select(cols).eq('project', currentProject).ilike('partner', name).limit(100000);
-  let { data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb, min_deposit, capa, conversion, other');
-  if (error) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb, min_deposit, capa')); // conversion/other not created yet
-  if (error) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi, min_deposit, capa')); // no_fb not created yet
+  let { data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb, platform, min_deposit, capa, conversion, other');
+  if (error) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb, platform, min_deposit, capa')); // conversion/other not created yet
+  if (error) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi, platform, min_deposit, capa')); // no_fb not created yet
   if (error) throw error;
   return data || [];
 }
@@ -7636,7 +7639,6 @@ async function openEditPartner(id) {
   document.getElementById('editPartnerId').value = p.id;
   document.getElementById('editPartnerName').value = p.name;
   document.getElementById('editPartnerType').value = p.partner_type;
-  document.getElementById('editPartnerPlatform').value = p.platform || '';
   document.getElementById('editPartnerLicense').value = p.license || '';
   fillPartnerPlatformList();
   const box = document.getElementById('editPartnerBrands');
@@ -7699,7 +7701,7 @@ async function saveEditPartner() {
       if ((o.rate || '').trim() !== (r.rate || '')) { patch.rate = r.rate || null; patch.rate_usd_num = r.rate ? parseRateToUsd(r.rate) : null; }
       if ((o.kpi || null) !== (r.kpi || null)) patch.kpi = r.kpi || null;
       if (!!o.no_fb !== !!r.no_fb) patch.no_fb = !!r.no_fb;
-      ['min_deposit', 'capa', 'conversion', 'other'].forEach(c => { if ((o[c] || null) !== (r[c] || null) && !(o[c] === undefined && !r[c])) patch[c] = r[c] || null; });
+      ['platform', 'min_deposit', 'capa', 'conversion', 'other'].forEach(c => { if ((o[c] || null) !== (r[c] || null) && !(o[c] === undefined && !r[c])) patch[c] = r[c] || null; });
       if (Object.keys(patch).length) plan.upd.push({ id: o.id, patch });
     });
     exMap.forEach((arr, k) => { if (!want.has(k)) arr.forEach(o => plan.del.push(o.id)); });
@@ -7707,8 +7709,7 @@ async function saveEditPartner() {
   }
 
   // 2) partner record, rename, type
-  const platform = document.getElementById('editPartnerPlatform').value.trim() || null;
-  const upd = { name, partner_type: type, platform, license: document.getElementById('editPartnerLicense').value.trim() || null };
+  const upd = { name, partner_type: type, license: document.getElementById('editPartnerLicense').value.trim() || null };
   const { error } = await partnerWrite(r => sb.from('partners').update(r).eq('id', id), upd);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   if (oldPartner && oldPartner.name !== name) {
@@ -7729,7 +7730,7 @@ async function saveEditPartner() {
         const { error: e1 } = await sb.from('offers').insert(plan.ins.map(r => ({
           project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
           traffic_source: r.traffic_source || null, game_type: null, rate: r.rate, min_deposit: r.min_deposit,
-          capa: r.capa, kpi: r.kpi, platform: platform, partner: name, partner_type: 'Direct',
+          capa: r.capa, kpi: r.kpi, platform: r.platform, partner: name, partner_type: 'Direct',
           status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
           ...(r.no_fb ? { no_fb: true } : {}),
       ...(r.conversion ? { conversion: r.conversion } : {}), ...(r.other ? { other: r.other } : {}),
@@ -7781,8 +7782,7 @@ async function addPartner() {
   }
   const partnerName = existing ? existing.name : name;
   if (!existing) {
-    const platform = document.getElementById('newPartnerPlatform').value.trim() || null;
-    const { error } = await partnerWrite(r => sb.from('partners').insert(r), { name, partner_type: type, project: currentProject, platform, license: document.getElementById('newPartnerLicense').value.trim() || null });
+    const { error } = await partnerWrite(r => sb.from('partners').insert(r), { name, partner_type: type, project: currentProject, license: document.getElementById('newPartnerLicense').value.trim() || null });
     if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   }
 
@@ -7792,7 +7792,7 @@ async function addPartner() {
     const toInsert = offerRows.map(r => ({
       project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
       traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: r.min_deposit,
-      capa: r.capa, kpi: r.kpi, platform: (document.getElementById('newPartnerPlatform').value.trim() || null), partner: partnerName, partner_type: 'Direct',
+      capa: r.capa, kpi: r.kpi, platform: r.platform, partner: partnerName, partner_type: 'Direct',
       status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
       ...(r.no_fb ? { no_fb: true } : {}),
       ...(r.conversion ? { conversion: r.conversion } : {}), ...(r.other ? { other: r.other } : {}),
@@ -8207,15 +8207,9 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
-      <div style="display:flex;gap:10px;margin-top:12px">
-        <div class="form-group" style="flex:1;min-width:0">
-          <label class="form-label">Платформа</label>
-          <input class="form-input" id="editPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
-        </div>
-        <div class="form-group" style="flex:1;min-width:0">
-          <label class="form-label">Лицензия</label>
-          <input class="form-input" id="editPartnerLicense" list="partnerLicenseList" placeholder="Curaçao, MGA..." autocomplete="off">
-        </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Лицензия</label>
+        <input class="form-input" id="editPartnerLicense" list="partnerLicenseList" placeholder="Curaçao, MGA..." autocomplete="off">
       </div>
       <datalist id="partnerPlatformList"></datalist>
       <datalist id="partnerLicenseList"></datalist>
@@ -8276,15 +8270,9 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
-      <div style="display:flex;gap:10px;margin-top:12px">
-        <div class="form-group" style="flex:1;min-width:0">
-          <label class="form-label">Платформа</label>
-          <input class="form-input" id="newPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
-        </div>
-        <div class="form-group" style="flex:1;min-width:0">
-          <label class="form-label">Лицензия</label>
-          <input class="form-input" id="newPartnerLicense" list="partnerLicenseList" placeholder="Curaçao, MGA..." autocomplete="off">
-        </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Лицензия</label>
+        <input class="form-input" id="newPartnerLicense" list="partnerLicenseList" placeholder="Curaçao, MGA..." autocomplete="off">
       </div>
       <div id="newPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— на каждый бренд × гео × источник создастся оффер Direct</span></label>
