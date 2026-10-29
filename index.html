@@ -7213,6 +7213,8 @@ function collectNpOffers(canonSources, boxId) {
 function openAddPartnerModal() {
   document.getElementById('newPartnerName').value = '';
   document.getElementById('newPartnerType').value = 'direct';
+  document.getElementById('newPartnerPlatform').value = '';
+  fillPartnerPlatformList();
   document.getElementById('newPartnerBrands').innerHTML = '';
   // source suggestions: what's already in the base + the form's list
   const opts = new Map();
@@ -7222,6 +7224,22 @@ function openAddPartnerModal() {
   onNewPartnerTypeChange();
   document.getElementById('addPartnerOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('newPartnerName').focus(), 50);
+}
+
+function fillPartnerPlatformList() {
+  const dl = document.getElementById('partnerPlatformList'); if (!dl) return;
+  const set = new Set([...allPartners.map(p => (p.platform || '').trim()), ...(allOffers || []).map(o => (o.platform || '').trim())].filter(v => v && v !== '-' && v !== '—'));
+  dl.innerHTML = [...set].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
+}
+// partners.platform may not exist yet — retry without it and tell the user
+async function partnerWrite(fn, payload) {
+  let r = await fn(payload);
+  if (r.error && /platform/.test(r.error.message)) {
+    const { platform, ...rest } = payload;
+    r = await fn(rest);
+    if (!r.error && platform) showToast('Платформа не сохранена: создай колонку platform в partners (SQL в ответе)', 'error');
+  }
+  return r;
 }
 
 async function loadPartners() {
@@ -7408,6 +7426,7 @@ function renderPartnersGrid() {
     const isExpanded = expandedPartnerId === p.id;
     // Direct: flag in red if any of the partner's offers carries a KPI ("No KPI" / empty / "-" don't count)
     const kpiCount = isDirect ? partnerOffers.filter(o => { const k = (o.kpi || '').trim(); return k && k !== '-' && k !== '–' && k !== '—' && k.toLowerCase() !== 'no kpi'; }).length : 0;
+    const platBadge = p.platform ? `<span title="Платформа" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border)"><i class="ti ti-layout-grid" style="font-size:10px"></i>${esc(p.platform)}</span>` : '';
     const kpiBadge = kpiCount
       ? `<span title="Офферов с KPI: ${kpiCount}" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;color:#ef4444;background:rgba(239,68,68,0.10);border:0.5px solid rgba(239,68,68,0.4)">Есть KPI</span>`
       : '';
@@ -7449,7 +7468,7 @@ function renderPartnersGrid() {
         <div class="sb-partner-info">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="sb-partner-name">${esc(p.name)}</span>
-            ${typeBadge}${kpiBadge}
+            ${typeBadge}${kpiBadge}${platBadge}
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
@@ -7594,6 +7613,8 @@ async function openEditPartner(id) {
   document.getElementById('editPartnerId').value = p.id;
   document.getElementById('editPartnerName').value = p.name;
   document.getElementById('editPartnerType').value = p.partner_type;
+  document.getElementById('editPartnerPlatform').value = p.platform || '';
+  fillPartnerPlatformList();
   const box = document.getElementById('editPartnerBrands');
   box.innerHTML = '';
   const opts = new Map();
@@ -7661,8 +7682,9 @@ async function saveEditPartner() {
   }
 
   // 2) partner record, rename, type
-  const upd = { name, partner_type: type };
-  const { error } = await sb.from('partners').update(upd).eq('id', id);
+  const platform = document.getElementById('editPartnerPlatform').value.trim() || null;
+  const upd = { name, partner_type: type, platform };
+  const { error } = await partnerWrite(r => sb.from('partners').update(r).eq('id', id), upd);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   if (oldPartner && oldPartner.name !== name) {
     await sb.from('offers').update({ partner: name }).ilike('partner', oldPartner.name);
@@ -7682,7 +7704,7 @@ async function saveEditPartner() {
         const { error: e1 } = await sb.from('offers').insert(plan.ins.map(r => ({
           project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
           traffic_source: r.traffic_source || null, game_type: null, rate: r.rate, min_deposit: null,
-          capa: null, kpi: r.kpi, platform: null, partner: name, partner_type: 'Direct',
+          capa: null, kpi: r.kpi, platform: platform, partner: name, partner_type: 'Direct',
           status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
           ...(r.no_fb ? { no_fb: true } : {}),
         })));
@@ -7733,7 +7755,8 @@ async function addPartner() {
   }
   const partnerName = existing ? existing.name : name;
   if (!existing) {
-    const { error } = await sb.from('partners').insert({ name, partner_type: type, project: currentProject });
+    const platform = document.getElementById('newPartnerPlatform').value.trim() || null;
+    const { error } = await partnerWrite(r => sb.from('partners').insert(r), { name, partner_type: type, project: currentProject, platform });
     if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   }
 
@@ -7743,7 +7766,7 @@ async function addPartner() {
     const toInsert = offerRows.map(r => ({
       project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
       traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: null,
-      capa: null, kpi: r.kpi, platform: null, partner: partnerName, partner_type: 'Direct',
+      capa: null, kpi: r.kpi, platform: (document.getElementById('newPartnerPlatform').value.trim() || null), partner: partnerName, partner_type: 'Direct',
       status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
       ...(r.no_fb ? { no_fb: true } : {}),
     }));
@@ -8157,6 +8180,11 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Платформа</label>
+        <input class="form-input" id="editPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
+      </div>
+      <datalist id="partnerPlatformList"></datalist>
       <div id="editPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— убранные гео/источники/бренды будут удалены из офферов</span></label>
         <div id="editPartnerBrands"></div>
@@ -8213,6 +8241,10 @@ function showToast(msg,type='success') {
           <option value="direct">Direct</option>
           <option value="network">Network</option>
         </select>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Платформа</label>
+        <input class="form-input" id="newPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
       </div>
       <div id="newPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— на каждый бренд × гео × источник создастся оффер Direct</span></label>
