@@ -1053,7 +1053,7 @@ tr:hover .row-actions{opacity:1}
       <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px;padding:12px;border:0.5px solid var(--accent-border);border-radius:10px;background:var(--accent-bg)">
         <div style="display:flex;align-items:center;gap:8px">
           <i class="ti ti-stack-2" style="color:var(--accent);flex-shrink:0"></i>
-          <input type="text" id="bundleGeoInput" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" oninput="onBundleGeoInputTyped()" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
+          <input type="text" id="bundleGeoInput" autocomplete="off" placeholder="Подборка по гео — через пробел: CA PT DE FR IT ES" oninput="onBundleGeoInputTyped()" style="flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text1);font-size:12px;font-family:'IBM Plex Mono',monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();buildGeoBundle();}">
           <button class="btn btn-primary" id="bundleGeoBtn" onclick="buildGeoBundle()" style="flex-shrink:0;font-size:12px;padding:6px 12px">Собрать</button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-left:22px">
@@ -1555,6 +1555,12 @@ function initSearchClear() {
     sync();
   });
 }
+
+// no browser "recent entries" popup over text fields (login fields keep their own autocomplete setting)
+document.addEventListener('focusin', e => {
+  const el = e.target;
+  if (el && el.tagName === 'INPUT' && !el.hasAttribute('autocomplete') && (!el.type || el.type === 'text' || el.type === 'search')) el.setAttribute('autocomplete', 'off');
+});
 
 let _appInited = false;
 function initApp() {
