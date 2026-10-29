@@ -7334,17 +7334,65 @@ async function resyncPartnerTypes() {
   if (currentPage === 'offers' || currentPage === 'direct') fetchOffers();
 }
 
+// ── Partner offer filters (GEO / source / KPI) ──
+let partnerOfferFilter = { geos: [], source: '', kpi: '' };
+const hasRealKpi = o => { const k = (o.kpi || '').trim(); return !!k && !['-', '–', '—'].includes(k) && k.toLowerCase() !== 'no kpi'; };
+const partnerFiltersActive = () => partnerOfferFilter.geos.length > 0 || !!partnerOfferFilter.source || !!partnerOfferFilter.kpi;
+
+function onPartnerFilterInput() {
+  const g = document.getElementById('pfGeo');
+  fixGeoLayoutInput(g);
+  g.value = g.value.toUpperCase();
+  partnerOfferFilter = {
+    geos: [...new Set(g.value.split(/[,\s]+/).map(x => x.trim()).filter(Boolean))],
+    source: (document.getElementById('pfSource').value || '').trim().toLowerCase(),
+    kpi: document.getElementById('pfKpi').value,
+  };
+  document.getElementById('pfReset').style.display = partnerFiltersActive() ? '' : 'none';
+  renderPartnersGrid();
+}
+function resetPartnerFilters() {
+  document.getElementById('pfGeo').value = '';
+  document.getElementById('pfSource').value = '';
+  document.getElementById('pfKpi').value = '';
+  onPartnerFilterInput();
+}
+function offerMatchesPartnerFilter(o) {
+  const f = partnerOfferFilter;
+  if (f.geos.length && !f.geos.includes((o.geo || '').trim().toUpperCase())) return false;
+  if (f.source && !(o.traffic_source || '').toLowerCase().includes(f.source)) return false;
+  if (f.kpi === 'has' && !hasRealKpi(o)) return false;
+  if (f.kpi === 'none' && (o.kpi || '').trim().toLowerCase() !== 'no kpi') return false;
+  return true;
+}
+function refreshPartnerSourceList() {
+  const dl = document.getElementById('pfSourceList'); if (!dl) return;
+  const cnt = new Map();
+  (window._partnerOffers || []).forEach(o => { const t = (o.traffic_source || '').trim(); if (t && !['-', '–', '—'].includes(t)) cnt.set(t, (cnt.get(t) || 0) + 1); });
+  dl.innerHTML = [...cnt.keys()].sort((a, b) => cnt.get(b) - cnt.get(a)).map(v => `<option value="${esc(v)}"></option>`).join('');
+}
+
 function renderPartnersGrid() {
   const el = document.getElementById('partnersGrid');
   if (!el) return;
+  refreshPartnerSourceList();
   let partners = allPartners;
+  if (partnerFiltersActive()) {
+    const byPartner = new Map();
+    (window._partnerOffers || []).forEach(o => {
+      const k = (o.partner || '').trim().toLowerCase();
+      if (!byPartner.has(k)) byPartner.set(k, []);
+      byPartner.get(k).push(o);
+    });
+    partners = partners.filter(p => (byPartner.get((p.name || '').trim().toLowerCase()) || []).some(offerMatchesPartnerFilter));
+  }
   if (sbTypeFilter !== 'all') partners = partners.filter(p => p.partner_type === sbTypeFilter);
   if (partnerSearchQuery) partners = partners.filter(p => p.name.toLowerCase().includes(partnerSearchQuery));
 
   if (partners.length === 0) {
     el.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--text3);gap:12px">
       <i class="ti ti-users-off" style="font-size:40px;color:var(--border2)"></i>
-      <span>${sbTypeFilter==='all' && !partnerSearchQuery ? 'Партнёров пока нет. Добавьте первого.' : 'Ничего не найдено'}</span>
+      <span>${sbTypeFilter==='all' && !partnerSearchQuery && !partnerFiltersActive() ? 'Партнёров пока нет. Добавьте первого.' : 'Ничего не найдено'}</span>
     </div>`;
     return;
   }
@@ -7838,6 +7886,18 @@ function showToast(msg,type='success') {
       <button class="btn btn-ghost" onclick="resyncPartnerTypes()" title="Перепроставить тип партнёра во всех офферах по базе партнёров"><i class="ti ti-refresh"></i>Обновить типы</button>
       <button class="btn btn-primary" onclick="openAddPartnerModal()"><i class="ti ti-plus"></i>Добавить партнёра</button>
     </div>
+  </div>
+  <!-- Offer filters: a partner stays only if it has an offer matching ALL the filled filters -->
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 24px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0;flex-wrap:wrap">
+    <div class="search-box" style="width:190px"><i class="ti ti-world"></i><input type="text" id="pfGeo" placeholder="GEO: IT DE PL" autocomplete="off" oninput="onPartnerFilterInput()"></div>
+    <div class="search-box" style="width:190px"><i class="ti ti-arrow-up-right"></i><input type="text" id="pfSource" list="pfSourceList" placeholder="Источник" autocomplete="off" oninput="onPartnerFilterInput()"></div>
+    <datalist id="pfSourceList"></datalist>
+    <select class="form-select" id="pfKpi" onchange="onPartnerFilterInput()" style="width:130px;font-size:12px;padding:6px 8px">
+      <option value="">KPI: все</option>
+      <option value="has">Есть KPI</option>
+      <option value="none">Нет KPI</option>
+    </select>
+    <button class="btn btn-ghost" id="pfReset" onclick="resetPartnerFilters()" style="display:none;font-size:11px;padding:5px 10px"><i class="ti ti-x"></i>Сбросить</button>
   </div>
   <div id="partnerSyncBanner" style="display:none;align-items:center;gap:12px;padding:10px 24px;background:#1e1608;border-bottom:0.5px solid #33290c;flex-shrink:0">
     <i class="ti ti-alert-triangle" style="color:#eab308;font-size:15px"></i>
