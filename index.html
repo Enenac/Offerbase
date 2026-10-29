@@ -1217,11 +1217,12 @@ async function buildOfferVersionIndex() {
 
   const acc = {};
   const PAGE = 1000;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 500; i++) {
     let q = sb.from('offers').select('id,project,partner,geo,brand,traffic_source,game_type,rate,rate_usd_num,received_at,created_at,status');
     if (!searchAllProjects) q = q.eq('project', currentProject);
     const { data: chunk, error } = await q
       .order('received_at', { ascending: false, nullsFirst: false })
+      .order('id')
       .range(i * PAGE, i * PAGE + PAGE - 1);
     if (error || !chunk || !chunk.length) break;
     chunk.forEach(o => {
@@ -2310,7 +2311,7 @@ function getFiltered(source) {
 async function fetchAllFilteredOffers() {
   const acc = [];
   const PAGE = 1000;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 500; i++) {
     const { data: chunk, error } = await buildSupabaseQuery()
       .range(i * PAGE, i * PAGE + PAGE - 1);
     if (error || !chunk || !chunk.length) break;
@@ -6468,12 +6469,13 @@ async function loadStatsPage() {
   // offers can exceed the 1000-row cap — page through them
   _statsOffers = [];
   const PAGE = 1000;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 500; i++) {
     let oq = sb.from('offers')
       .select('id,project,geo,brand,status,traffic_source,game_type,partner,partner_type,platform,received_at,rate_usd_num,created_at');
     if (statsScope === 'current') oq = oq.eq('project', currentProject);
     const { data: chunk, error: oErr } = await oq
       .order('received_at', { ascending: false, nullsFirst: false })
+      .order('id')
       .range(i * PAGE, i * PAGE + PAGE - 1);
     if (oErr || !chunk || !chunk.length) break;
     _statsOffers = _statsOffers.concat(chunk);
