@@ -1575,6 +1575,7 @@ function initApp() {
   updateRequestsBadge();
   initInfiniteScroll();
   initTasksRealtime();
+  initDeliveriesRealtime();
   document.getElementById('searchInput').addEventListener('input', e => {
     searchQuery = e.target.value.toLowerCase();
     currentPage_offers = 0;
@@ -2908,6 +2909,34 @@ async function loadTasks() {
 // Live-updates the task list the moment anyone adds/edits/deletes a task — no need to
 // switch tabs and back. Requires Realtime replication enabled for public.tasks in Supabase
 // (Database → Replication).
+// ── Deliveries stay live: new/changed rows show up without reloading the page ──
+// Realtime (instant, needs replication on the table) + a 30 s check as a safety net while the Выдачи view is open.
+let _delRefreshBusy = false;
+const deliveriesViewActive = () => (isMobile() ? mSection === 'deliveries' : currentPage === 'deliveries');
+function userIsEditingDeliveries() {
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('#deliveriesTable') && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return true; // inline date edit etc.
+  return !!document.getElementById('delStatusPop'); // status menu open
+}
+async function refreshDeliveriesLive() {
+  if (_delRefreshBusy || document.hidden || !deliveriesViewActive() || userIsEditingDeliveries()) return;
+  _delRefreshBusy = true;
+  try {
+    const { data, error } = await sb.from('deliveries').select('*').eq('project', currentProject).order('created_at', { ascending: false });
+    if (error || !data) return;
+    if (JSON.stringify(data) === JSON.stringify(allDeliveries)) return; // nothing changed — don't redraw
+    allDeliveries = data;
+    if (isMobile()) renderMobileDeliveries(); else renderDeliveries();
+  } finally { _delRefreshBusy = false; }
+}
+function initDeliveriesRealtime() {
+  sb.channel('deliveries-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => { refreshDeliveriesLive(); })
+    .subscribe();
+  setInterval(refreshDeliveriesLive, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshDeliveriesLive(); });
+}
+
 function initTasksRealtime() {
   if (hideTasks) return; // this profile doesn't see tasks at all — nothing to keep live
   sb.channel('tasks-realtime')
