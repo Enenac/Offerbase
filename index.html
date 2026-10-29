@@ -7088,6 +7088,12 @@ function addNpBrand(boxId, preset) {
       </div>
       <button class="btn btn-ghost np-copy-prev" type="button" onclick="copyPrevBrand(this.closest('.np-brand'))" style="font-size:11px;padding:3px 8px;margin-bottom:8px"><i class="ti ti-copy"></i>Как у предыдущего бренда</button>
       <input class="form-input np-brand-geos" placeholder="GEO через пробел: IT DE PL" value="${esc(preset ? preset.geos.join(' ') : '')}" style="margin-bottom:8px" oninput="normalizeGeoInput(this)" onblur="normalizeGeoInput(this, true)">
+      <div class="np-extra" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px">
+        <input class="form-input np-x-mindep" placeholder="Мин. деп" value="${esc(preset && preset.min_deposit || '')}" autocomplete="off">
+        <input class="form-input np-x-capa" placeholder="Капа" value="${esc(preset && preset.capa || '')}" autocomplete="off">
+        <input class="form-input np-x-conv" placeholder="Конверт" value="${esc(preset && preset.conversion || '')}" autocomplete="off">
+        <input class="form-input np-x-other" placeholder="Другое" value="${esc(preset && preset.other || '')}" autocomplete="off">
+      </div>
       <div class="np-sources"></div>
       <button class="btn btn-ghost" type="button" onclick="addNpSource(this.closest('.np-brand'), null, true)" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Источник</button>
     </div>`);
@@ -7138,6 +7144,7 @@ function copyPrevBrand(block) {
   block.querySelector('.np-brand-geos').value = prev.querySelector('.np-brand-geos').value;
   const cb = block.querySelector('.np-brand-nofb');
   cb.checked = prev.querySelector('.np-brand-nofb').checked; styleNpNoFb(cb);
+  ['mindep', 'capa', 'conv', 'other'].forEach(c => { block.querySelector('.np-x-' + c).value = prev.querySelector('.np-x-' + c).value; });
   block.querySelector('.np-sources').innerHTML = '';
   const rows = [...prev.querySelectorAll('.np-src')];
   if (!rows.length) addNpSource(block);
@@ -7181,6 +7188,8 @@ function collectNpOffers(canonSources, boxId) {
   document.querySelectorAll('#' + (boxId || 'newPartnerBrands') + ' .np-brand').forEach((b, i) => {
     const name = b.querySelector('.np-brand-name').value.trim();
     const noFb = b.querySelector('.np-brand-nofb').checked;
+    const xv = c => b.querySelector('.np-x-' + c).value.trim() || null;
+    const extra = { min_deposit: xv('mindep'), capa: xv('capa'), conversion: xv('conv'), other: xv('other') };
     const geos = [...new Set(b.querySelector('.np-brand-geos').value.split(/[\s,]+/).map(g => g.trim().toUpperCase()).filter(Boolean))];
     const srcs = [...b.querySelectorAll('.np-src')].map(r => ({
       name: r.querySelector('.np-src-name').value.trim(),
@@ -7203,7 +7212,7 @@ function collectNpOffers(canonSources, boxId) {
         const key = [name.toLowerCase(), geo, isBlankSource(src) ? '' : src.toLowerCase()].join('|');
         if (seen.has(key)) return; // same brand+geo+source typed twice
         seen.add(key);
-        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate || null, kpi: x.kpi, no_fb: noFb });
+        rows.push({ brand: name, geo, traffic_source: src, rate: x.rate || null, kpi: x.kpi, no_fb: noFb, ...extra });
       });
     });
   });
@@ -7249,9 +7258,10 @@ async function loadPartners() {
   const offerQ = cols => sb.from('offers').select(cols).eq('project', currentProject).limit(100000);
   let [partnersRes, countsRes] = await Promise.all([
     sb.from('partners').select('*').eq('project', currentProject).order('name'),
-    offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb')
+    offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, min_deposit, capa, conversion, other')
   ]);
-  if (countsRes.error && /no_fb/.test(countsRes.error.message)) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi');
+  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, min_deposit, capa');
+  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, min_deposit, capa');
   if (partnersRes.error) { showToast('Ошибка загрузки партнёров: ' + partnersRes.error.message, 'error'); return; }
   allPartners = partnersRes.data || [];
   // Store offer data for partner grid
@@ -7505,10 +7515,11 @@ function renderDirectBrandSummary(partnerId, offers) {
   offers.forEach(o => {
     const name = (o.brand || '').trim() || '—';
     const k = name.toLowerCase();
-    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0, nofb: false });
+    if (!groups.has(k)) groups.set(k, { names: new Map(), geos: new Set(), srcs: new Map(), n: 0, nofb: false, ex: { min_deposit: new Set(), capa: new Set(), conversion: new Set(), other: new Set() } });
     const g = groups.get(k);
     g.n++;
     if (o.no_fb) g.nofb = true;
+    Object.keys(g.ex).forEach(c => { const v = (o[c] || '').toString().trim(); if (v && v !== '-') g.ex[c].add(v); });
     g.names.set(name, (g.names.get(name) || 0) + 1);
     if (o.geo) g.geos.add(o.geo.trim().toUpperCase());
     const blank = isBlankSource(o.traffic_source);
@@ -7538,6 +7549,10 @@ function renderDirectBrandSummary(partnerId, offers) {
     const more = all.length > PC_GEO_LIMIT
       ? ` <span onclick="event.stopPropagation();togglePcGeos('${partnerId}','${encodeURIComponent(k)}')" style="cursor:pointer;color:var(--accent)">${open ? 'свернуть' : '+' + (all.length - PC_GEO_LIMIT)}</span>`
       : '';
+    const exLbl = { min_deposit: 'Мин. деп', capa: 'Капа', conversion: 'Конверт', other: 'Другое' };
+    const extraLine = Object.keys(exLbl).some(c => g.ex[c].size)
+      ? `<div style="display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11px;color:var(--text2);margin-bottom:7px">${Object.keys(exLbl).filter(c => g.ex[c].size).map(c => `<span><span style="color:var(--text3)">${exLbl[c]}:</span> ${esc([...g.ex[c]].join(' / '))}</span>`).join('')}</div>`
+      : '';
     const chips = [...g.srcs.values()].sort((a, b) => a.name.localeCompare(b.name)).map(sr => {
       const rt = rateText(sr.rates);
       const kp = [...sr.kpis].join(' / ');
@@ -7554,6 +7569,7 @@ function renderDirectBrandSummary(partnerId, offers) {
         ${g.nofb ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;color:#ef4444;background:rgba(239,68,68,0.10);border:0.5px solid rgba(239,68,68,0.4)"><i class="ti ti-brand-facebook" style="font-size:11px"></i>Не принимает ФБ</span>` : ''}
       </div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12px;line-height:1.5;font-weight:700;color:var(--text1);font-family:'IBM Plex Mono',monospace;margin-bottom:7px">${shown.map(g2 => `<span style="display:inline-flex;align-items:center;gap:4px">${/^[A-Z]{2}$/.test(g2) ? flag(g2) : ''}${esc(g2)}</span>`).join('')}${more ? `<span style="font-weight:500;font-size:11px">${more}</span>` : ''}</div>
+      ${extraLine}
       <div style="display:flex;flex-wrap:wrap;gap:5px">${chips}</div>
     </div>`;
   }).join('');
@@ -7582,20 +7598,22 @@ function groupOffersToBlocks(offers) {
     const bn = (o.brand || '').trim(), geo = (o.geo || '').trim().toUpperCase();
     if (!bn || !geo) return;
     const bk = bn.toLowerCase();
-    if (!brands.has(bk)) brands.set(bk, { names: new Map(), geos: new Map(), nofb: new Set() });
+    if (!brands.has(bk)) brands.set(bk, { names: new Map(), geos: new Map(), nofb: new Set(), extra: new Map() });
     const b = brands.get(bk);
     b.names.set(bn, (b.names.get(bn) || 0) + 1);
     if (!b.geos.has(geo)) b.geos.set(geo, new Map());
     b.geos.get(geo).set(_skey(o.traffic_source), { name: (o.traffic_source || '').trim(), rate: (o.rate || '').trim(), kpi: o.kpi || '' });
     if (o.no_fb) b.nofb.add(geo);
+    if (!b.extra.has(geo)) b.extra.set(geo, { min_deposit: o.min_deposit || '', capa: o.capa || '', conversion: o.conversion || '', other: o.other || '' });
   });
   const blocks = [];
   [...brands.values()].sort((a, b) => b.geos.size - a.geos.size).forEach(b => {
     const name = [...b.names.entries()].sort((x, y) => y[1] - x[1])[0][0];
     const bySig = new Map();
     [...b.geos.entries()].sort((x, y) => x[0].localeCompare(y[0])).forEach(([geo, srcs]) => {
-      const sig = (b.nofb.has(geo) ? 'FB!' : '') + [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
-      if (!bySig.has(sig)) bySig.set(sig, { name, geos: [], sources: [...srcs.values()], noFb: b.nofb.has(geo) });
+      const ex = b.extra.get(geo);
+      const sig = (b.nofb.has(geo) ? 'FB!' : '') + [ex.min_deposit, ex.capa, ex.conversion, ex.other].join('^') + '#' + [...srcs.entries()].map(([k, v]) => `${k}~${v.rate}~${v.kpi}`).sort().join('|');
+      if (!bySig.has(sig)) bySig.set(sig, { name, geos: [], sources: [...srcs.values()], noFb: b.nofb.has(geo), ...ex });
       bySig.get(sig).geos.push(geo);
     });
     blocks.push(...bySig.values());
@@ -7605,8 +7623,9 @@ function groupOffersToBlocks(offers) {
 
 async function fetchPartnerOffersFull(name) {
   const q = cols => sb.from('offers').select(cols).eq('project', currentProject).ilike('partner', name).limit(100000);
-  let { data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb');
-  if (error && /no_fb/.test(error.message)) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi')); // column not created yet
+  let { data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb, min_deposit, capa, conversion, other');
+  if (error) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi, no_fb, min_deposit, capa')); // conversion/other not created yet
+  if (error) ({ data, error } = await q('id, brand, geo, traffic_source, rate, kpi, min_deposit, capa')); // no_fb not created yet
   if (error) throw error;
   return data || [];
 }
@@ -7680,6 +7699,7 @@ async function saveEditPartner() {
       if ((o.rate || '').trim() !== (r.rate || '')) { patch.rate = r.rate || null; patch.rate_usd_num = r.rate ? parseRateToUsd(r.rate) : null; }
       if ((o.kpi || null) !== (r.kpi || null)) patch.kpi = r.kpi || null;
       if (!!o.no_fb !== !!r.no_fb) patch.no_fb = !!r.no_fb;
+      ['min_deposit', 'capa', 'conversion', 'other'].forEach(c => { if ((o[c] || null) !== (r[c] || null) && !(o[c] === undefined && !r[c])) patch[c] = r[c] || null; });
       if (Object.keys(patch).length) plan.upd.push({ id: o.id, patch });
     });
     exMap.forEach((arr, k) => { if (!want.has(k)) arr.forEach(o => plan.del.push(o.id)); });
@@ -7708,10 +7728,11 @@ async function saveEditPartner() {
       if (plan.ins.length) {
         const { error: e1 } = await sb.from('offers').insert(plan.ins.map(r => ({
           project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
-          traffic_source: r.traffic_source || null, game_type: null, rate: r.rate, min_deposit: null,
-          capa: null, kpi: r.kpi, platform: platform, partner: name, partner_type: 'Direct',
+          traffic_source: r.traffic_source || null, game_type: null, rate: r.rate, min_deposit: r.min_deposit,
+          capa: r.capa, kpi: r.kpi, platform: platform, partner: name, partner_type: 'Direct',
           status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
           ...(r.no_fb ? { no_fb: true } : {}),
+      ...(r.conversion ? { conversion: r.conversion } : {}), ...(r.other ? { other: r.other } : {}),
         })));
         if (e1) throw e1;
       }
@@ -7770,10 +7791,11 @@ async function addPartner() {
     const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD, local
     const toInsert = offerRows.map(r => ({
       project: currentProject, geo: r.geo, brand: resolveBrand(r.brand, canonMap),
-      traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: null,
-      capa: null, kpi: r.kpi, platform: (document.getElementById('newPartnerPlatform').value.trim() || null), partner: partnerName, partner_type: 'Direct',
+      traffic_source: r.traffic_source, game_type: null, rate: r.rate, min_deposit: r.min_deposit,
+      capa: r.capa, kpi: r.kpi, platform: (document.getElementById('newPartnerPlatform').value.trim() || null), partner: partnerName, partner_type: 'Direct',
       status: 'active', notes: null, received_at: today, rate_usd_num: r.rate ? parseRateToUsd(r.rate) : null,
       ...(r.no_fb ? { no_fb: true } : {}),
+      ...(r.conversion ? { conversion: r.conversion } : {}), ...(r.other ? { other: r.other } : {}),
     }));
     const { error: oErr } = await sb.from('offers').insert(toInsert);
     invalidateOfferVersions();
