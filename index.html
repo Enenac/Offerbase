@@ -1806,7 +1806,7 @@ async function autoExpireOffers() {
 async function syncPlatforms() {
   // Load only brand+platform fields to build the map
   const { data, error } = await sb.from('offers')
-    .select('id, brand, platform')
+    .select('id, brand, platform, partner_type')
     .limit(100000);
   if (error) { console.error('syncPlatforms load error:', error); return; }
 
@@ -1838,6 +1838,7 @@ async function syncPlatforms() {
     const key = (o.brand || '').toLowerCase().trim();
     const plat = (o.platform || '').trim();
     if (plat && plat !== '-' && plat !== '—') return; // already has a real value — don't overwrite
+    if ((o.partner_type || '') === 'Direct') return; // Direct is edited by hand: a cleared platform must stay cleared
     const known = brandPlatforms[key];
     if (!known || known.size !== 1) return;
     const p = [...known][0];
@@ -7737,9 +7738,15 @@ async function saveEditPartner() {
         })));
         if (e1) throw e1;
       }
-      for (const u of plan.upd) {
-        const { error: e2 } = await sb.from('offers').update(u.patch).eq('id', u.id);
-        if (e2) throw new Error(e2.message + (/no_fb/.test(e2.message) ? ' (создай колонку no_fb в offers)' : ''));
+      // one request per distinct patch (not per offer) — editing a brand with many geos/sources used to take ages
+      const groups = new Map();
+      plan.upd.forEach(u => { const k = JSON.stringify(u.patch); if (!groups.has(k)) groups.set(k, { patch: u.patch, ids: [] }); groups.get(k).ids.push(u.id); });
+      const jobs = [];
+      groups.forEach(g => { for (let i = 0; i < g.ids.length; i += 200) jobs.push({ patch: g.patch, ids: g.ids.slice(i, i + 200) }); });
+      for (let i = 0; i < jobs.length; i += 6) {
+        const res = await Promise.all(jobs.slice(i, i + 6).map(j => sb.from('offers').update(j.patch).in('id', j.ids)));
+        const bad = res.find(r => r.error);
+        if (bad) throw new Error(bad.error.message + (/no_fb/.test(bad.error.message) ? ' (создай колонку no_fb в offers)' : ''));
       }
       if (plan.del.length) {
         const { error: e3 } = await sb.from('offers').delete().in('id', plan.del);
