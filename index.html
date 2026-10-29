@@ -7201,13 +7201,11 @@ function collectNpOffers(canonSources, boxId) {
     const label = name || `Бренд №${i + 1}`;
     if (!name) { errors.push(`${label}: не указано название`); return; }
     if (!geos.length) errors.push(`${label}: не указано ни одного гео`);
-    if (!srcs.length) errors.push(`${label}: не указано ни одного источника`);
-    srcs.forEach(x => {
-      if (isBlankSource(x.name) && !(x.blank && !x.name)) errors.push(`${label}: у ставки «${x.rate}» не указан источник`);
-    });
+    if (!srcs.length) srcs.push({ name: '', rate: '', kpi: null, blank: false, raw: '' }); // source is optional
     if (errors.length) return;
     srcs.forEach(x => {
-      const src = (x.blank && !x.name) ? x.raw : (canonSources[x.name.toLowerCase()] || x.name); // keep the spelling already used in the base
+      const src = (x.blank && !x.name) ? x.raw : (canonSources[x.name.toLowerCase()] || x.name);
+      if (x.rate === '-') x.rate = ''; // keep the spelling already used in the base
       geos.forEach(geo => {
         const key = [name.toLowerCase(), geo, isBlankSource(src) ? '' : src.toLowerCase()].join('|');
         if (seen.has(key)) return; // same brand+geo+source typed twice
