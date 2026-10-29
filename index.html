@@ -7358,6 +7358,11 @@ function renderPartnersGrid() {
     const activeOffers = partnerOffers.filter(o => o.status === 'active');
     const brands = [...new Set(partnerOffers.map(o => o.brand).filter(Boolean))];
     const isExpanded = expandedPartnerId === p.id;
+    // Direct: flag in red if any of the partner's offers carries a KPI ("No KPI" / empty / "-" don't count)
+    const kpiCount = isDirect ? partnerOffers.filter(o => { const k = (o.kpi || '').trim(); return k && k !== '-' && k !== '–' && k !== '—' && k.toLowerCase() !== 'no kpi'; }).length : 0;
+    const kpiBadge = kpiCount
+      ? `<span title="Офферов с KPI: ${kpiCount}" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;color:#ef4444;background:rgba(239,68,68,0.10);border:0.5px solid rgba(239,68,68,0.4)">Есть KPI</span>`
+      : '';
     // Top 5 offers sorted by rate
     const topOffers = partnerOffers.slice().sort((a,b) => parseRateToUsd(b.rate) - parseRateToUsd(a.rate));
 
@@ -7396,7 +7401,7 @@ function renderPartnersGrid() {
         <div class="sb-partner-info">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="sb-partner-name">${esc(p.name)}</span>
-            ${typeBadge}
+            ${typeBadge}${kpiBadge}
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
