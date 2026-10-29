@@ -9,6 +9,7 @@ const HOOK_SECRET = process.env.HOOK_SECRET;
 
 const STATUS_LABEL = {
   waiting_link: "🔗 Ожидаем ссылку",
+  link_requested: "📨 Запросил ссылку",
   waiting_launch: "⏳ Ожидаем запуска",
   launched: "✅ Запущен",
   problem: "⚠️ Проблема",
