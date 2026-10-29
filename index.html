@@ -7453,7 +7453,7 @@ function renderPartnersGrid() {
     let offersHtml = '';
     if (isExpanded) {
       if (isDirect && partnerOffers.length > 0) {
-        offersHtml = renderDirectBrandSummary(p.id, partnerOffers);
+        offersHtml = (p.license ? `<div style="display:flex;align-items:center;gap:6px;padding:8px 14px 0;font-size:11px;color:var(--text2)"><i class="ti ti-certificate" style="font-size:12px;color:var(--text3)"></i><span style="color:var(--text3)">Лицензия:</span> ${esc(p.license)}</div>` : '') + renderDirectBrandSummary(p.id, partnerOffers);
       } else if (topOffers.length === 0) {
         offersHtml = `<div style="padding:10px 14px;font-size:11px;color:var(--text3)">Офферов нет в базе</div>`;
       } else {
@@ -7485,7 +7485,7 @@ function renderPartnersGrid() {
         <div class="sb-partner-info">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="sb-partner-name">${esc(p.name)}</span>
-            ${typeBadge}${kpiBadge}${platBadge}${licBadge}
+            ${typeBadge}${kpiBadge}
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
