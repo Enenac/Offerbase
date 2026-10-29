@@ -7214,6 +7214,7 @@ function openAddPartnerModal() {
   document.getElementById('newPartnerName').value = '';
   document.getElementById('newPartnerType').value = 'direct';
   document.getElementById('newPartnerPlatform').value = '';
+  document.getElementById('newPartnerLicense').value = '';
   fillPartnerPlatformList();
   document.getElementById('newPartnerBrands').innerHTML = '';
   // source suggestions: what's already in the base + the form's list
@@ -7230,14 +7231,16 @@ function fillPartnerPlatformList() {
   const dl = document.getElementById('partnerPlatformList'); if (!dl) return;
   const set = new Set([...allPartners.map(p => (p.platform || '').trim()), ...(allOffers || []).map(o => (o.platform || '').trim())].filter(v => v && v !== '-' && v !== '—'));
   dl.innerHTML = [...set].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
+  const ll = document.getElementById('partnerLicenseList');
+  if (ll) ll.innerHTML = [...new Set(allPartners.map(p => (p.license || '').trim()).filter(Boolean))].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
 }
 // partners.platform may not exist yet — retry without it and tell the user
 async function partnerWrite(fn, payload) {
   let r = await fn(payload);
-  if (r.error && /platform/.test(r.error.message)) {
-    const { platform, ...rest } = payload;
+  if (r.error && /platform|license/.test(r.error.message)) {
+    const { platform, license, ...rest } = payload;
     r = await fn(rest);
-    if (!r.error && platform) showToast('Платформа не сохранена: создай колонку platform в partners (SQL в ответе)', 'error');
+    if (!r.error && (platform || license)) showToast('Платформа/лицензия не сохранены: создай колонки platform и license в partners (SQL в ответе)', 'error');
   }
   return r;
 }
@@ -7427,6 +7430,7 @@ function renderPartnersGrid() {
     // Direct: flag in red if any of the partner's offers carries a KPI ("No KPI" / empty / "-" don't count)
     const kpiCount = isDirect ? partnerOffers.filter(o => { const k = (o.kpi || '').trim(); return k && k !== '-' && k !== '–' && k !== '—' && k.toLowerCase() !== 'no kpi'; }).length : 0;
     const platBadge = p.platform ? `<span title="Платформа" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border)"><i class="ti ti-layout-grid" style="font-size:10px"></i>${esc(p.platform)}</span>` : '';
+    const licBadge = p.license ? `<span title="Лицензия" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:500;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border)"><i class="ti ti-certificate" style="font-size:10px"></i>${esc(p.license)}</span>` : '';
     const kpiBadge = kpiCount
       ? `<span title="Офферов с KPI: ${kpiCount}" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;color:#ef4444;background:rgba(239,68,68,0.10);border:0.5px solid rgba(239,68,68,0.4)">Есть KPI</span>`
       : '';
@@ -7468,7 +7472,7 @@ function renderPartnersGrid() {
         <div class="sb-partner-info">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="sb-partner-name">${esc(p.name)}</span>
-            ${typeBadge}${kpiBadge}${platBadge}
+            ${typeBadge}${kpiBadge}${platBadge}${licBadge}
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${partnerOffers.length} офферов</span>
@@ -7614,6 +7618,7 @@ async function openEditPartner(id) {
   document.getElementById('editPartnerName').value = p.name;
   document.getElementById('editPartnerType').value = p.partner_type;
   document.getElementById('editPartnerPlatform').value = p.platform || '';
+  document.getElementById('editPartnerLicense').value = p.license || '';
   fillPartnerPlatformList();
   const box = document.getElementById('editPartnerBrands');
   box.innerHTML = '';
@@ -7683,7 +7688,7 @@ async function saveEditPartner() {
 
   // 2) partner record, rename, type
   const platform = document.getElementById('editPartnerPlatform').value.trim() || null;
-  const upd = { name, partner_type: type, platform };
+  const upd = { name, partner_type: type, platform, license: document.getElementById('editPartnerLicense').value.trim() || null };
   const { error } = await partnerWrite(r => sb.from('partners').update(r).eq('id', id), upd);
   if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   if (oldPartner && oldPartner.name !== name) {
@@ -7756,7 +7761,7 @@ async function addPartner() {
   const partnerName = existing ? existing.name : name;
   if (!existing) {
     const platform = document.getElementById('newPartnerPlatform').value.trim() || null;
-    const { error } = await partnerWrite(r => sb.from('partners').insert(r), { name, partner_type: type, project: currentProject, platform });
+    const { error } = await partnerWrite(r => sb.from('partners').insert(r), { name, partner_type: type, project: currentProject, platform, license: document.getElementById('newPartnerLicense').value.trim() || null });
     if (error) { showToast('Ошибка: ' + error.message, 'error'); return; }
   }
 
@@ -8180,11 +8185,18 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
-      <div class="form-group" style="margin-top:12px">
-        <label class="form-label">Платформа</label>
-        <input class="form-input" id="editPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div class="form-group" style="flex:1;min-width:0">
+          <label class="form-label">Платформа</label>
+          <input class="form-input" id="editPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
+        </div>
+        <div class="form-group" style="flex:1;min-width:0">
+          <label class="form-label">Лицензия</label>
+          <input class="form-input" id="editPartnerLicense" list="partnerLicenseList" placeholder="Curaçao, MGA..." autocomplete="off">
+        </div>
       </div>
       <datalist id="partnerPlatformList"></datalist>
+      <datalist id="partnerLicenseList"></datalist>
       <div id="editPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— убранные гео/источники/бренды будут удалены из офферов</span></label>
         <div id="editPartnerBrands"></div>
@@ -8242,9 +8254,15 @@ function showToast(msg,type='success') {
           <option value="network">Network</option>
         </select>
       </div>
-      <div class="form-group" style="margin-top:12px">
-        <label class="form-label">Платформа</label>
-        <input class="form-input" id="newPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div class="form-group" style="flex:1;min-width:0">
+          <label class="form-label">Платформа</label>
+          <input class="form-input" id="newPartnerPlatform" list="partnerPlatformList" placeholder="Soft2Bet, Extendy..." autocomplete="off">
+        </div>
+        <div class="form-group" style="flex:1;min-width:0">
+          <label class="form-label">Лицензия</label>
+          <input class="form-input" id="newPartnerLicense" list="partnerLicenseList" placeholder="Curaçao, MGA..." autocomplete="off">
+        </div>
       </div>
       <div id="newPartnerBrandsWrap" style="margin-top:16px;display:none">
         <label class="form-label" style="display:block;margin-bottom:6px">Бренды партнёра <span style="text-transform:none;letter-spacing:0;opacity:0.6">— на каждый бренд × гео × источник создастся оффер Direct</span></label>
