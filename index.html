@@ -5246,7 +5246,7 @@ async function buildGeoBundle() {
     refreshExportText();
     const missing = geos.filter(g => !current.some(o => (o.geo || '').toUpperCase() === g));
     const cut = belowGeoMin ? ` · убрано по порогам гео: ${belowGeoMin}` : '';
-    showToast(missing.length ? `Собрано${cut}. Нет офферов по фильтру для: ${missing.join(', ')}` : `Подборка собрана${cut}`, missing.length ? 'error' : 'success');
+    showToast(`Подборка собрана${cut}`, 'success');
   } catch (e) {
     showToast('Ошибка сборки подборки: ' + e.message, 'error');
   } finally {
