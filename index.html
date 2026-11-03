@@ -2396,7 +2396,7 @@ function flag(geo) {
   if (!geo) return '';
   let code = geo.trim().toLowerCase();
   if (code === 'uk') code = 'gb';
-  return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" data-c="${esc(code)}" width="16" height="12" alt="" style="border-radius:2px;vertical-align:middle;margin-right:2px;flex-shrink:0" onerror="flagFallback(this)">`;
+  return `<img src="https://flagcdn.com/16x12/${code}.png" loading="lazy" data-c="${esc(code)}" width="16" height="12" alt="" style="border-radius:2px;vertical-align:middle;margin-right:2px;flex-shrink:0" onerror="flagFallback(this)">`;
 }
 // flagcdn blocked/unreachable for the user → retry once from jsDelivr (flag-icons), then just hide the image
 function flagFallback(img) {
@@ -2410,7 +2410,7 @@ function flagEmojiToImg(text) {
   // Windows fonts can't render flag emoji, so swap regional-indicator pairs for flagcdn images.
   return (text || '').replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, m => {
     const code = [...m].map(c => String.fromCharCode(c.codePointAt(0) - 0x1F1E6 + 65)).join('').toLowerCase();
-    return `<img src="https://flagcdn.com/16x12/${code}.png" srcset="https://flagcdn.com/32x24/${code}.png 2x" data-c="${code}" width="16" height="12" alt="" style="border-radius:2px;vertical-align:-1px" onerror="flagFallback(this)">`;
+    return `<img src="https://flagcdn.com/16x12/${code}.png" loading="lazy" data-c="${code}" width="16" height="12" alt="" style="border-radius:2px;vertical-align:-1px" onerror="flagFallback(this)">`;
   });
 }
 
