@@ -2556,7 +2556,9 @@ async function parseTemplate() {
     if (parts.length < 3) { errors.push(`Строка ${i+1}: слишком мало полей`); return; }
     // New layout: …/Платформа/Конверт/Другое/Партнёр — partner is always LAST, "Другое" may itself contain slashes.
     // Old layout (≤10 fields): …/Платформа/Партнёр.
-    const [geo,brand,source,game_type,rate,min_deposit,capa,kpi,platform] = parts;
+    // pasted lines often start with a flag emoji (🇳🇱 NL) — Windows shows it as letters and it breaks GEO filters, so drop it
+    const geo = (parts[0] || '').replace(/[\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim();
+    const [, brand, source, game_type, rate, min_deposit, capa, kpi, platform] = parts;
     let conversion = null, other = null, partner;
     if (parts.length <= 10) partner = parts[9];
     else {
