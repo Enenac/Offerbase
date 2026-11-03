@@ -5901,7 +5901,7 @@ function setDeliveryFilter(f) {
 }
 
 const DELIVERY_STATUS_META = {
-  waiting_link:   { label: 'Ожидаем ссылку',  emoji: '🔗' },
+  waiting_link:   { label: 'Новый запрос',  emoji: '📥' },
   link_requested: { label: 'Запросил ссылку', emoji: '📨' },
   waiting_launch: { label: 'Ожидаем запуска', emoji: '⏳' },
   launched:       { label: 'Запущен',         emoji: '✅' },
@@ -6014,7 +6014,7 @@ function renderDeliveries() {
         let lastMonthKey = null;
         return rows.map(d => {
         const statusMap = {waiting_link:'waiting_link',link_requested:'link_requested',waiting_launch:'waiting_launch',launched:'launched',problem:'problem',stopped:'stopped'};
-        const statusLabel = {waiting_link:'Ожидаем ссылку',link_requested:'Запросил ссылку',waiting_launch:'Ожидаем запуска',launched:'Запущен',problem:'Проблема',stopped:'На стопе'};
+        const statusLabel = {waiting_link:'Новый запрос',link_requested:'Запросил ссылку',waiting_launch:'Ожидаем запуска',launched:'Запущен',problem:'Проблема',stopped:'На стопе'};
         const cls = statusMap[d.status] || 'waiting_link';
         const remindDate = d.remind_at ? new Date(d.remind_at) : null;
         const isOverdue = remindDate && remindDate < now && d.status === 'waiting_launch';
@@ -6627,7 +6627,7 @@ function renderStatsPage() {
   };
 
   // ── 4. Status funnel
-  const STL = { waiting_link: '🔗 Ожидаем ссылку', link_requested: '📨 Запросил ссылку', waiting_launch: '⏳ Ожидаем запуска', launched: '✅ Запущен', problem: '⚠️ Проблема', stopped: '🛑 На стопе' };
+  const STL = { waiting_link: '📥 Новый запрос', link_requested: '📨 Запросил ссылку', waiting_launch: '⏳ Ожидаем запуска', launched: '✅ Запущен', problem: '⚠️ Проблема', stopped: '🛑 На стопе' };
   const statusCounts = {};
   rows.forEach(d => { statusCounts[d.status] = (statusCounts[d.status] || 0) + 1; });
   const launched = statusCounts.launched || 0;
@@ -8178,7 +8178,7 @@ function showToast(msg,type='success') {
   <!-- Status filter -->
   <div style="display:flex;align-items:center;gap:6px;padding:10px 24px;border-bottom:0.5px solid var(--border);background:var(--bg2);flex-shrink:0">
     <button class="sb-filter-btn active" id="df-all" onclick="setDeliveryFilter('all')">Все</button>
-    <button class="sb-filter-btn" id="df-waiting_link" onclick="setDeliveryFilter('waiting_link')">🔗 Ожидаем ссылку</button>
+    <button class="sb-filter-btn" id="df-waiting_link" onclick="setDeliveryFilter('waiting_link')">📥 Новый запрос</button>
     <button class="sb-filter-btn" id="df-link_requested" onclick="setDeliveryFilter('link_requested')">📨 Запросил ссылку</button>
     <button class="sb-filter-btn" id="df-waiting_launch" onclick="setDeliveryFilter('waiting_launch')">⏳ Ожидаем запуска</button>
     <button class="sb-filter-btn" id="df-launched" onclick="setDeliveryFilter('launched')">✅ Запущен</button>
@@ -8381,7 +8381,7 @@ function showToast(msg,type='success') {
         <div class="form-group">
           <label class="form-label">Статус</label>
           <select class="form-select" id="del-status">
-            <option value="waiting_link">🔗 Ожидаем ссылку</option>
+            <option value="waiting_link">📥 Новый запрос</option>
             <option value="link_requested">📨 Запросил ссылку</option>
             <option value="waiting_launch">⏳ Ожидаем запуска</option>
             <option value="launched">✅ Запущен</option>
@@ -8455,7 +8455,7 @@ function showToast(msg,type='success') {
         <div class="form-group">
           <label class="form-label">Статус</label>
           <select class="form-select" id="edit-del-status">
-            <option value="waiting_link">🔗 Ожидаем ссылку</option>
+            <option value="waiting_link">📥 Новый запрос</option>
             <option value="link_requested">📨 Запросил ссылку</option>
             <option value="waiting_launch">⏳ Ожидаем запуска</option>
             <option value="launched">✅ Запущен</option>

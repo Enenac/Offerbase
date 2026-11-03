@@ -8,7 +8,7 @@ const TG_OWNER_CHAT_ID = process.env.TG_OWNER_CHAT_ID || "1309935213";
 const HOOK_SECRET = process.env.HOOK_SECRET;
 
 const STATUS_LABEL = {
-  waiting_link: "🔗 Ожидаем ссылку",
+  waiting_link: "📥 Новый запрос",
   link_requested: "📨 Запросил ссылку",
   waiting_launch: "⏳ Ожидаем запуска",
   launched: "✅ Запущен",
