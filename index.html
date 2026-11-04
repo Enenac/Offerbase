@@ -677,6 +677,9 @@ tr:hover .row-actions{opacity:1}
       <div class="leftnav-item" id="lnav-deliveries" onclick="switchPage('deliveries')" title="Выдачи">
         <i class="ti ti-link"></i><span>Выдачи</span>
       </div>
+      <div class="leftnav-item" id="lnav-mailing" onclick="switchPage('mailing')" title="Рассылка">
+        <i class="ti ti-send"></i><span>Рассылка</span>
+      </div>
       <div class="leftnav-item" id="lnav-partners" onclick="switchPage('partners')" title="База партнёров">
         <i class="ti ti-users"></i><span>Партнёры</span>
       </div>
@@ -2866,7 +2869,7 @@ function applyHashRoute() {
     const mobilePages = ['offers', 'requests', 'deliveries', 'mailing', 'tasks'];
     if (mobilePages.includes(hash) && !(hash === 'tasks' && hideTasks)) mSwitchSection(hash);
   } else {
-    const desktopPages = ['offers', 'direct', 'partners', 'requests', 'settings', 'deliveries', 'tasks', 'stats'];
+    const desktopPages = ['offers', 'direct', 'partners', 'requests', 'settings', 'deliveries', 'tasks', 'stats', 'mailing'];
     if (desktopPages.includes(hash) && !(hash === 'stats' && !isAdmin) && !(hash === 'direct' && !isAdmin) && !(hash === 'tasks' && hideTasks)) switchPage(hash);
   }
 }
@@ -6996,6 +6999,253 @@ function renderStatsPage() {
     </div>`;
 }
 
+// ── DESKTOP MAILING PAGE ──────────────────────────────
+// Same pipeline as the Telegram export bundle (Network only, current offers, margin, per-GEO minimums, dedupe, sort),
+// plus memory of what has already gone out: table mailing_sent (project, key = geo|brand|source|type, rate_usd = shown rate,
+// batch, sent_at). A product is skipped when it was sent within the chosen window at the same or a higher rate.
+let ML = (() => {
+  const d = { regions: [], geos: '', sources: [], types: [], datePreset: 'week', from: '', to: '', exclude: [], skipSent: true, sentDays: 7, dedup: true, sort: true };
+  try { return { ...d, ...(JSON.parse(localStorage.getItem('mlState') || 'null') || {}) }; } catch (_) { return d; }
+})();
+let _mlRows = [], _mlBuilt = false, _mlWarned = false;
+const mlSave = () => { try { localStorage.setItem('mlState', JSON.stringify(ML)); } catch (_) {} };
+const mlLocalDate = d => d.toLocaleDateString('sv-SE');
+const mlKey = o => [(o.geo || '').toUpperCase(), (o.brand || '').toLowerCase(), (o.traffic_source || '').toLowerCase(), (o.game_type || '').toLowerCase()].join('|');
+const mlShownUsd = o => parseRateToUsd(bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
+
+function mlDates(preset) {
+  const now = new Date(), day = now.getDay();
+  const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  return ({
+    today: [mlLocalDate(now), mlLocalDate(now)], yesterday: [mlLocalDate(y), mlLocalDate(y)], week: [mlLocalDate(mon), mlLocalDate(sun)],
+    month: [mlLocalDate(new Date(now.getFullYear(), now.getMonth(), 1)), mlLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))],
+    all: ['', ''],
+  })[preset] || [ML.from, ML.to];
+}
+
+async function openMailingPage() {
+  await Promise.all([allRegions.length ? null : loadRegions(), loadBundleSettings(false), eurUsd ? null : fetchRates()]);
+  if (!allPartners.length) { try { await loadPartners(); } catch (_) {} }
+  mlRenderAll();
+  mlLoadOptions();
+  mlRefreshSentInfo();
+}
+
+async function mlLoadOptions() {
+  try {
+    const { data } = await sb.from('offers').select('traffic_source, game_type').eq('project', currentProject).eq('status', 'active')
+      .or('partner_type.neq.Direct,partner_type.is.null').limit(100000);
+    const cnt = (k) => { const m = new Map(); (data || []).forEach(o => { const v = (o[k] || '').trim(); if (v && !isBlankSource(v)) m.set(v, (m.get(v) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]); };
+    window._mlSourceOpts = cnt('traffic_source'); window._mlTypeOpts = cnt('game_type');
+    mlRenderPills();
+  } catch (_) {}
+}
+
+const mlPill = (label, on, js) => `<button class="ml-pill ${on ? 'on' : ''}" onclick="${js}">${esc(label)}</button>`;
+function mlRenderPills() {
+  const q = s => encodeURIComponent(s);
+  document.getElementById('mlRegions').innerHTML = allRegions.length
+    ? allRegions.map(r => mlPill(r.name, ML.regions.map(String).includes(String(r.id)), `mlToggle('regions','${r.id}')`)).join('')
+    : '<span style="font-size:12px;color:var(--text3)">Регионы не заведены в Настройках</span>';
+  document.getElementById('mlSources').innerHTML = (window._mlSourceOpts || ML.sources).map(s => mlPill(s, ML.sources.includes(s), `mlToggle('sources',decodeURIComponent('${q(s)}'))`)).join('') || '<span style="font-size:12px;color:var(--text3)">Загрузка…</span>';
+  document.getElementById('mlTypes').innerHTML = (window._mlTypeOpts || ML.types).map(s => mlPill(s, ML.types.includes(s), `mlToggle('types',decodeURIComponent('${q(s)}'))`)).join('') || '<span style="font-size:12px;color:var(--text3)">Загрузка…</span>';
+  const P = [['today', 'Сегодня'], ['yesterday', 'Вчера'], ['week', 'Эта неделя'], ['month', 'Месяц'], ['all', 'Всё время']];
+  document.getElementById('mlDates').innerHTML = P.map(([k, l]) => mlPill(l, ML.datePreset === k, `mlPreset('${k}')`)).join('');
+  const [f, t] = ML.datePreset === 'custom' ? [ML.from, ML.to] : mlDates(ML.datePreset);
+  document.getElementById('mlFrom').value = f; document.getElementById('mlTo').value = t;
+  document.getElementById('mlFields').innerHTML = EXPORT_FIELDS.map(f => mlPill(f.label, !!exportFieldsEnabled[f.key], `mlField('${f.key}')`)).join('');
+}
+function mlRenderAll() {
+  document.getElementById('mlGeos').value = ML.geos;
+  document.getElementById('mlSkipSent').checked = ML.skipSent;
+  document.getElementById('mlSentDays').value = String(ML.sentDays);
+  document.getElementById('mlDedup').checked = ML.dedup;
+  document.getElementById('mlSort').checked = ML.sort;
+  mlRenderPills(); mlRenderExcl(); mlRenderSettings();
+}
+function mlToggle(k, v) {
+  const a = ML[k], i = a.map(String).indexOf(String(v));
+  if (i < 0) a.push(String(v)); else a.splice(i, 1);
+  mlSave(); mlRenderPills();
+}
+function mlPreset(p) { ML.datePreset = p; mlSave(); mlRenderPills(); }
+function mlDateRange() {
+  ML.datePreset = 'custom'; ML.from = document.getElementById('mlFrom').value; ML.to = document.getElementById('mlTo').value;
+  mlSave(); mlRenderPills();
+}
+function mlField(k) { exportFieldsEnabled[k] = !exportFieldsEnabled[k]; try { localStorage.setItem('exportFields', JSON.stringify(exportFieldsEnabled)); } catch (_) {} mlRenderPills(); }
+function mlGeosTyped(el) {
+  el.value = fixGeoLayout(el.value).replace(/[,;\n]+/g, ' ').replace(/ {2,}/g, ' ').toUpperCase();
+  ML.geos = el.value; mlSave();
+}
+function mlOpt() {
+  ML.skipSent = document.getElementById('mlSkipSent').checked; ML.sentDays = +document.getElementById('mlSentDays').value;
+  ML.dedup = document.getElementById('mlDedup').checked; ML.sort = document.getElementById('mlSort').checked; mlSave();
+}
+
+// exclusion list
+function mlRenderExcl() {
+  const q = (document.getElementById('mlExclSearch').value || '').toLowerCase().trim();
+  const ex = new Set(ML.exclude.map(n => n.toLowerCase()));
+  const names = mMailPartnerNames().filter(n => !q || n.toLowerCase().includes(q));
+  document.getElementById('mlExclCount').textContent = ML.exclude.length ? `— исключено: ${ML.exclude.length}` : '';
+  document.getElementById('mlExclList').innerHTML = (ML.exclude.length ? `<div onclick="mlClearExcl()" style="padding:8px 10px;font-size:11px;color:var(--accent);border-bottom:0.5px solid var(--border);cursor:pointer">Сбросить исключения</div>` : '') +
+    (names.length ? names.map(n => { const on = ex.has(n.toLowerCase());
+      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:0.5px solid var(--border);font-size:12px;color:${on ? 'var(--red)' : 'var(--text1)'};cursor:pointer"><input type="checkbox" ${on ? 'checked' : ''} onchange="mlToggleExcl(decodeURIComponent(this.dataset.n))" data-n="${encodeURIComponent(n)}" style="accent-color:#ef4444">${esc(n)}</label>`; }).join('')
+      : '<div style="padding:10px;font-size:11px;color:var(--text3)">Ничего не найдено</div>');
+}
+function mlToggleExcl(name) {
+  const i = ML.exclude.findIndex(n => n.toLowerCase() === name.toLowerCase());
+  if (i < 0) ML.exclude.push(name); else ML.exclude.splice(i, 1);
+  mlSave(); mlRenderExcl();
+}
+function mlClearExcl() { ML.exclude = []; mlSave(); mlRenderExcl(); }
+
+// margin + per-GEO minimums (shared with the export modal and the phone through app_settings)
+function mlRenderSettings() {
+  const el = document.getElementById('mlSettings'); if (!el) return;
+  sortMarginTiers();
+  const tiers = bundleMarginTiers.map((t, i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0"><span style="font-size:10px;color:var(--text3)">от</span><input type="number" class="ml-inp no-spin" value="${t.min}" onchange="updateMarginTierMin(${i},this.value);mlRenderSettings()" style="width:62px"><span style="font-size:10px;color:var(--text3)">минус</span><input type="number" class="ml-inp no-spin" value="${t.deduct}" onchange="updateMarginTierDeduct(${i},this.value);mlRenderSettings()" style="width:56px"><button class="icon-btn" onclick="removeMarginTier(${i});mlRenderSettings()" style="margin-left:auto;color:var(--text3)"><i class="ti ti-x" style="font-size:12px"></i></button></div>`).join('');
+  const mins = bundleGeoMin.items.map((it, i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0"><input class="ml-inp" value="${esc(it.geo)}" placeholder="GEO" oninput="updateBundleGeoMinGeo(${i},this)" style="width:56px;text-transform:uppercase"><span style="font-size:10px;color:var(--text3)">не ниже</span><input type="number" class="ml-inp no-spin" value="${it.min == null ? '' : it.min}" placeholder="0" onchange="updateBundleGeoMinVal(${i},this.value)" style="width:68px"><button class="icon-btn" onclick="removeBundleGeoMin(${i});mlRenderSettings()" style="margin-left:auto;color:var(--text3)"><i class="ti ti-x" style="font-size:12px"></i></button></div>`).join('');
+  el.innerHTML = `
+    <label class="ml-chk" style="margin-bottom:6px"><input type="checkbox" ${bundleApplyMargin ? 'checked' : ''} onchange="toggleBundleApplyMargin();mlRenderSettings()" style="accent-color:var(--accent)">Вычитать маржу из ставки</label>
+    ${tiers}<button class="btn btn-ghost" onclick="addMarginTier();mlRenderSettings()" style="font-size:11px;padding:4px 8px;margin:4px 0 12px"><i class="ti ti-plus"></i>Уровень</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><label class="ml-chk"><input type="checkbox" ${bundleGeoMin.enabled ? 'checked' : ''} onchange="bundleGeoMin.enabled=this.checked;saveBundleGeoMin(false)" style="accent-color:var(--accent)">Минимум по гео</label>
+      <select class="form-select" onchange="setBundleGeoMinCur(this.value)" style="width:72px;font-size:11px;padding:3px 6px"><option ${bundleGeoMin.cur === 'EUR' ? 'selected' : ''}>EUR</option><option ${bundleGeoMin.cur === 'USD' ? 'selected' : ''}>USD</option></select>
+      <span style="font-size:10px;color:var(--text3)">сравнивается после маржи</span></div>
+    ${mins || '<div style="font-size:11px;color:var(--text3);padding:2px 0">Порогов нет</div>'}
+    <button class="btn btn-ghost" onclick="bundleGeoMin.items.push({geo:'',min:null});saveBundleGeoMin(false);mlRenderSettings()" style="font-size:11px;padding:4px 8px;margin-top:4px"><i class="ti ti-plus"></i>Гео</button>`;
+}
+
+// ── sent history ──
+function mlTableMissing(e) {
+  if (_mlWarned) return;
+  _mlWarned = true;
+  showToast('История рассылок не работает: создай таблицу mailing_sent (SQL в ответе). ' + (e && e.message ? e.message : ''), 'error');
+}
+function mlSince() { return ML.sentDays > 0 ? new Date(Date.now() - ML.sentDays * 86400000).toISOString() : null; }
+
+async function mlFetchSent() {
+  let q = sb.from('mailing_sent').select('key, rate_usd, sent_at').eq('project', currentProject).limit(100000);
+  const since = mlSince(); if (since) q = q.gte('sent_at', since);
+  const { data, error } = await q;
+  if (error) { mlTableMissing(error); return null; }
+  const m = new Map();
+  (data || []).forEach(r => { const v = +r.rate_usd || 0; if (!m.has(r.key) || v > m.get(r.key)) m.set(r.key, v); });
+  return m;
+}
+
+async function mlRefreshSentInfo() {
+  const el = document.getElementById('mlSentInfo'); if (!el) return;
+  try {
+    let q = sb.from('mailing_sent').select('sent_at', { count: 'exact' }).eq('project', currentProject).order('sent_at', { ascending: false }).limit(1);
+    const since = mlSince(); if (since) q = q.gte('sent_at', since);
+    const { data, count, error } = await q;
+    if (error) { el.textContent = ''; return; }
+    const last = data && data[0] ? new Date(data[0].sent_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+    el.textContent = count ? `Отправлено позиций: ${count} · последняя рассылка: ${last}` : 'Рассылок за этот период не было';
+  } catch (_) { el.textContent = ''; }
+}
+
+async function mlBuild() {
+  const manual = (document.getElementById('mlGeos').value || '').split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean);
+  const geos = [];
+  ML.regions.forEach(rid => {
+    allRegionGeos.filter(rg => String(rg.region_id) === String(rid)).map(rg => (rg.geo || '').toUpperCase()).filter(Boolean)
+      .sort((a, b) => a.localeCompare(b)).forEach(g => { if (!geos.includes(g)) geos.push(g); });
+  });
+  manual.forEach(g => { if (!geos.includes(g)) geos.push(g); });
+  if (!geos.length) { showToast('Выбери регион или впиши гео', 'error'); return; }
+  const btn = document.getElementById('mlBuildBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Собираю…';
+  try {
+    await loadBundleSettings(false); // latest margin / minimums
+    if (!eurUsd) await fetchRates();
+    await buildOfferVersionIndex();
+    let q = sb.from('offers').select('*').eq('project', currentProject).in('geo', geos).eq('status', 'active')
+      .or('partner_type.neq.Direct,partner_type.is.null');
+    if (ML.sources.length) q = q.in('traffic_source', ML.sources);
+    if (ML.types.length) q = q.in('game_type', ML.types);
+    const [from, to] = ML.datePreset === 'custom' ? [ML.from, ML.to] : mlDates(ML.datePreset);
+    if (from) q = q.gte('received_at', from);
+    if (to) q = q.lte('received_at', to);
+    const { data, error } = await q.limit(100000);
+    if (error) throw error;
+    let rows = (data || []).filter(o => { const v = offerVersionInfo(o); return !v || v.isLatest; });
+    const ex = new Set(ML.exclude.map(n => n.toLowerCase()));
+    if (ex.size) rows = rows.filter(o => !ex.has((o.partner || '').trim().toLowerCase()));
+    let cutMin = 0;
+    if (bundleGeoMin.enabled) rows = rows.filter(o => {
+      const th = bundleGeoMinUsd(o.geo);
+      if (th == null || !(o.rate || '').trim()) return true;
+      const ok = mlShownUsd(o) >= th - 0.005; if (!ok) cutMin++; return ok;
+    });
+    if (ML.dedup) rows = deduplicateOffers(rows);
+    let skipped = 0;
+    if (ML.skipSent) {
+      const sent = await mlFetchSent();
+      if (sent && sent.size) rows = rows.filter(o => {
+        const s = sent.get(mlKey(o));
+        if (s == null) return true;
+        const keep = mlShownUsd(o) > s + 0.005; // already sent at this rate or higher → skip; a better rate goes out again
+        if (!keep) skipped++;
+        return keep;
+      });
+    }
+    const order = new Map(geos.map((g, i) => [g, i]));
+    rows.sort((a, b) => {
+      const ai = order.get((a.geo || '').toUpperCase()), bi = order.get((b.geo || '').toUpperCase());
+      if (ai !== bi) return ai - bi;
+      return ML.sort ? mlShownUsd(b) - mlShownUsd(a) : 0;
+    });
+    const entries = buildBundleEntries(rows, k => exportFieldsEnabled[k], bundleApplyMargin);
+    _mlRows = rows; _mlBuilt = true;
+    document.getElementById('mlText').value = bundleEntriesToText(entries, true);
+    document.getElementById('mlCount').textContent = `${entries.length} оффер(ов)` + (skipped ? ` · уже отправлено, пропущено: ${skipped}` : '') + (cutMin ? ` · ниже минимума: ${cutMin}` : '') + (ex.size ? ` · без партнёров: ${ex.size}` : '');
+    if (!entries.length) showToast(skipped ? 'Новых офферов нет — всё уже отправлялось' : 'По этим фильтрам офферов нет', 'error');
+  } catch (e) {
+    showToast('Ошибка сборки: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-stack-2"></i>Собрать рассылку';
+  }
+}
+
+async function mlCopy(mark) {
+  const text = document.getElementById('mlText').value.trim();
+  if (!text) { showToast('Сначала собери рассылку', 'error'); return; }
+  try { await navigator.clipboard.writeText(text); } catch (_) { showToast('Не удалось скопировать', 'error'); return; }
+  if (!mark) { showToast('Скопировано (без отметки)', 'success'); return; }
+  if (!_mlBuilt || !_mlRows.length) { showToast('Скопировано', 'success'); return; }
+  const batch = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const recs = _mlRows.map(o => ({ project: currentProject, key: mlKey(o), rate_usd: +mlShownUsd(o).toFixed(2), batch }));
+  for (let i = 0; i < recs.length; i += 500) {
+    const { error } = await sb.from('mailing_sent').insert(recs.slice(i, i + 500));
+    if (error) { mlTableMissing(error); showToast('Скопировано, но отметить не удалось', 'error'); return; }
+  }
+  _mlRows = []; // marked — a second click can't double-log the same batch
+  showToast(`Скопировано · отмечено отправленным: ${recs.length}`, 'success');
+  mlRefreshSentInfo();
+}
+
+async function mlUndoLast() {
+  const { data, error } = await sb.from('mailing_sent').select('batch, sent_at').eq('project', currentProject).order('sent_at', { ascending: false }).limit(1);
+  if (error) { mlTableMissing(error); return; }
+  if (!data || !data.length) { showToast('Отправленных рассылок нет', 'error'); return; }
+  const b = data[0].batch;
+  if (!confirm('Снять отметку «отправлено» с последней рассылки?\nЕё офферы снова попадут в следующую сборку.')) return;
+  const { error: e2 } = await sb.from('mailing_sent').delete().eq('project', currentProject).eq('batch', b);
+  if (e2) { showToast('Ошибка: ' + e2.message, 'error'); return; }
+  showToast('Последняя рассылка снята с отметки', 'success'); mlRefreshSentInfo();
+}
+async function mlResetSent() {
+  if (!confirm('Очистить всю историю отправленного для этого проекта?\nВсе офферы снова станут «новыми».')) return;
+  const { error } = await sb.from('mailing_sent').delete().eq('project', currentProject);
+  if (error) { mlTableMissing(error); return; }
+  showToast('История очищена', 'success'); mlRefreshSentInfo();
+}
+
 const PAGE_TITLES = {
   offers: 'Офферы', direct: 'Direct', partners: 'Партнёры', requests: 'Запросы',
   deliveries: 'Выдачи', mailing: 'Рассылка', tasks: 'Таксы', stats: 'Стата', settings: 'Настройки',
@@ -7008,7 +7258,7 @@ function switchPage(page) {
   currentPage = page;
   document.title = PAGE_TITLES[page] || 'OfferBase';
   history.replaceState(null, '', '#' + page); // remembers the tab across a page refresh
-  ['offers','direct','partners','requests','settings','deliveries','tasks','stats'].forEach(x => {
+  ['offers','direct','partners','requests','settings','deliveries','tasks','stats','mailing'].forEach(x => {
     const el = document.getElementById('lnav-'+x);
     if (el) el.classList.toggle('active', x === page);
   });
@@ -7018,6 +7268,7 @@ function switchPage(page) {
   document.getElementById('partnersPage').style.display = 'none';
   document.getElementById('settingsPage').style.display = 'none';
   document.getElementById('deliveriesPage').style.display = 'none';
+  document.getElementById('mailingPage').style.display = 'none';
   const tasksSec = document.getElementById('tasksPage');
   if (tasksSec) tasksSec.style.display = 'none';
   const statsSec = document.getElementById('statsPage');
@@ -7053,6 +7304,9 @@ function switchPage(page) {
   } else if (page === 'deliveries') {
     document.getElementById('deliveriesPage').style.display = 'flex';
     loadDeliveries();
+  } else if (page === 'mailing') {
+    document.getElementById('mailingPage').style.display = 'flex';
+    openMailingPage();
   } else if (page === 'tasks') {
     if (tasksSec) tasksSec.style.display = 'flex';
     loadTasks();
@@ -8199,6 +8453,62 @@ function showToast(msg,type='success') {
     <div id="deliveriesTable"></div>
   </div>
 </div>
+
+<!-- ── MAILING PAGE (desktop): build a bundle, copy it, remember what was already sent ── -->
+<div id="mailingPage" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+  <div class="topbar">
+    <span class="logo"><i class="ti ti-send"></i>Рассылка</span>
+    <div class="topbar-right"><span id="mlSentInfo" style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace"></span></div>
+  </div>
+  <div style="flex:1;display:flex;gap:16px;padding:16px 24px;overflow:hidden;min-height:0">
+    <!-- settings column -->
+    <div style="width:430px;flex-shrink:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:6px">
+      <div class="ml-box"><div class="ml-h">Регион (тир)</div><div id="mlRegions" class="ml-pills"></div>
+        <input class="form-input" id="mlGeos" autocomplete="off" placeholder="Или гео вручную: IT DE PL" oninput="mlGeosTyped(this)" style="margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:12px"></div>
+      <div class="ml-box"><div class="ml-h">Источник <span class="ml-sub">— пусто = все</span></div><div id="mlSources" class="ml-pills"></div></div>
+      <div class="ml-box"><div class="ml-h">Тип игры <span class="ml-sub">— пусто = все</span></div><div id="mlTypes" class="ml-pills"></div></div>
+      <div class="ml-box"><div class="ml-h">Дата получения</div><div id="mlDates" class="ml-pills"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+          <input type="date" id="mlFrom" class="form-input" onchange="mlDateRange()" style="color-scheme:dark;font-size:12px"><span style="color:var(--text3)">—</span>
+          <input type="date" id="mlTo" class="form-input" onchange="mlDateRange()" style="color-scheme:dark;font-size:12px"></div></div>
+      <div class="ml-box"><div class="ml-h">Исключить партнёров <span class="ml-sub" id="mlExclCount"></span></div>
+        <input class="form-input" id="mlExclSearch" autocomplete="off" placeholder="Поиск партнёра..." oninput="mlRenderExcl()" style="font-size:12px;margin-bottom:6px">
+        <div id="mlExclList" style="max-height:170px;overflow-y:auto;border:0.5px solid var(--border);border-radius:8px"></div></div>
+      <div class="ml-box"><div class="ml-h">Маржа и минимальные ставки <span class="ml-sub">— общие настройки подборки</span></div><div id="mlSettings"></div></div>
+      <div class="ml-box"><div class="ml-h">Поля в тексте</div><div id="mlFields" class="ml-pills"></div></div>
+    </div>
+    <!-- result column -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+      <div class="ml-box" style="display:flex;flex-wrap:wrap;align-items:center;gap:14px">
+        <label class="ml-chk"><input type="checkbox" id="mlSkipSent" onchange="mlOpt()" style="accent-color:var(--accent)">Не включать уже отправленное за</label>
+        <select class="form-select" id="mlSentDays" onchange="mlOpt()" style="width:auto;font-size:12px;padding:4px 8px">
+          <option value="1">1 день</option><option value="3">3 дня</option><option value="7">7 дней</option><option value="14">14 дней</option><option value="30">30 дней</option><option value="0">всё время</option>
+        </select>
+        <label class="ml-chk"><input type="checkbox" id="mlDedup" onchange="mlOpt()" style="accent-color:var(--accent)">Убирать дубли (макс. ставка)</label>
+        <label class="ml-chk"><input type="checkbox" id="mlSort" onchange="mlOpt()" style="accent-color:var(--accent)">Сортировать по ставке ↓</label>
+        <button class="btn btn-primary" id="mlBuildBtn" onclick="mlBuild()" style="margin-left:auto"><i class="ti ti-stack-2"></i>Собрать рассылку</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px"><span id="mlCount" style="font-size:12px;color:var(--text3);flex:1"></span>
+        <button class="btn btn-ghost" onclick="mlUndoLast()" title="Снять отметку «отправлено» с последней рассылки" style="font-size:11px;padding:5px 10px"><i class="ti ti-arrow-back-up"></i>Отменить последнюю</button>
+        <button class="btn btn-ghost" onclick="mlResetSent()" style="font-size:11px;padding:5px 10px;color:var(--red)"><i class="ti ti-trash"></i>Очистить историю</button></div>
+      <textarea id="mlText" class="export-text" spellcheck="false" placeholder="Выбери гео и нажми «Собрать рассылку»" style="flex:1;min-height:200px;resize:none;width:100%;box-sizing:border-box"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="mlCopy(false)"><i class="ti ti-copy"></i>Только скопировать</button>
+        <button class="btn btn-green" id="mlCopyBtn" onclick="mlCopy(true)"><i class="ti ti-copy-check"></i>Скопировать и отметить отправленным</button>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+.ml-box{border:0.5px solid var(--border);border-radius:10px;background:var(--bg2);padding:12px}
+.ml-h{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:8px}
+.ml-sub{text-transform:none;letter-spacing:0;opacity:0.7}
+.ml-pills{display:flex;flex-wrap:wrap;gap:6px}
+.ml-pill{padding:5px 11px;border-radius:16px;font-size:12px;cursor:pointer;border:0.5px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:'IBM Plex Sans',sans-serif}
+.ml-pill.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}
+.ml-chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap}
+.ml-inp{background:var(--bg3);border:0.5px solid var(--border);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text1);font-family:'IBM Plex Mono',monospace}
+</style>
 
 </div><!-- /main-content -->
 </div><!-- /app -->
