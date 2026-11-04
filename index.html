@@ -7013,6 +7013,17 @@ const mlLocalDate = d => d.toLocaleDateString('sv-SE');
 const mlKey = o => [(o.geo || '').toUpperCase(), (o.brand || '').toLowerCase(), (o.traffic_source || '').toLowerCase(), (o.game_type || '').toLowerCase()].join('|');
 const mlShownUsd = o => parseRateToUsd(bundleApplyMargin ? marginAdjustedRateText(o.rate) : o.rate);
 
+// Tier 1 → 2 → 3 → LATAM → Africa → anything else (alphabetical)
+function mlRegionRank(name) {
+  const n = (name || '').toLowerCase();
+  const t = n.match(/(?:tier|тир)\s*-?\s*(\d)/);
+  if (t) return +t[1];
+  if (/латам|latam/.test(n)) return 10;
+  if (/африк|afric/.test(n)) return 11;
+  return 100;
+}
+const mlSortedRegions = () => [...allRegions].sort((a, b) => mlRegionRank(a.name) - mlRegionRank(b.name) || (a.name || '').localeCompare(b.name || ''));
+
 function mlDates(preset) {
   const now = new Date(), day = now.getDay();
   const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
@@ -7047,7 +7058,7 @@ const mlPill = (label, on, js) => `<button class="ml-pill ${on ? 'on' : ''}" onc
 function mlRenderPills() {
   const q = s => encodeURIComponent(s);
   document.getElementById('mlRegions').innerHTML = allRegions.length
-    ? allRegions.map(r => mlPill(r.name, ML.regions.map(String).includes(String(r.id)), `mlToggle('regions','${r.id}')`)).join('')
+    ? mlSortedRegions().map(r => mlPill(r.name, ML.regions.map(String).includes(String(r.id)), `mlToggle('regions','${r.id}')`)).join('')
     : '<span style="font-size:12px;color:var(--text3)">Регионы не заведены в Настройках</span>';
   document.getElementById('mlSources').innerHTML = (window._mlSourceOpts || ML.sources).map(s => mlPill(s, ML.sources.includes(s), `mlToggle('sources',decodeURIComponent('${q(s)}'))`)).join('') || '<span style="font-size:12px;color:var(--text3)">Загрузка…</span>';
   document.getElementById('mlTypes').innerHTML = (window._mlTypeOpts || ML.types).map(s => mlPill(s, ML.types.includes(s), `mlToggle('types',decodeURIComponent('${q(s)}'))`)).join('') || '<span style="font-size:12px;color:var(--text3)">Загрузка…</span>';
@@ -7151,12 +7162,17 @@ async function mlRefreshSentInfo() {
 
 async function mlBuild() {
   const manual = (document.getElementById('mlGeos').value || '').split(/[,\s]+/).map(g => g.trim().toUpperCase()).filter(Boolean);
-  const geos = [];
-  ML.regions.forEach(rid => {
-    allRegionGeos.filter(rg => String(rg.region_id) === String(rid)).map(rg => (rg.geo || '').toUpperCase()).filter(Boolean)
-      .sort((a, b) => a.localeCompare(b)).forEach(g => { if (!geos.includes(g)) geos.push(g); });
+  // blocks in fixed region order; a GEO belongs to the first selected region that has it; hand-typed GEOs form a last block
+  const geos = [], groups = [];
+  mlSortedRegions().filter(r => ML.regions.map(String).includes(String(r.id))).forEach(r => {
+    const gs = [];
+    allRegionGeos.filter(rg => String(rg.region_id) === String(r.id)).map(rg => (rg.geo || '').toUpperCase()).filter(Boolean)
+      .sort((a, b) => a.localeCompare(b)).forEach(g => { if (!geos.includes(g)) { geos.push(g); gs.push(g); } });
+    if (gs.length) groups.push({ name: r.name, geos: gs });
   });
-  manual.forEach(g => { if (!geos.includes(g)) geos.push(g); });
+  const extra = manual.filter(g => !geos.includes(g));
+  extra.forEach(g => geos.push(g));
+  if (extra.length) groups.push({ name: groups.length ? 'Другое' : null, geos: extra });
   if (!geos.length) { showToast('Выбери регион или впиши гео', 'error'); return; }
   const btn = document.getElementById('mlBuildBtn');
   btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 0.8s linear infinite"></i>Собираю…';
@@ -7200,9 +7216,21 @@ async function mlBuild() {
       if (ai !== bi) return ai - bi;
       return ML.sort ? mlShownUsd(b) - mlShownUsd(a) : 0;
     });
-    const entries = buildBundleEntries(rows, k => exportFieldsEnabled[k], bundleApplyMargin);
-    _mlRows = rows; _mlBuilt = true;
-    document.getElementById('mlText').value = bundleEntriesToText(entries, true);
+    // one block per region: its name, then its offers (GEO by GEO, best rate first)
+    const blocks = [], ordered = [];
+    let total = 0;
+    groups.forEach(g => {
+      const gr = rows.filter(o => g.geos.includes((o.geo || '').toUpperCase()));
+      if (!gr.length) return;
+      ordered.push(...gr);
+      const ents = buildBundleEntries(gr, k => exportFieldsEnabled[k], bundleApplyMargin);
+      if (!ents.length) return;
+      total += ents.length;
+      blocks.push((g.name ? g.name + '\n' : '') + bundleEntriesToText(ents, true));
+    });
+    const entries = { length: total };
+    _mlRows = ordered; _mlBuilt = true;
+    document.getElementById('mlText').value = blocks.join('\n\n');
     document.getElementById('mlCount').textContent = `${entries.length} оффер(ов)` + (skipped ? ` · уже отправлено, пропущено: ${skipped}` : '') + (cutMin ? ` · ниже минимума: ${cutMin}` : '') + (ex.size ? ` · без партнёров: ${ex.size}` : '');
     if (!entries.length) showToast(skipped ? 'Новых офферов нет — всё уже отправлялось' : 'По этим фильтрам офферов нет', 'error');
   } catch (e) {
