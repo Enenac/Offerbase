@@ -7230,6 +7230,7 @@ async function mlBuild() {
     });
     const entries = { length: total };
     _mlRows = ordered; _mlBuilt = true;
+    mlRenderPartners(ordered);
     document.getElementById('mlText').value = blocks.join('\n\n');
     document.getElementById('mlCount').textContent = `${entries.length} оффер(ов)` + (skipped ? ` · уже отправлено, пропущено: ${skipped}` : '') + (cutMin ? ` · ниже минимума: ${cutMin}` : '') + (ex.size ? ` · без партнёров: ${ex.size}` : '');
     if (!entries.length) showToast(skipped ? 'Новых офферов нет — всё уже отправлялось' : 'По этим фильтрам офферов нет', 'error');
@@ -7238,6 +7239,22 @@ async function mlBuild() {
   } finally {
     btn.disabled = false; btn.innerHTML = '<i class="ti ti-stack-2"></i>Собрать рассылку';
   }
+}
+
+// who the offers in the built text come from — so the same offers aren't sent back to those partners
+let _mlPartnerNames = [];
+function mlRenderPartners(rows) {
+  const m = new Map();
+  rows.forEach(o => { const n = (o.partner || '').trim(); if (!n) return; const k = n.toLowerCase(); if (!m.has(k)) m.set(k, { n, c: 0 }); m.get(k).c++; });
+  const list = [...m.values()].sort((a, b) => b.c - a.c || a.n.localeCompare(b.n));
+  _mlPartnerNames = list.map(x => x.n);
+  document.getElementById('mlPartnersBox').style.display = list.length ? '' : 'none';
+  document.getElementById('mlPartnersN').textContent = list.length ? `— ${list.length}` : '';
+  document.getElementById('mlPartners').innerHTML = list.map(x => `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:14px;font-size:12px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text1)">${esc(x.n)}<span style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${x.c}</span></span>`).join('');
+}
+function mlCopyPartners() {
+  if (!_mlPartnerNames.length) return;
+  navigator.clipboard.writeText(_mlPartnerNames.join(', ')).then(() => showToast('Список партнёров скопирован', 'success'));
 }
 
 async function mlCopy(mark) {
@@ -8519,6 +8536,11 @@ function showToast(msg,type='success') {
       <div style="display:flex;align-items:center;gap:10px"><span id="mlCount" style="font-size:12px;color:var(--text3);flex:1"></span>
         <button class="btn btn-ghost" onclick="mlUndoLast()" title="Снять отметку «отправлено» с последней рассылки" style="font-size:11px;padding:5px 10px"><i class="ti ti-arrow-back-up"></i>Отменить последнюю</button>
         <button class="btn btn-ghost" onclick="mlResetSent()" style="font-size:11px;padding:5px 10px;color:var(--red)"><i class="ti ti-trash"></i>Очистить историю</button></div>
+      <div class="ml-box" id="mlPartnersBox" style="display:none;padding:10px 12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span class="ml-h" style="margin:0;flex:1">Офферы в подборке взяты у партнёров <span class="ml-sub" id="mlPartnersN"></span></span>
+          <button class="btn btn-ghost" onclick="mlCopyPartners()" style="font-size:11px;padding:3px 9px"><i class="ti ti-copy"></i>Скопировать список</button></div>
+        <div id="mlPartners" class="ml-pills" style="max-height:92px;overflow-y:auto"></div>
+      </div>
       <textarea id="mlText" class="export-text" spellcheck="false" placeholder="Выбери гео и нажми «Собрать рассылку»" style="flex:1;min-height:200px;resize:none;width:100%;box-sizing:border-box"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="mlCopy(false)"><i class="ti ti-copy"></i>Только скопировать</button>
