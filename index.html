@@ -284,6 +284,13 @@ tr:hover .row-actions{opacity:1}
 .rq-status-btn:hover{filter:brightness(1.35)}
 .del-offer-cell{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 .del-offer-cell img{vertical-align:-2px}
+.del-note{display:inline-block;width:16px;margin-right:5px;text-align:center;cursor:pointer;color:var(--text3);opacity:0;transition:opacity .12s;vertical-align:middle}
+.del-table tr:hover .del-note{opacity:0.55}
+.del-table .del-note:hover{opacity:1;color:var(--accent)}
+.del-note.has,.del-table tr:hover .del-note.has{opacity:1;color:#facc15}
+#delNotePop{position:fixed;z-index:9000;max-width:300px;min-width:120px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);padding:8px 10px;font-size:12px;line-height:1.45;color:var(--text1);white-space:pre-wrap;word-break:break-word}
+#delNotePop textarea{width:260px;min-height:56px;resize:vertical;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text1);font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none;display:block}
+#delNotePop .hint{margin-top:5px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:normal}
 .del-date-cell:hover{color:var(--accent) !important;text-decoration:underline dotted}
 .st-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px 18px}
 .st-card-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:14px;display:flex;align-items:center;gap:7px}
@@ -6060,7 +6067,7 @@ function renderDeliveries() {
           sep = `<tr class="del-month-sep"><td colspan="12"><div class="del-month-sep-inner"><span>${monthLabel}</span></div></td></tr>`;
         }
         return `${sep}<tr${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? ' style="background:rgba(245,158,11,0.05)"' : ''}>
-          <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}">${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? '<i class="ti ti-alert-triangle" style="color:#f59e0b;margin-right:5px;font-size:13px" title="Добавлено с телефона — нужно доработать детали"></i>' : ''}${deliveryOfferLabel(d)}</div></td>
+          <td style="font-weight:500;color:var(--text1);max-width:340px;width:340px"><div class="del-offer-cell" title="${esc((d.notes||d.brand||'').replace(/\s+/g,' ').trim())}"><span class="del-note ${d.comment ? 'has' : ''}" onmouseenter="showDelNoteTip('${d.id}', this)" onmouseleave="hideDelNoteTip()" onclick="event.stopPropagation();openDelNote('${d.id}', this)"><i class="ti ti-note" style="font-size:14px"></i></span>${(!d.partner && (d.capa == null || +d.capa === 0) && d.amount_src == null) ? '<i class="ti ti-alert-triangle" style="color:#f59e0b;margin-right:5px;font-size:13px" title="Добавлено с телефона — нужно доработать детали"></i>' : ''}${deliveryOfferLabel(d)}</div></td>
           <td style="color:var(--text3)">${esc(d.created_by||'—')}</td>
           <td style="color:var(--text2)">${esc(d.partner||'—')}</td>
           <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${srcStr}</td>
@@ -6083,6 +6090,57 @@ function renderDeliveries() {
     </tbody>
   </table>`;
 }
+
+// ── per-delivery comment: icon left of the offer name, hover shows it, click edits (Enter saves, Esc closes) ──
+let _delNoteEditing = null;
+function delNotePop() {
+  let p = document.getElementById('delNotePop');
+  if (!p) { p = document.createElement('div'); p.id = 'delNotePop'; p.style.display = 'none'; document.body.appendChild(p); }
+  return p;
+}
+function placeDelNotePop(p, anchor) {
+  p.style.display = 'block';
+  const r = anchor.getBoundingClientRect(), pr = p.getBoundingClientRect();
+  p.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pr.width - 8)) + 'px';
+  p.style.top = (r.bottom + 6 + pr.height > window.innerHeight ? r.top - pr.height - 6 : r.bottom + 6) + 'px';
+}
+function showDelNoteTip(id, anchor) {
+  if (_delNoteEditing) return;
+  const d = allDeliveries.find(x => x.id === id);
+  if (!d || !d.comment) return;
+  const p = delNotePop(); p.textContent = d.comment; placeDelNotePop(p, anchor);
+}
+function hideDelNoteTip() { if (!_delNoteEditing) delNotePop().style.display = 'none'; }
+function closeDelNote() { _delNoteEditing = null; delNotePop().style.display = 'none'; }
+function openDelNote(id, anchor) {
+  const d = allDeliveries.find(x => x.id === id); if (!d) return;
+  _delNoteEditing = id;
+  const p = delNotePop();
+  p.innerHTML = `<textarea placeholder="Заметка: напр. техпроблемы, ждём" spellcheck="false"></textarea><div class="hint">Enter — сохранить · Shift+Enter — перенос · Esc — закрыть${d.comment ? ' · пусто = удалить' : ''}</div>`;
+  const ta = p.querySelector('textarea'); ta.value = d.comment || '';
+  placeDelNotePop(p, anchor);
+  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.onkeydown = e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeDelNote(); }
+    else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveDelNote(id, ta.value); }
+  };
+}
+async function saveDelNote(id, text) {
+  const val = (text || '').trim() || null;
+  const d = allDeliveries.find(x => x.id === id);
+  closeDelNote();
+  if (!d || (d.comment || null) === val) return;
+  const { error } = await sb.from('deliveries').update({ comment: val }).eq('id', id);
+  if (error) { showToast(/comment/.test(error.message) ? 'Нужна колонка comment в deliveries (SQL в ответе)' : 'Ошибка: ' + error.message, 'error'); return; }
+  d.comment = val;
+  renderDeliveries();
+}
+document.addEventListener('mousedown', e => {
+  if (_delNoteEditing && !e.target.closest('#delNotePop') && !e.target.closest('.del-note')) {
+    const ta = document.querySelector('#delNotePop textarea');
+    if (ta) saveDelNote(_delNoteEditing, ta.value); else closeDelNote(); // clicking away saves what was typed
+  }
+});
 
 function openAddDeliveryModal() {
   _delParsedCache = { text: null, fields: null };
