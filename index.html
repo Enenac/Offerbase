@@ -2881,6 +2881,14 @@ function applyHashRoute() {
   }
 }
 
+// Left nav: middle-click / Ctrl(Cmd)+click opens that page in a new browser tab (the #hash route restores it on load)
+document.querySelectorAll('.leftnav-item[id^="lnav-"]').forEach(el => {
+  const url = () => location.pathname + location.search + '#' + el.id.slice(5);
+  el.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); }); // no autoscroll cursor
+  el.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); window.open(url(), '_blank'); } });
+  el.addEventListener('click', e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopImmediatePropagation(); window.open(url(), '_blank'); } }, true);
+});
+
 async function doLogout() {
   await sb.auth.signOut();
   location.reload();
