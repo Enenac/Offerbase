@@ -7185,7 +7185,19 @@ function mlRenderSettings() {
   const el = document.getElementById('mlSettings'); if (!el) return;
   sortMarginTiers();
   const tiers = bundleMarginTiers.map((t, i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0"><span style="font-size:10px;color:var(--text3)">от</span><input type="number" class="ml-inp no-spin" value="${t.min}" onchange="updateMarginTierMin(${i},this.value);mlRenderSettings()" style="width:62px"><span style="font-size:10px;color:var(--text3)">минус</span><input type="number" class="ml-inp no-spin" value="${t.deduct}" onchange="updateMarginTierDeduct(${i},this.value);mlRenderSettings()" style="width:56px"><button class="icon-btn" onclick="removeMarginTier(${i});mlRenderSettings()" style="margin-left:auto;color:var(--text3)"><i class="ti ti-x" style="font-size:12px"></i></button></div>`).join('');
-  const mins = bundleGeoMin.items.map((it, i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0"><input class="ml-inp" value="${esc(it.geo)}" placeholder="GEO" oninput="updateBundleGeoMinGeo(${i},this)" style="width:56px;text-transform:uppercase"><span style="font-size:10px;color:var(--text3)">не ниже</span><input type="number" class="ml-inp no-spin" value="${it.min == null ? '' : it.min}" placeholder="0" onchange="updateBundleGeoMinVal(${i},this.value)" style="width:68px"><button class="icon-btn" onclick="removeBundleGeoMin(${i});mlRenderSettings()" style="margin-left:auto;color:var(--text3)"><i class="ti ti-x" style="font-size:12px"></i></button></div>`).join('');
+  // minimums grouped by region (Tier 1 → 3, LATAM, Africa…): a GEO lands under the first region that contains it
+  const rowOf = (it, i) => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0"><input class="ml-inp" value="${esc(it.geo)}" placeholder="GEO" oninput="updateBundleGeoMinGeo(${i},this)" onchange="mlRenderSettings()" style="width:56px;text-transform:uppercase"><span style="font-size:10px;color:var(--text3)">не ниже</span><input type="number" class="ml-inp no-spin" value="${it.min == null ? '' : it.min}" placeholder="0" onchange="updateBundleGeoMinVal(${i},this.value)" style="width:68px"><button class="icon-btn" onclick="removeBundleGeoMin(${i});mlRenderSettings()" style="margin-left:auto;color:var(--text3)"><i class="ti ti-x" style="font-size:12px"></i></button></div>`;
+  const used = new Set();
+  const grpHtml = (title, list) => list.length ? `<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;font-family:'IBM Plex Mono',monospace;margin:8px 0 2px">${esc(title)}</div>` + list.map(({ it, i }) => rowOf(it, i)).join('') : '';
+  let mins = '';
+  mlSortedRegions().forEach(r => {
+    const gs = new Set(allRegionGeos.filter(rg => String(rg.region_id) === String(r.id)).map(rg => (rg.geo || '').toUpperCase()));
+    const list = bundleGeoMin.items.map((it, i) => ({ it, i })).filter(x => !used.has(x.i) && gs.has((x.it.geo || '').toUpperCase()))
+      .sort((a, b) => a.it.geo.localeCompare(b.it.geo));
+    list.forEach(x => used.add(x.i));
+    mins += grpHtml(r.name, list);
+  });
+  mins += grpHtml(mins ? 'Без региона' : '', bundleGeoMin.items.map((it, i) => ({ it, i })).filter(x => !used.has(x.i)));
   el.innerHTML = `
     <label class="ml-chk" style="margin-bottom:6px"><input type="checkbox" ${bundleApplyMargin ? 'checked' : ''} onchange="toggleBundleApplyMargin();mlRenderSettings()" style="accent-color:var(--accent)">Вычитать маржу из ставки</label>
     ${tiers}<button class="btn btn-ghost" onclick="addMarginTier();mlRenderSettings()" style="font-size:11px;padding:4px 8px;margin:4px 0 12px"><i class="ti ti-plus"></i>Уровень</button>
