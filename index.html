@@ -3082,6 +3082,41 @@ function openTaskDetail(id, startInEdit = false) {
   document.getElementById('taskDetailOverlay').classList.remove('hidden');
 }
 
+// quick note template: "Жду фид от <partner>" — pick a partner from the list, it is added to the note
+let _noteTplNames = null;
+async function toggleNoteTpl() {
+  const p = document.getElementById('noteTplPanel');
+  const open = p.style.display === 'none';
+  p.style.display = open ? 'block' : 'none';
+  if (!open) return;
+  if (!_noteTplNames) {
+    const names = new Map();
+    (allPartners || []).forEach(x => { const n = (x.name || '').trim(); if (n) names.set(n.toLowerCase(), n); });
+    if (!names.size) {
+      const { data } = await sb.from('partners').select('name');
+      (data || []).forEach(x => { const n = (x.name || '').trim(); if (n) names.set(n.toLowerCase(), n); });
+    }
+    _noteTplNames = [...names.values()].sort((a, b) => a.localeCompare(b));
+  }
+  document.getElementById('noteTplSearch').value = '';
+  renderNoteTplList();
+  document.getElementById('noteTplSearch').focus();
+}
+function renderNoteTplList() {
+  const q = (document.getElementById('noteTplSearch').value || '').toLowerCase().trim();
+  const list = (_noteTplNames || []).filter(n => !q || n.toLowerCase().includes(q));
+  document.getElementById('noteTplList').innerHTML = list.length
+    ? list.map(n => `<div onclick="pickNoteTplPartner(decodeURIComponent('${encodeURIComponent(n)}'))" style="padding:7px 12px;font-size:12.5px;cursor:pointer;color:var(--text1)" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''">${n.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</div>`).join('')
+    : '<div style="padding:10px 12px;font-size:11px;color:var(--text3)">Никого не найдено</div>';
+}
+function pickNoteTplPartner(name) {
+  const ta = document.getElementById('taskDetailNotes');
+  const line = 'Жду фид от ' + name;
+  ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' + line : line;
+  document.getElementById('noteTplPanel').style.display = 'none';
+  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
 function renderTaskDetail() {
   const t = allTasks.find(x => x.id === _detailTaskId);
   if (!t) return;
@@ -3111,6 +3146,13 @@ function renderTaskDetail() {
         <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px"><i class="ti ti-note" style="margin-right:4px"></i>Заметка (видна всем)</label>
         <textarea id="taskDetailNotes" class="form-input" placeholder="Любые пометки, которые помогут тебе..."
           style="width:100%;font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;border-radius:9px;padding:12px 14px;min-height:70px;max-height:30vh;resize:vertical"></textarea>
+        <div style="margin-top:6px">
+          <button type="button" class="ml-pill" onclick="toggleNoteTpl()" title="Вставить «Жду фид от …» и выбрать партнёра"><i class="ti ti-clock-hour-4" style="margin-right:4px"></i>Жду фид от…</button>
+          <div id="noteTplPanel" style="display:none;margin-top:6px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg3);overflow:hidden">
+            <input class="form-input" id="noteTplSearch" autocomplete="off" placeholder="Поиск партнёра..." oninput="renderNoteTplList()" style="border:none;border-bottom:0.5px solid var(--border);border-radius:0;font-size:12px">
+            <div id="noteTplList" style="max-height:180px;overflow-y:auto"></div>
+          </div>
+        </div>
       </div>`;
     const ta = document.getElementById('taskDetailText');
     ta.value = t.title || '';
