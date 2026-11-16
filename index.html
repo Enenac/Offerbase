@@ -3372,6 +3372,135 @@ async function updateRequestsBadge() {
   el.style.display = n > 0 ? 'flex' : 'none';
 }
 
+// ── Requests: batch AI processing with an editable prompt ──
+// The prompt lives in app_settings (shared between devices, key requests_ai_prompt) with a localStorage cache.
+// For each selected request the raw text goes to /api/process-request with that prompt; the answer replaces requests.notes.
+const AI_DEFAULT_PROMPT = `Ты помогаешь менеджеру по офферам. На вход — сырое сообщение партнёра с запросом оффера(ов).
+Приведи его к единому формату — по одной строке на каждый отдельный запрос:
+ФЛАГ GEO • Бренд • Источник • Тип игры • Ставка
+Правила:
+- Ничего не выдумывай: если поля нет в тексте — пропусти его.
+- Источник нормализуй (фб → FB, гугл → Google), тип игры: Slots / Mix / Crash.
+- Если это общая просьба о подборке — одна строка «Подборка: гео через пробел».
+
+(Замени этот текст своим промптом.)`;
+let _aiCancel = false, _aiRunning = false;
+const aiPromptKey = () => 'requests_ai_prompt:' + currentProject;
+
+async function openAiReqModal() {
+  document.getElementById('aiReqOverlay').classList.remove('hidden');
+  document.getElementById('aiTestOut').style.display = 'none';
+  document.getElementById('aiProgress').style.display = 'none';
+  let prompt = null;
+  try { prompt = localStorage.getItem(aiPromptKey()); } catch (_) {}
+  document.getElementById('aiPrompt').value = prompt || AI_DEFAULT_PROMPT;
+  aiReqRefresh();
+  try { // shared copy wins over the local cache
+    const { data } = await sb.from('app_settings').select('value').eq('key', aiPromptKey()).maybeSingle();
+    if (data && data.value && typeof data.value.prompt === 'string' && data.value.prompt.trim()) {
+      document.getElementById('aiPrompt').value = data.value.prompt;
+      try { localStorage.setItem(aiPromptKey(), data.value.prompt); } catch (_) {}
+    }
+  } catch (_) {}
+}
+function closeAiReqModal() { if (_aiRunning && !confirm('Обработка идёт. Остановить и закрыть?')) return; _aiCancel = true; document.getElementById('aiReqOverlay').classList.add('hidden'); }
+
+async function aiSavePrompt() {
+  const prompt = document.getElementById('aiPrompt').value;
+  try { localStorage.setItem(aiPromptKey(), prompt); } catch (_) {}
+  const st = document.getElementById('aiPromptState');
+  const { error } = await sb.from('app_settings').upsert({ key: aiPromptKey(), value: { prompt }, updated_at: new Date().toISOString() });
+  st.textContent = error ? 'Сохранено только в этом браузере (нет таблицы app_settings)' : 'Сохранено ✓ (общий для всех устройств)';
+  setTimeout(() => { st.textContent = ''; }, 4000);
+}
+
+// which requests the current filter selects
+function aiCandidates() {
+  const scope = document.getElementById('aiScope').value;
+  const n = Math.max(1, Math.min(200, +document.getElementById('aiLastN').value || 10));
+  const onlyNew = document.getElementById('aiOnlyNew').checked, skipDone = document.getElementById('aiSkipDone').checked;
+  const days = { today: 0, '3d': 2, week: 6 }[scope];
+  let from = null;
+  if (days != null) { from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - days); }
+  let list = allRequests.filter(r => (r.raw_text || '').trim()
+    && (!onlyNew || r.status === 'new')
+    && !['not_found', 'kultra', 'wishlist', 'rejected'].includes(r.status)
+    && (!skipDone || !(r.notes || '').trim())
+    && (!from || (r.created_at && new Date(r.created_at) >= from)));
+  list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  return scope === 'last' ? list.slice(0, n) : list.slice(0, 200);
+}
+function aiReqRefresh() {
+  const scope = document.getElementById('aiScope').value;
+  document.getElementById('aiLastN').style.display = scope === 'last' ? '' : 'none';
+  const c = aiCandidates();
+  document.getElementById('aiCount').textContent = c.length ? `Будет обработано запросов: ${c.length}` : 'По этим условиям запросов нет';
+}
+
+async function aiCall(prompt, text) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 40000);
+  try {
+    const resp = await fetch('/api/process-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, text }), signal: controller.signal });
+    const raw = await resp.text();
+    let j; try { j = JSON.parse(raw); } catch { throw new Error(`сервер вернул не JSON (код ${resp.status})`); }
+    if (!resp.ok || !j.ok) throw new Error(j.detail || j.error || `код ${resp.status}`);
+    return j.result;
+  } catch (e) { throw new Error(e.name === 'AbortError' ? 'нет ответа за 40с' : e.message); }
+  finally { clearTimeout(timer); }
+}
+
+async function aiTest() {
+  const prompt = document.getElementById('aiPrompt').value.trim();
+  let text = document.getElementById('aiTestText').value.trim();
+  if (!text) { const c = aiCandidates()[0] || allRequests.find(r => (r.raw_text || '').trim()); text = c ? c.raw_text : ''; }
+  if (!prompt) { showToast('Промпт пустой', 'error'); return; }
+  if (!text) { showToast('Нет текста для проверки', 'error'); return; }
+  const btn = document.getElementById('aiTestBtn'), out = document.getElementById('aiTestOut');
+  btn.disabled = true; out.style.display = 'block'; out.textContent = 'Обрабатываю…';
+  try { out.textContent = (await aiCall(prompt, text)) || '(пустой ответ)'; }
+  catch (e) { out.textContent = 'Ошибка: ' + e.message; }
+  finally { btn.disabled = false; }
+}
+
+async function aiRun() {
+  if (_aiRunning) { _aiCancel = true; return; }
+  const prompt = document.getElementById('aiPrompt').value.trim();
+  if (!prompt) { showToast('Промпт пустой', 'error'); return; }
+  if (prompt === AI_DEFAULT_PROMPT.trim() && !confirm('Промпт ещё стандартный (заглушка). Всё равно обработать?')) return;
+  const list = aiCandidates();
+  if (!list.length) { showToast('Нет запросов для обработки', 'error'); return; }
+  if (!document.getElementById('aiSkipDone').checked && list.some(r => (r.notes || '').trim()) && !confirm('У части запросов поле «Новый формат» уже заполнено — оно будет перезаписано. Продолжить?')) return;
+  try { localStorage.setItem(aiPromptKey(), prompt); } catch (_) {}
+  _aiRunning = true; _aiCancel = false;
+  const btn = document.getElementById('aiRunBtn'), pr = document.getElementById('aiProgress');
+  btn.innerHTML = '<i class="ti ti-player-stop"></i>Остановить';
+  pr.style.display = 'block';
+  let done = 0, ok = 0; const fails = [];
+  const upd = () => { pr.textContent = `Обработано ${done} из ${list.length} · успешно ${ok}` + (fails.length ? ` · ошибок ${fails.length}` : ''); };
+  upd();
+  let idx = 0;
+  const worker = async () => {
+    while (!_aiCancel) {
+      const r = list[idx++]; if (!r) return;
+      try {
+        const result = await aiCall(prompt, r.raw_text);
+        if (!result) throw new Error('пустой ответ');
+        const { error } = await sb.from('requests').update({ notes: result }).eq('id', r.id);
+        if (error) throw new Error(error.message);
+        r.notes = result; ok++;
+      } catch (e) { fails.push(`${(r.raw_text || '').slice(0, 40).replace(/\s+/g, ' ')}… — ${e.message}`); }
+      done++; upd();
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  _aiRunning = false;
+  btn.innerHTML = '<i class="ti ti-sparkles"></i>Обработать';
+  pr.innerHTML = `${_aiCancel ? 'Остановлено. ' : 'Готово. '}Обработано ${done} из ${list.length} · успешно ${ok}` + (fails.length ? ` · ошибок ${fails.length}<div style="margin-top:6px;color:var(--red);font-size:11px;white-space:pre-wrap">${fails.map(f => esc(f)).join('\n')}</div>` : '');
+  renderRequests(); aiReqRefresh();
+  showToast(`ИИ-обработка: ${ok} из ${list.length}`, fails.length ? 'error' : 'success');
+}
+
 async function loadRequests() {
   reqProject = currentProject; // always sync with global project
   const [r1, r2, r3, r4] = await Promise.all([
@@ -8436,6 +8565,7 @@ function showToast(msg,type='success') {
         <button class="btn btn-ghost req-view" data-view="cards" onclick="setReqView('cards')" style="font-size:12px;padding:5px 11px" title="Карточки"><i class="ti ti-layout-kanban"></i></button>
         <button class="btn btn-ghost req-view active" data-view="list" onclick="setReqView('list')" style="font-size:12px;padding:5px 11px" title="Список"><i class="ti ti-list"></i></button>
       </div>
+      <button class="btn btn-ghost" onclick="openAiReqModal()" title="Привести запросы к единому формату по твоему промпту"><i class="ti ti-sparkles"></i>ИИ-обработка</button>
       <button class="btn btn-primary" onclick="openNewRequestModal()"><i class="ti ti-plus"></i>Новый запрос</button>
     </div>
   </div>
@@ -8531,6 +8661,49 @@ function showToast(msg,type='success') {
       <span style="margin-right:auto;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Ctrl+Enter — сохранить</span>
       <button class="btn btn-ghost" onclick="closeProposeModal()">Отмена</button>
       <button class="btn btn-primary" onclick="confirmPropose()"><i class="ti ti-check"></i>Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI BATCH PROCESSING OF REQUESTS ───────────────── -->
+<div class="modal-overlay hidden" id="aiReqOverlay" onclick="if(event.target===this)closeAiReqModal()">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="ti ti-sparkles"></i>ИИ-обработка запросов</span>
+      <button class="icon-btn" onclick="closeAiReqModal()" style="color:var(--text3)"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;max-height:75vh;overflow-y:auto">
+      <div>
+        <div class="ml-h">Какие запросы обработать</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+          <select class="form-select" id="aiScope" onchange="aiReqRefresh()" style="width:auto;font-size:12px">
+            <option value="last">Последние</option><option value="today">За сегодня</option><option value="3d">За 3 дня</option><option value="week">За неделю</option>
+          </select>
+          <input type="number" id="aiLastN" class="form-input no-spin" value="10" min="1" max="200" oninput="aiReqRefresh()" style="width:70px;font-size:12px">
+          <label class="ml-chk"><input type="checkbox" id="aiOnlyNew" checked onchange="aiReqRefresh()" style="accent-color:var(--accent)">Только «Новые»</label>
+          <label class="ml-chk"><input type="checkbox" id="aiSkipDone" checked onchange="aiReqRefresh()" style="accent-color:var(--accent)">Пропускать уже заполненные</label>
+        </div>
+        <div id="aiCount" style="font-size:12px;color:var(--text3);margin-top:8px"></div>
+      </div>
+      <div>
+        <div class="ml-h">Промпт <span class="ml-sub">— по нему ИИ приводит каждый запрос к единому формату; результат пишется в «Новый формат»</span></div>
+        <textarea id="aiPrompt" class="form-input" spellcheck="false" style="width:100%;min-height:190px;resize:vertical;font-size:12.5px;line-height:1.55;font-family:'IBM Plex Mono',monospace;box-sizing:border-box"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button class="btn btn-ghost" onclick="aiSavePrompt()" style="font-size:11px;padding:4px 10px"><i class="ti ti-device-floppy"></i>Сохранить промпт</button>
+          <span id="aiPromptState" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+      </div>
+      <div>
+        <div class="ml-h">Проверка промпта <span class="ml-sub">— ничего не сохраняет</span></div>
+        <textarea id="aiTestText" class="form-input" spellcheck="false" placeholder="Вставь текст запроса — или оставь пустым, возьмём самый свежий из выбранных" style="width:100%;min-height:56px;resize:vertical;font-size:12px;box-sizing:border-box"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn btn-ghost" id="aiTestBtn" onclick="aiTest()" style="font-size:12px"><i class="ti ti-flask"></i>Проверить</button></div>
+        <pre id="aiTestOut" style="display:none;margin:8px 0 0;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border2);border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;color:var(--text1)"></pre>
+      </div>
+      <div id="aiProgress" style="display:none;font-size:12px;color:var(--text2)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAiReqModal()">Закрыть</button>
+      <button class="btn btn-primary" id="aiRunBtn" onclick="aiRun()"><i class="ti ti-sparkles"></i>Обработать</button>
     </div>
   </div>
 </div>
