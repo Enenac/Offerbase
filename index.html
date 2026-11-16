@@ -1359,7 +1359,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       showToast('Запрос сохранён', 'success');
       await loadRequests();
       if (typeof mSection !== 'undefined' && mSection === 'requests') renderMobileRequests();
-      if (data?.id) autoParseRequestOnCreate(data.id, raw_text); // fire-and-forget — fills "Новый формат" in the background
+      // auto AI parse on create is switched off — processing is manual now (Запросы → «ИИ-обработка»)
     });
   }
 
@@ -4268,7 +4268,7 @@ async function saveNewRequest() {
   showToast('Запрос сохранён', 'success');
   await loadRequests();
   if (typeof mSection !== 'undefined' && mSection === 'requests') renderMobileRequests();
-  if (data?.id) autoParseRequestOnCreate(data.id, raw_text); // fire-and-forget — fills "Новый формат" in the background
+  // auto AI parse on create is switched off — processing is manual now (Запросы → «ИИ-обработка»)
 }
 
 
