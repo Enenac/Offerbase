@@ -6192,6 +6192,20 @@ document.addEventListener('mousedown', e => {
   }
 });
 
+// "Источник оффера" suggestions: our existing partners, so the name isn't typed in full each time
+async function fillDelPartnersList() {
+  const dl = document.getElementById('delPartnersList'); if (!dl || dl.dataset.filled) return;
+  const names = new Map();
+  (allPartners || []).forEach(x => { const n = (x.name || '').trim(); if (n) names.set(n.toLowerCase(), n); });
+  if (!names.size) {
+    const { data } = await sb.from('partners').select('name');
+    (data || []).forEach(x => { const n = (x.name || '').trim(); if (n) names.set(n.toLowerCase(), n); });
+  }
+  if (!names.size) return;
+  dl.innerHTML = [...names.values()].sort((a, b) => a.localeCompare(b)).map(n => `<option value="${esc(n)}"></option>`).join('');
+  dl.dataset.filled = '1';
+}
+
 function openAddDeliveryModal() {
   _delParsedCache = { text: null, fields: null };
   toggleDelAdvanced(false);
@@ -8841,7 +8855,7 @@ function showToast(msg,type='success') {
 <div style="margin-bottom:12px">
         <div class="form-group">
           <label class="form-label">Источник оффера</label>
-          <input class="form-input" id="del-by" placeholder="Кто нам дал оффер...">
+          <input class="form-input" id="del-by" list="delPartnersList" autocomplete="off" placeholder="Кто нам дал оффер..." onfocus="fillDelPartnersList()"><datalist id="delPartnersList"></datalist>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
