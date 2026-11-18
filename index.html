@@ -3408,6 +3408,7 @@ async function openAiReqModal() {
   document.getElementById('aiReqOverlay').classList.remove('hidden');
   document.getElementById('aiTestOut').style.display = 'none';
   document.getElementById('aiProgress').style.display = 'none';
+  document.getElementById('aiResultBox').style.display = 'none';
   let prompt = null;
   try { prompt = localStorage.getItem(aiPromptKey()); } catch (_) {}
   document.getElementById('aiPrompt').value = prompt || AI_DEFAULT_PROMPT;
@@ -3446,6 +3447,11 @@ function aiCandidates() {
     && (!from || (r.created_at && new Date(r.created_at) >= from)));
   list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   return scope === 'last' ? list.slice(0, n) : list.slice(0, 200);
+}
+function aiCopyResult() {
+  const t = document.getElementById('aiResult').value.trim();
+  if (!t) return;
+  navigator.clipboard.writeText(t).then(() => showToast('Список скопирован', 'success'), () => showToast('Не удалось скопировать', 'error'));
 }
 function aiReqRefresh() {
   const scope = document.getElementById('aiScope').value;
@@ -3487,25 +3493,31 @@ async function aiRun() {
   if (prompt === AI_DEFAULT_PROMPT.trim() && !confirm('Промпт ещё стандартный (заглушка). Всё равно обработать?')) return;
   const list = aiCandidates();
   if (!list.length) { showToast('Нет запросов для обработки', 'error'); return; }
-  if (!document.getElementById('aiSkipDone').checked && list.some(r => (r.notes || '').trim()) && !confirm('У части запросов поле «Новый формат» уже заполнено — оно будет перезаписано. Продолжить?')) return;
+  if (document.getElementById('aiSaveNotes').checked && !document.getElementById('aiSkipDone').checked && list.some(r => (r.notes || '').trim()) && !confirm('У части запросов поле «Новый формат» уже заполнено — оно будет перезаписано. Продолжить?')) return;
   try { localStorage.setItem(aiPromptKey(), prompt); } catch (_) {}
   _aiRunning = true; _aiCancel = false;
   const btn = document.getElementById('aiRunBtn'), pr = document.getElementById('aiProgress');
   btn.innerHTML = '<i class="ti ti-player-stop"></i>Остановить';
   pr.style.display = 'block';
-  let done = 0, ok = 0; const fails = [];
+  let done = 0, ok = 0; const fails = [], results = new Array(list.length).fill(null);
+  const saveNotes = document.getElementById('aiSaveNotes').checked;
+  document.getElementById('aiResultBox').style.display = 'none';
   const upd = () => { pr.textContent = `Обработано ${done} из ${list.length} · успешно ${ok}` + (fails.length ? ` · ошибок ${fails.length}` : ''); };
   upd();
   let idx = 0;
   const worker = async () => {
     while (!_aiCancel) {
-      const r = list[idx++]; if (!r) return;
+      const my = idx++, r = list[my]; if (!r) return;
       try {
         const result = await aiCall(prompt, r.raw_text);
         if (!result) throw new Error('пустой ответ');
-        const { error } = await sb.from('requests').update({ notes: result }).eq('id', r.id);
-        if (error) throw new Error(error.message);
-        r.notes = result; ok++;
+        results[my] = result;
+        if (saveNotes) {
+          const { error } = await sb.from('requests').update({ notes: result }).eq('id', r.id);
+          if (error) throw new Error(error.message);
+          r.notes = result;
+        }
+        ok++;
       } catch (e) { fails.push(`${(r.raw_text || '').slice(0, 40).replace(/\s+/g, ' ')}… — ${e.message}`); }
       done++; upd();
     }
@@ -3514,7 +3526,20 @@ async function aiRun() {
   _aiRunning = false;
   btn.innerHTML = '<i class="ti ti-sparkles"></i>Обработать';
   pr.innerHTML = `${_aiCancel ? 'Остановлено. ' : 'Готово. '}Обработано ${done} из ${list.length} · успешно ${ok}` + (fails.length ? ` · ошибок ${fails.length}<div style="margin-top:6px;color:var(--red);font-size:11px;white-space:pre-wrap">${fails.map(f => esc(f)).join('\n')}</div>` : '');
-  renderRequests(); aiReqRefresh();
+  // one combined list in the order of the selection; identical lines (same offer asked twice) are collapsed
+  const seen = new Set(), lines = [];
+  results.filter(Boolean).forEach(t => t.split('\n').forEach(l => {
+    const k = l.trim().toLowerCase();
+    if (!k) { if (lines.length && lines[lines.length - 1] !== '') lines.push(''); return; }
+    if (seen.has(k)) return; seen.add(k); lines.push(l.trimEnd());
+  }));
+  while (lines.length && lines[lines.length - 1] === '') lines.pop();
+  document.getElementById('aiResult').value = lines.join('\n');
+  document.getElementById('aiResultN').textContent = `— запросов обработано: ${ok}`;
+  document.getElementById('aiResultBox').style.display = ok ? '' : 'none';
+  if (ok) document.getElementById('aiResult').scrollIntoView({ block: 'nearest' });
+  if (saveNotes) renderRequests();
+  aiReqRefresh();
   showToast(`ИИ-обработка: ${ok} из ${list.length}`, fails.length ? 'error' : 'success');
 }
 
@@ -8713,7 +8738,8 @@ function showToast(msg,type='success') {
           </select>
           <input type="number" id="aiLastN" class="form-input no-spin" value="10" min="1" max="200" oninput="aiReqRefresh()" style="width:70px;font-size:12px">
           <label class="ml-chk"><input type="checkbox" id="aiOnlyNew" checked onchange="aiReqRefresh()" style="accent-color:var(--accent)">Только «Новые»</label>
-          <label class="ml-chk"><input type="checkbox" id="aiSkipDone" checked onchange="aiReqRefresh()" style="accent-color:var(--accent)">Пропускать уже заполненные</label>
+          <label class="ml-chk"><input type="checkbox" id="aiSkipDone" onchange="aiReqRefresh()" style="accent-color:var(--accent)">Пропускать уже заполненные</label>
+          <label class="ml-chk" title="По умолчанию запросы не меняются — результат только в окне ниже"><input type="checkbox" id="aiSaveNotes" style="accent-color:var(--accent)">Ещё и записать в «Новый формат»</label>
         </div>
         <div id="aiCount" style="font-size:12px;color:var(--text3);margin-top:8px"></div>
       </div>
@@ -8732,6 +8758,11 @@ function showToast(msg,type='success') {
         <pre id="aiTestOut" style="display:none;margin:8px 0 0;padding:10px 12px;background:var(--bg);border:0.5px solid var(--border2);border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;color:var(--text1)"></pre>
       </div>
       <div id="aiProgress" style="display:none;font-size:12px;color:var(--text2)"></div>
+      <div id="aiResultBox" style="display:none">
+        <div class="ml-h">Готовый список <span class="ml-sub" id="aiResultN"></span></div>
+        <textarea id="aiResult" class="export-text" spellcheck="false" style="width:100%;min-height:220px;resize:vertical;box-sizing:border-box"></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button class="btn btn-green" onclick="aiCopyResult()"><i class="ti ti-copy"></i>Скопировать список</button></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeAiReqModal()">Закрыть</button>
