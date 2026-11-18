@@ -1223,24 +1223,34 @@ function offerVerKey(o) {
 
 async function buildOfferVersionIndex() {
   const scopeKey = searchAllProjects ? 'both' : currentProject;
-  if (!_offerVersionsStale && _offerVersionsKey === scopeKey) return;
-
+  if (!_offerVersionsStale && _offerVersionsKey === scopeKey) return false;
+  if (_verBuilding && _verBuildingKey === scopeKey) return _verBuilding; // already in flight — share it
+  _verBuildingKey = scopeKey;
+  _verBuilding = _buildOfferVersionIndexNow(scopeKey).finally(() => { _verBuilding = null; });
+  return _verBuilding;
+}
+let _verBuilding = null, _verBuildingKey = null;
+async function _buildOfferVersionIndexNow(scopeKey) {
   const acc = {};
   const PAGE = 1000;
-  for (let i = 0; i < 500; i++) {
+  const page = async i => {
     let q = sb.from('offers').select('id,project,partner,geo,brand,traffic_source,game_type,rate,rate_usd_num,received_at,created_at,status');
     if (!searchAllProjects) q = q.eq('project', currentProject);
     const { data: chunk, error } = await q
       .order('received_at', { ascending: false, nullsFirst: false })
       .order('id')
       .range(i * PAGE, i * PAGE + PAGE - 1);
-    if (error || !chunk || !chunk.length) break;
-    chunk.forEach(o => {
+    return error ? [] : (chunk || []);
+  };
+  // pages are fetched 6 at a time instead of one after another (the table is 20k+ rows)
+  for (let i = 0; i < 500; i += 6) {
+    const chunks = await Promise.all([0, 1, 2, 3, 4, 5].map(d => page(i + d)));
+    chunks.forEach(chunk => chunk.forEach(o => {
       if (!o.partner || !o.brand || !o.geo) return; // need a full key to compare
       const k = offerVerKey(o);
       (acc[k] = acc[k] || []).push(o);
-    });
-    if (chunk.length < PAGE) break;
+    }));
+    if (chunks.some(c => c.length < PAGE)) break;
   }
   // newest first within each group
   Object.values(acc).forEach(list => list.sort((a, b) => {
@@ -1252,6 +1262,7 @@ async function buildOfferVersionIndex() {
   _offerVersions = acc;
   _offerVersionsKey = scopeKey;
   _offerVersionsStale = false;
+  return true;
 }
 
 // returns null when this offer has no other versions
@@ -1678,7 +1689,9 @@ async function runBackgroundSyncs() {
   }
 }
 
+let _fetchSeq = 0, _dynFiltersKey = null;
 async function fetchOffers() {
+  const seq = ++_fetchSeq;
   showLoading(true);
   const query = buildSupabaseQuery();
   const countQuery = buildSupabaseQuery(true);
@@ -1686,6 +1699,7 @@ async function fetchOffers() {
     query.range(0, PAGE_SIZE - 1),
     countQuery
   ]);
+  if (seq !== _fetchSeq) return; // a newer filter change already took over
   showLoading(false);
   if (error) { showToast('Ошибка загрузки: ' + error.message, 'error'); return; }
   allOffers = data || [];
@@ -1695,10 +1709,12 @@ async function fetchOffers() {
   // Scroll table back to top
   const container = document.querySelector('.table-container');
   if (container) container.scrollTop = 0;
-  await updateCounts();
-  await buildOfferVersionIndex();
-  buildDynamicFilters();
+  // show the rows right away; the heavy whole-table helpers (version index, filter lists, tab counts) run after and never block the table
   renderTable();
+  updateCounts();
+  const dynKey = currentProject + '|' + currentPage;
+  if (_dynFiltersKey !== dynKey || _offerVersionsStale) { _dynFiltersKey = dynKey; buildDynamicFilters(); }
+  buildOfferVersionIndex().then(rebuilt => { if (rebuilt && seq === _fetchSeq && currentPage_offers === 0) renderTable(); });
 }
 
 function buildSupabaseQuery(countOnly = false) {
