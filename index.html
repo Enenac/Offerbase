@@ -1908,7 +1908,8 @@ async function syncMinDeposits() {
   // fill only where that brand+geo has exactly one agreed value
   const byValue = {};
   (data || []).forEach(o => {
-    if (!isEmpty(o.min_deposit)) return; // already set (incl. explicit dash) — leave it
+    if (!isEmpty(o.min_deposit)) return; // already set — leave it
+    if (o.min_deposit != null && String(o.min_deposit).trim() !== '') return; // an explicit dash means "no min deposit" — never refill it
     if (!(o.brand || '').trim() || !(o.geo || '').trim()) return;
     const vals = known[keyOf(o)];
     if (!vals || vals.size !== 1) return; // unknown or conflicting → skip
