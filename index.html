@@ -5488,7 +5488,7 @@ function buildBundleEntries(rows, on, applyMargin) {
         const p = fieldPart(f, o);
         if (p) parts.push(p);
       }
-      return { geo: (o.geo || '').toUpperCase(), line: parts.join(' / ') };
+      return { geo: (o.geo || '').toUpperCase(), src: (o.traffic_source || '').trim().toLowerCase(), line: parts.join(' / ') };
     }
     for (const f of EXPORT_FIELDS) {
       if (!on(f.key)) continue;
@@ -5496,18 +5496,19 @@ function buildBundleEntries(rows, on, applyMargin) {
       if (!p) continue;
       parts.push(p);
     }
-    return { geo: (o.geo || '').toUpperCase(), line: parts.join(' • ') };
+    return { geo: (o.geo || '').toUpperCase(), src: (o.traffic_source || '').trim().toLowerCase(), line: parts.join(' • ') };
   }).filter(e => e.line);
 }
 
-function bundleEntriesToText(entries, groupByGeo) {
+function bundleEntriesToText(entries, groupByGeo, bySource) {
   if (!groupByGeo) return entries.map(e => e.line).join('\n');
-  // blank line between GEO blocks so the bundle reads cleanly in Telegram
-  let out = '', lastGeo = null;
+  // blank line between GEO blocks (and, with bySource, between sources inside a GEO) so the bundle reads cleanly in Telegram
+  let out = '', last = null;
   entries.forEach((e, i) => {
-    if (i > 0 && e.geo !== lastGeo) out += '\n';
+    const k = e.geo + (bySource ? '|' + e.src : '');
+    if (i > 0 && k !== last) out += '\n';
     out += e.line + '\n';
-    lastGeo = e.geo;
+    last = k;
   });
   return out.trimEnd();
 }
@@ -7275,6 +7276,16 @@ function mlRegionRank(name) {
 }
 const mlSortedRegions = () => [...allRegions].sort((a, b) => mlRegionRank(a.name) - mlRegionRank(b.name) || (a.name || '').localeCompare(b.name || ''));
 
+// source order inside a GEO: FB, INAP, PPC, ASO, SEO, ML, UAC, then everything else alphabetically
+const ML_SRC_ORDER = ['fb', 'inap', 'ppc', 'aso', 'seo', 'ml', 'uac'];
+function mlSrcRank(src) {
+  let k = (src || '').toLowerCase().replace(/[^a-zа-я0-9]/g, '');
+  if (k === 'facebook' || k === 'фб') k = 'fb';
+  if (k === 'inapp') k = 'inap';
+  const i = ML_SRC_ORDER.indexOf(k);
+  return i >= 0 ? [i, ''] : [ML_SRC_ORDER.length, k || '~'];
+}
+
 function mlDates(preset) {
   const now = new Date(), day = now.getDay();
   const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
@@ -7477,6 +7488,10 @@ async function mlBuild() {
     rows.sort((a, b) => {
       const ai = order.get((a.geo || '').toUpperCase()), bi = order.get((b.geo || '').toUpperCase());
       if (ai !== bi) return ai - bi;
+      // inside a GEO: by source in the fixed order, and only then best rate first (rates of different sources aren't comparable)
+      const sa = mlSrcRank(a.traffic_source), sb2 = mlSrcRank(b.traffic_source);
+      if (sa[0] !== sb2[0]) return sa[0] - sb2[0];
+      if (sa[1] !== sb2[1]) return sa[1].localeCompare(sb2[1]);
       return ML.sort ? mlShownUsd(b) - mlShownUsd(a) : 0;
     });
     // one block per region: its name, then its offers (GEO by GEO, best rate first)
@@ -7489,7 +7504,7 @@ async function mlBuild() {
       const ents = buildBundleEntries(gr, k => exportFieldsEnabled[k], bundleApplyMargin);
       if (!ents.length) return;
       total += ents.length;
-      blocks.push((g.name ? g.name + '\n' : '') + bundleEntriesToText(ents, true));
+      blocks.push((g.name ? g.name + '\n' : '') + bundleEntriesToText(ents, true, true));
     });
     const entries = { length: total };
     _mlRows = ordered; _mlBuilt = true;
