@@ -1657,7 +1657,11 @@ async function loadOffers() {
   document.getElementById('offersTable').classList.add('hidden');
   document.getElementById('emptyState').classList.add('hidden');
   await fetchRates();
-  await autoExpireOffers();
+  // expiry is a bulk UPDATE — never make the table wait for it; run it at most every 10 min
+  try {
+    const last = +localStorage.getItem('autoExpireAt') || 0;
+    if (Date.now() - last > 600000) { localStorage.setItem('autoExpireAt', Date.now()); autoExpireOffers().then(() => { _offerVersionsStale = true; }); }
+  } catch (e) { autoExpireOffers(); }
   // Default filter: active only
   if (!filters.status) {
     filters.status = 'active';
@@ -6602,12 +6606,18 @@ async function loadRegions() {
   const [r1, r2, r3] = await Promise.all([
     sb.from('regions').select('*').order('name'),
     sb.from('region_geos').select('*'),
-    sb.from('offers').select('geo').not('geo', 'is', null).limit(100000)
+    Promise.resolve(null)
   ]);
   allRegions = r1.data || [];
   allRegionGeos = r2.data || [];
-  window._allRegionGeoOptions = [...new Set((r3.data || []).map(o => o.geo).filter(Boolean))].sort();
   renderRegionsList();
+  // the full list of GEOs in the DB is a heavy read — fetch it in the background, once
+  if (!window._geoOptsP) {
+    window._geoOptsP = sb.from('offers').select('geo').not('geo', 'is', null).limit(100000).then(r => {
+      window._allRegionGeoOptions = [...new Set((r.data || []).map(o => o.geo).filter(Boolean))].sort();
+      renderRegionsList();
+    }).catch(() => { window._geoOptsP = null; });
+  }
 }
 
 function renderRegionsList() {
