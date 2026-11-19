@@ -1236,16 +1236,16 @@ async function _buildOfferVersionIndexNow(scopeKey) {
   const page = async i => {
     let q = sb.from('offers').select('id,project,partner,geo,brand,traffic_source,game_type,rate,rate_usd_num,received_at,created_at,status');
     if (!searchAllProjects) q = q.eq('project', currentProject);
-    q = q.gte('received_at', sinceStr); // versions older than ~4 months don't matter for "было …" badges and made this scan huge
+    q = q.gte('received_at', sinceStr); // only the last 3 weeks: the table holds 30k+ rows per 4 months, and deep-offset pages over all of it were what froze the database
     const { data: chunk, error } = await q
       .order('received_at', { ascending: false, nullsFirst: false })
       .order('id')
       .range(i * PAGE, i * PAGE + PAGE - 1);
     return error ? [] : (chunk || []);
   };
-  const sinceStr = new Date(Date.now() - 120 * 86400000).toISOString().split('T')[0];
+  const sinceStr = new Date(Date.now() - 21 * 86400000).toISOString().split('T')[0];
   // pages are fetched 3 at a time (not one by one, not all at once — that would hammer the database)
-  for (let i = 0; i < 500; i += 3) {
+  for (let i = 0; i < 30; i += 3) { // hard cap: 30k rows
     const chunks = await Promise.all([0, 1, 2].map(d => page(i + d)));
     chunks.forEach(chunk => chunk.forEach(o => {
       if (!o.partner || !o.brand || !o.geo) return; // need a full key to compare
