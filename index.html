@@ -1236,15 +1236,17 @@ async function _buildOfferVersionIndexNow(scopeKey) {
   const page = async i => {
     let q = sb.from('offers').select('id,project,partner,geo,brand,traffic_source,game_type,rate,rate_usd_num,received_at,created_at,status');
     if (!searchAllProjects) q = q.eq('project', currentProject);
+    q = q.gte('received_at', sinceStr); // versions older than ~4 months don't matter for "было …" badges and made this scan huge
     const { data: chunk, error } = await q
       .order('received_at', { ascending: false, nullsFirst: false })
       .order('id')
       .range(i * PAGE, i * PAGE + PAGE - 1);
     return error ? [] : (chunk || []);
   };
-  // pages are fetched 6 at a time instead of one after another (the table is 20k+ rows)
-  for (let i = 0; i < 500; i += 6) {
-    const chunks = await Promise.all([0, 1, 2, 3, 4, 5].map(d => page(i + d)));
+  const sinceStr = new Date(Date.now() - 120 * 86400000).toISOString().split('T')[0];
+  // pages are fetched 3 at a time (not one by one, not all at once — that would hammer the database)
+  for (let i = 0; i < 500; i += 3) {
+    const chunks = await Promise.all([0, 1, 2].map(d => page(i + d)));
     chunks.forEach(chunk => chunk.forEach(o => {
       if (!o.partner || !o.brand || !o.geo) return; // need a full key to compare
       const k = offerVerKey(o);
@@ -1592,7 +1594,7 @@ function initApp() {
   initSearchClear();
   document.title = 'Офферы';
   loadOffers();
-  loadPartners();
+  setTimeout(loadPartners, 3000); // not needed for the first screen
   loadRegions();
   loadBundleSettings(false);
   updateRequestsBadge();
@@ -1667,12 +1669,14 @@ async function loadOffers() {
 
   // heavy full-table syncs run in the background so the table shows immediately;
   // when they finish (and only if they actually changed something) the view refreshes
-  runBackgroundSyncs();
+  setTimeout(runBackgroundSyncs, 8000);
 }
 
 let _bgSyncRunning = false;
 async function runBackgroundSyncs() {
   if (_bgSyncRunning) return;
+  // each sync reads the whole offers table — once per 30 minutes per browser is plenty
+  try { if (Date.now() - (+localStorage.getItem('bgSyncAt') || 0) < 30 * 60 * 1000) return; localStorage.setItem('bgSyncAt', String(Date.now())); } catch (_) {}
   _bgSyncRunning = true;
   try {
     const changed = await syncPlatforms();
@@ -7886,17 +7890,22 @@ async function partnerWrite(fn, payload) {
 }
 
 async function loadPartners() {
-  const offerQ = cols => sb.from('offers').select(cols).eq('project', currentProject).limit(100000);
-  let [partnersRes, countsRes] = await Promise.all([
+  // Network offers (thousands of rows) only need the columns the cards show (no deposit/cap/conversion/notes); the full brand details are
+  // loaded just for Direct offers — pulling every column of the whole table made every page open slow
+  const offerQ = cols => sb.from('offers').select(cols).eq('project', currentProject);
+  const directQ = cols => offerQ(cols).eq('partner_type', 'Direct').limit(100000);
+  const netQ = offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, platform, partner_type').or('partner_type.neq.Direct,partner_type.is.null').limit(100000);
+  let [partnersRes, netRes, dirRes] = await Promise.all([
     sb.from('partners').select('*').eq('project', currentProject).order('name'),
-    offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, platform, min_deposit, capa, conversion, other')
+    netQ,
+    directQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, platform, min_deposit, capa, conversion, other, partner_type')
   ]);
-  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, platform, min_deposit, capa');
-  if (countsRes.error) countsRes = await offerQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, platform, min_deposit, capa');
+  if (dirRes.error) dirRes = await directQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, no_fb, platform, min_deposit, capa, partner_type');
+  if (dirRes.error) dirRes = await directQ('id, partner, status, brand, geo, rate, traffic_source, game_type, kpi, platform, min_deposit, capa, partner_type');
   if (partnersRes.error) { showToast('Ошибка загрузки партнёров: ' + partnersRes.error.message, 'error'); return; }
   allPartners = partnersRes.data || [];
   // Store offer data for partner grid
-  window._partnerOffers = countsRes.data || [];
+  window._partnerOffers = [...(netRes.data || []), ...(dirRes.data || [])];
   detectOrphanPartners();
   renderPartnersGrid();
 }
